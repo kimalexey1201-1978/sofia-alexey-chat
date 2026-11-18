@@ -44,7 +44,7 @@ export default {
               "X-Title": "Sofia and Alexey"
             },
             body: JSON.stringify({
-              model: env.OPENROUTER_MODEL || "nvidia/nemotron-3-nano-30b-a3b",
+              model: env.OPENROUTER_MODEL || "openrouter/free",
               messages: body.messages,
               temperature: 0.7
             })
