@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/integration-adapter.schema.json",
+  "title": "Sofia Integration Adapter",
+  "description": "Registered integration adapter with explicit platform, authentication, capability, and verification metadata.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["adapter_id", "adapter_version", "provider_id", "integration_type", "supported_operations", "status"],
+  "properties": {
+    "adapter_id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*){1,7}$", "maxLength": 160 },
+    "adapter_version": { "type": "string", "maxLength": 64 },
+    "provider_id": { "type": "string", "maxLength": 160 },
+    "provider_name": { "type": "string", "maxLength": 256 },
+    "integration_type": { "type": "string", "enum": ["official_api", "oauth_connector", "webhook", "device_protocol", "os_intent", "user_mediated_ui"] },
+    "api_version": { "type": "string", "maxLength": 64 },
+    "platforms": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["android", "windows", "linux", "macos", "web", "server"] }
+    },
+    "supported_operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 160 }
+    },
+    "required_scopes": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 256 }
+    },
+    "official_documentation_uri": { "type": "string", "maxLength": 2048 },
+    "capability_evidence_ref": { "type": "string", "maxLength": 256 },
+    "last_verified_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["discovered", "pending_review", "enabled", "restricted", "disabled", "deprecated", "error"] }
+  }
+}
