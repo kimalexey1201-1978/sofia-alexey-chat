@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/location-access-request.schema.json",
+  "title": "Sofia Location Access Request",
+  "description": "Request for purpose-limited location access at a declared precision and duration.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "principal_id", "purpose", "precision", "access_mode", "requested_at"],
+  "properties": {
+    "request_id": { "type": "string", "format": "uuid" },
+    "principal_id": { "type": "string", "maxLength": 128 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "precision": { "type": "string", "enum": ["approximate", "precise"] },
+    "access_mode": { "type": "string", "enum": ["single_fix", "while_in_use", "background_bounded"] },
+    "duration_seconds": { "type": "integer", "minimum": 1, "maximum": 2592000 },
+    "requested_at": { "type": "string", "format": "date-time" },
+    "recipient_ref": { "type": "string", "maxLength": 256 },
+    "consent_ref": { "type": "string", "maxLength": 256 },
+    "status": { "type": "string", "enum": ["requested", "granted", "denied", "revoked", "expired"] }
+  }
+}
