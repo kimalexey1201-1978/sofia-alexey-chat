@@ -274,3 +274,29 @@ test("failed atomic commit leaves evidence, decision, outbox and task unchanged"
   });
   assert.ok(lease, "failed transaction must not strand the lease");
 });
+
+
+test("replayed identical evidence is deduplicated while each reconciliation remains audited", async () => {
+  const replay = evidence("STILL_UNKNOWN");
+  replay.evidence_digest = "5".repeat(64);
+  replay.evidence_ref = "provider-evidence:replayed";
+  const { durable, protectedStore, adapter, coordinator } = await setup([replay]);
+  adapter.queryOperationStatus = async request => {
+    adapter.calls.push({ providerId: request.provider_id,
+      providerOperationRef: request.provider_operation_ref });
+    return {
+      provider_id: "provider-x",
+      provider_operation_ref: "operation-123",
+      evidence_records: [structuredClone(replay)]
+    };
+  };
+  const first = await coordinator.reconcile({ taskId, owner: "worker-first" });
+  const second = await coordinator.reconcile({ taskId, owner: "worker-second" });
+  assert.equal(first.reconciled, true);
+  assert.equal(second.reconciled, true);
+  assert.equal(adapter.calls.length, 2);
+  assert.equal((await protectedStore.listEvidence(taskId)).length, 1);
+  assert.equal((await durable.listEvidenceEntries(taskId)).length, 1);
+  assert.equal(durable.decisions.length, 2);
+  assert.equal(durable.outbox.length, 2);
+});
