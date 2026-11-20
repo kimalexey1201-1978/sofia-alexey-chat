@@ -1,0 +1,50 @@
+import { validateTaskPlan } from "./task-planner.mjs";
+import { assessExecutorCandidate } from "./executor-manager.mjs";
+import { evaluateExecutionAdmission } from "./execution-supervisor.mjs";
+
+/**
+ * Preparation-only orchestration. It validates the plan, screens candidate
+ * executors, and evaluates action-bound admission evidence. It never dispatches.
+ * Evidence must be loaded and authenticated by trusted host services.
+ */
+export function prepareExecution(plan, candidates, task, now = new Date()) {
+  const planCheck = validateTaskPlan(plan);
+  if (!planCheck.ok) {
+    return { ok: false, status: "REJECTED", reasonCodes: [planCheck.code], dispatchPerformed: false };
+  }
+  if (!Array.isArray(candidates) || !task || typeof task !== "object") {
+    return { ok: false, status: "REJECTED", reasonCodes: ["INVALID_CANDIDATE_INPUT"], dispatchPerformed: false };
+  }
+
+  const readySteps = plan.steps.filter(step => step.status === "ready" || step.status === "planned");
+  if (readySteps.length !== 1) {
+    return { ok: false, status: "NOT_READY", reasonCodes: ["EXPECTED_EXACTLY_ONE_READY_STEP"], dispatchPerformed: false };
+  }
+  const step = readySteps[0];
+  if (step.required_capabilities.length !== 1 ||
+      step.required_capabilities[0] !== task.capabilityId) {
+    return { ok: false, status: "REJECTED", reasonCodes: ["STEP_CAPABILITY_MISMATCH"], dispatchPerformed: false };
+  }
+
+  const assessments = candidates.map(candidate => {
+    const eligibility = assessExecutorCandidate(candidate, task, now);
+    if (!eligibility.eligible) {
+      return { moduleRef: eligibility.moduleRef, eligible: false, stage: "eligibility",
+        reasonCodes: eligibility.reasonCodes };
+    }
+    const admission = evaluateExecutionAdmission(candidate.executionEvidence, now);
+    return { moduleRef: eligibility.moduleRef, eligible: admission.admitted,
+      stage: "execution_admission", reasonCodes: admission.reasonCodes,
+      requestId: admission.requestId ?? null };
+  });
+
+  const admitted = assessments.filter(item => item.eligible);
+  if (admitted.length === 0) {
+    return { ok: true, status: "BLOCKED", selectedModuleRef: null,
+      assessments, dispatchPerformed: false };
+  }
+
+  // Stable input order is deliberate until a separately verified ranking policy exists.
+  return { ok: true, status: "PREPARED", selectedModuleRef: admitted[0].moduleRef,
+    assessments, dispatchPerformed: false };
+}
