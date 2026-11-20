@@ -152,13 +152,15 @@ export function createInMemoryReconciliationStore() {
         for (const record of evidenceRecords) {
           if (!record || typeof record.evidence_digest !== "string" ||
               !/^[a-f0-9]{64}$/i.test(record.evidence_digest) ||
-              record.task_id !== taskId || record.request_id !== task.current_request_id ||
-              record.conclusion !== decision.conclusion) {
+              record.task_id !== taskId || record.request_id !== task.current_request_id) {
             return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
           }
           const existing = merged.find(item => item.evidence_digest === record.evidence_digest);
           if (existing && JSON.stringify(existing) !== JSON.stringify(record)) {
             return {committed:false, reasonCode:"EVIDENCE_DIGEST_CONFLICT"};
+          }
+          if (record.conclusion !== decision.conclusion) {
+            return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
           }
           if (!existing) merged.push(clone(record));
         }
