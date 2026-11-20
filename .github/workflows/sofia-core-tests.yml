@@ -19,4 +19,4 @@ jobs:
         with:
           node-version: 22
       - name: Run provider and Core tests
-        run: node --test tests
+        run: node --test $(find tests -type f -name '*.test.mjs' -print)
