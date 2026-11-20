@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/module-registry-record.schema.json",
+  "title": "Sofia AI Module Registry Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "registry_record_id",
+    "module_id",
+    "module_version",
+    "manifest_ref",
+    "manifest_digest",
+    "artifact_digest",
+    "lifecycle_state",
+    "trust_assessment_ref",
+    "health_record_ref",
+    "registered_at",
+    "policy_version"
+  ],
+  "properties": {
+    "registry_record_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "module_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "manifest_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "manifest_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "artifact_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "lifecycle_state": {
+      "enum": [
+        "DISCOVERED",
+        "QUARANTINED",
+        "VALIDATING",
+        "REVIEW_REQUIRED",
+        "APPROVED",
+        "ACTIVE",
+        "SUSPENDED",
+        "REVOKED",
+        "RETIRED"
+      ]
+    },
+    "capability_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 180
+      }
+    },
+    "trust_assessment_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "health_record_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "registered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revocation_reason_code": {
+      "type": "string",
+      "maxLength": 96
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  }
+}
