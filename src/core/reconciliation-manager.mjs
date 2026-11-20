@@ -1,3 +1,10 @@
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map(key =>
+    `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+}
+
 const CONCLUSIONS = new Set([
   "CONFIRMED_APPLIED",
   "CONFIRMED_NOT_APPLIED",
@@ -18,7 +25,11 @@ export function evaluateReconciliation(input, now = new Date()) {
   const unknown = reasonCode => ({ resolved: false, taskState: "outcome_uncertain",
     conclusion: "STILL_UNKNOWN", reasonCode });
 
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
+    return unknown("RECONCILIATION_TIME_INVALID");
+  }
   if (!task || !priorRequest || !evidence) return unknown("RECONCILIATION_EVIDENCE_MISSING");
+  if (evidence.schema_version !== "1.0.0") return unknown("EVIDENCE_SCHEMA_VERSION_UNSUPPORTED");
   if (task.state !== "outcome_uncertain") return unknown("TASK_NOT_OUTCOME_UNCERTAIN");
   if (!CONCLUSIONS.has(evidence.conclusion)) return unknown("INVALID_PROVIDER_CONCLUSION");
   if (evidence.verification?.status !== "VERIFIED" ||
@@ -99,7 +110,7 @@ export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
         !/^[a-fA-F0-9]{64}$/.test(record.evidence_digest)) {
       return unknown("EVIDENCE_BATCH_INVALID");
     }
-    const serialized = JSON.stringify(record);
+    const serialized = canonicalJson(record);
     const previous = byDigest.get(record.evidence_digest);
     if (previous !== undefined && previous !== serialized) {
       return unknown("DUPLICATE_EVIDENCE_DIGEST_CONFLICT");
