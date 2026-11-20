@@ -47,7 +47,11 @@ Each evidence record must bind to:
 
 Evidence for a different target, operation, request, provider, principal scope or idempotency binding is rejected. Do not store raw idempotency keys or credentials in audit records.
 
-## 4. Reconciliation outcomes
+## 4. Reconciliation evidence contract
+
+`contracts/v1/reconciliation-evidence.schema.json` defines the provider-neutral evidence envelope consumed by the pure evaluator. It binds the conclusion to the original task/request, provider operation, exact target, canonical operation digest and idempotency-key digest. It carries an evidence digest/reference, provider observation timestamp, and verifier identity/status/timestamp. Schema validation checks structure and formats only; it does not authenticate the provider, verify signatures, or prove that a verifier is trustworthy. Those guarantees remain the responsibility of a trusted provider adapter and its verification boundary.
+
+## 5. Reconciliation outcomes
 
 - **CONFIRMED_APPLIED:** authoritative evidence proves the requested side effect occurred. Resolve the task as completed (or a separately specified partial state if a future contract adds one). Never retry the same effect.
 - **CONFIRMED_NOT_APPLIED:** authoritative evidence proves the side effect did not occur. Resolve the original task as failed/terminal. A new linked request may be considered, subject to all fresh admission gates.
@@ -55,7 +59,7 @@ Evidence for a different target, operation, request, provider, principal scope o
 
 A pure evaluator may validate binding, freshness and an already-verified adapter verdict. Cryptographic/provider authentication remains the adapter's responsibility and must not be represented by a caller-controlled boolean in a live integration.
 
-## 5. Reconciliation algorithm
+## 6. Reconciliation algorithm
 
 1. Load the durable uncertain task and original immutable execution request.
 2. Confirm task state is `outcome_uncertain`; acquire a task-scoped reconciliation lease to prevent concurrent reconcilers from racing.
@@ -69,7 +73,7 @@ A pure evaluator may validate binding, freshness and an already-verified adapter
 
 If the provider has no authoritative status or idempotency lookup, RM must not fabricate certainty. The task may remain uncertain until a trusted manual resolution path is defined.
 
-## 6. Freshness, retry and reservation rules
+## 7. Freshness, retry and reservation rules
 
 - Evidence freshness is provider- and operation-specific; default windows must be configured conservatively and versioned. Stale evidence yields `STILL_UNKNOWN`.
 - `CONFIRMED_APPLIED` prohibits retry.
@@ -79,19 +83,19 @@ If the provider has no authoritative status or idempotency lookup, RM must not f
 - Reuse a provider idempotency key only for the exact same canonical operation and target within the provider's documented key-retention window. If semantics or retention are unknown, do not assume deduplication.
 - RBM must keep ambiguous charges/usage pending and bounded; no uncertain usage may be settled as zero or release a reservation prematurely.
 
-## 7. Concurrency, leases and recovery
+## 8. Concurrency, leases and recovery
 
 Only one active reconciliation lease may own a task at a time. Lease expiry permits another worker to resume reconciliation, not to repeat the side effect. State writes use optimistic concurrency/task version checks. Duplicate provider events and repeated polling are idempotent. Backoff and polling cadence are bounded by provider rate limits, task policy and retention windows; no unbounded loops or paid probes under `FREE_ONLY`.
 
 A provider adapter outage, RM outage, audit-store outage or RBM outage must not resolve the task optimistically. Keep the uncertain state and fail closed.
 
-## 8. Audit and privacy
+## 9. Audit and privacy
 
 Use the existing `audit-event.schema.json` for reconciliation lifecycle events where its fields fit. Record event/correlation/causation IDs, task/request/provider references, conclusion, reason code, evidence reference/digest, verifier identity, observation time, state transition, policy version and pending reservation reference. Do not log raw credentials, full provider payloads, message bodies, personal data unrelated to the operation, or raw idempotency keys.
 
 Suggested event types: `reconciliation.started`, `reconciliation.evidence_rejected`, `reconciliation.still_unknown`, `reconciliation.confirmed_applied`, `reconciliation.confirmed_not_applied`, `reconciliation.lease_expired`.
 
-## 9. Required acceptance tests
+## 10. Required acceptance tests
 
 1. Missing or unauthenticated provider evidence remains `outcome_uncertain`.
 2. Evidence bound to another task/request/provider/target/operation/idempotency key is rejected.
@@ -106,7 +110,7 @@ Suggested event types: `reconciliation.started`, `reconciliation.evidence_reject
 11. No raw secret, payload or idempotency key appears in audit records.
 12. No model or executor self-report can establish authoritative provider state.
 
-## 10. Implementation sequence
+## 11. Implementation sequence
 
 A — provider-neutral evidence and reconciliation record contracts.  
 B — deterministic pure evaluator and adversarial tests.  
@@ -116,6 +120,6 @@ E — one real provider adapter only after provider semantics, auth and read sco
 F — RBM pending reservation/settlement integration and audit event delivery.  
 G — controlled non-production activation; production execution requires separate explicit owner approval.
 
-## 11. Current v0.1 boundary
+## 12. Current v0.1 boundary
 
 The repository contains a pure reconciliation decision helper and tests only. It does not yet contain provider adapters, cryptographic evidence verification, durable reconciliation leases, persistent evidence storage, atomic state transitions, live RBM settlement or retry orchestration. No real executor is invoked.

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/reconciliation-evidence.schema.json",
+  "title": "Sofia AI Reconciliation Evidence v1",
+  "description": "Provider-scoped evidence used to resolve an uncertain external operation. Verification metadata records the trusted adapter's verification result; the schema alone does not authenticate evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "request_id",
+    "provider_id",
+    "provider_operation_ref",
+    "target_ref",
+    "operation_digest",
+    "idempotency_key_digest",
+    "conclusion",
+    "evidence_digest",
+    "evidence_ref",
+    "observed_at",
+    "verification"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "provider_operation_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "target_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "operation_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "idempotency_key_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": [
+        "CONFIRMED_APPLIED",
+        "CONFIRMED_NOT_APPLIED",
+        "STILL_UNKNOWN"
+      ]
+    },
+    "evidence_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "evidence_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "verifier_ref",
+        "verified_at"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "VERIFIED",
+            "FAILED",
+            "INCONCLUSIVE"
+          ]
+        },
+        "verifier_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "verified_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
