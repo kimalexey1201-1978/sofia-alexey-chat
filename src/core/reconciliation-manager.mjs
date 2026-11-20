@@ -136,6 +136,15 @@ export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
         !record.verification?.verified_at) {
       return unknown("PERSISTED_EVIDENCE_INVALID");
     }
+    const historicalObservedAt = Date.parse(record.observed_at ?? "");
+    const historicalVerifiedAt = Date.parse(record.verification.verified_at);
+    if (!Number.isFinite(historicalObservedAt) ||
+        !Number.isFinite(historicalVerifiedAt) ||
+        historicalVerifiedAt < historicalObservedAt ||
+        (record.conclusion !== "STILL_UNKNOWN" &&
+          (typeof record.evidence_ref !== "string" || !record.evidence_ref))) {
+      return unknown("PERSISTED_EVIDENCE_INVALID");
+    }
     for (const [field, value] of Object.entries(expected)) {
       if (typeof value !== "string" || !value || record[field] !== value) {
         return unknown("PERSISTED_EVIDENCE_BINDING_MISMATCH");
