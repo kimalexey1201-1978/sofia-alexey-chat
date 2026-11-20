@@ -36,15 +36,17 @@ test("integrates Sofia Core with OpenRouter adapter through mocked fetch", async
     }
   );
 
-  assert.deepEqual(result, {
-    ok: true,
-    requestId: "integration-cycle-001",
-    answer: {
-      text: "Ответ от тестового провайдера",
-      providerId: "openrouter",
-      modelId: "mock/vendor-model",
-      usage: { inputTokens: 12, outputTokens: 8 }
-    }
+  assert.equal(result.ok, true);
+  assert.equal(result.requestId, "integration-cycle-001");
+  assert.equal(result.taskPlan.owner_goal, "Проверь интеграцию");
+  assert.equal(result.taskPlan.autonomy_level, "A0");
+  assert.equal(result.taskPlan.resource_policy, "FREE_ONLY");
+  assert.equal(result.taskPlan.steps.length, 1);
+  assert.deepEqual(result.answer, {
+    text: "Ответ от тестового провайдера",
+    providerId: "openrouter",
+    modelId: "mock/vendor-model",
+    usage: { inputTokens: 12, outputTokens: 8 }
   });
   assert.equal(requestCount, 1);
   assert.equal(upstreamRequest.url, "https://openrouter.ai/api/v1/chat/completions");
