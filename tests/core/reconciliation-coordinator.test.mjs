@@ -463,21 +463,6 @@ test("rejects stale current-request binding before querying provider", async () 
   const { store } = await setup();
   const task = await store.getTask("task-0001");
   // Mutate only the test fixture through a fresh store setup contract.
-  const staleCoordinator = createReconciliationCoordinator({
-    store,
-    getPriorRequest: async () => structuredClone(priorRequest),
-    adapterRegistry: { get: async () => ({
-      providerId: "provider-x",
-      async queryOperationStatus() {
-        throw new Error("must not query for stale request");
-      }
-    }) },
-    verifier: { async verifyProviderResponse() {
-      throw new Error("must not verify stale request");
-    } },
-    clock: () => now,
-    createId: prefix => prefix + "-stale"
-  });
   // The coordinator's authoritative task snapshot still binds request-0001;
   // a stale lookup response is rejected by exact prior-request identity.
   const stale = structuredClone(priorRequest);
