@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/proactive-opportunity.schema.json",
+  "title": "Sofia Proactive Opportunity v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "opportunity_id",
+    "principal_ref",
+    "purpose",
+    "created_at",
+    "expires_at",
+    "trigger_signal_refs",
+    "owner_goal_ref",
+    "summary",
+    "evidence_refs",
+    "assessment",
+    "lifecycle_state"
+  ],
+  "properties": {
+    "opportunity_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "task_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "trigger_signal_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "owner_goal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "proposed_assistance": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relevance",
+        "evidence_quality",
+        "time_sensitivity",
+        "expected_benefit",
+        "interruption_cost",
+        "privacy_exposure",
+        "action_risk",
+        "resource_impact"
+      ],
+      "properties": {
+        "relevance": {
+          "enum": [
+            "direct",
+            "related",
+            "weak",
+            "none",
+            "unknown"
+          ]
+        },
+        "evidence_quality": {
+          "enum": [
+            "verified",
+            "supported",
+            "limited",
+            "unverified",
+            "conflicted"
+          ]
+        },
+        "time_sensitivity": {
+          "enum": [
+            "deadline_bound",
+            "time_sensitive",
+            "not_time_sensitive",
+            "unknown"
+          ]
+        },
+        "expected_benefit": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ]
+        },
+        "interruption_cost": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "privacy_exposure": {
+          "enum": [
+            "public",
+            "private",
+            "sensitive",
+            "restricted",
+            "unknown"
+          ]
+        },
+        "action_risk": {
+          "enum": [
+            "R0",
+            "R1",
+            "R2",
+            "R3",
+            "unknown"
+          ]
+        },
+        "resource_impact": {
+          "enum": [
+            "within_free_budget",
+            "quota_constrained",
+            "unknown",
+            "blocked"
+          ]
+        }
+      }
+    },
+    "deduplication_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "lifecycle_state": {
+      "enum": [
+        "candidate",
+        "eligible",
+        "delivered",
+        "accepted",
+        "declined",
+        "dismissed",
+        "snoozed",
+        "expired",
+        "suppressed",
+        "rejected",
+        "revoked",
+        "superseded"
+      ]
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    }
+  }
+}
