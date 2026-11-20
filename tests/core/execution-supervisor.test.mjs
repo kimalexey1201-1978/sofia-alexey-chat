@@ -153,3 +153,24 @@ test("rejects deadlines that have already expired", () => {
   assert.equal(result.admitted, false);
   assert.ok(result.reasonCodes.includes("INVALID_OR_EXPIRED_EXECUTION_REQUEST"));
 });
+
+
+test("rejects execution requests with an invalid risk tier", () => {
+  const input = validInput();
+  input.request.risk_tier = "R4";
+  const result = evaluateExecutionAdmission(input, now);
+  assert.equal(result.admitted, false);
+  assert.ok(result.reasonCodes.includes("INVALID_OR_EXPIRED_EXECUTION_REQUEST"));
+});
+
+test("rejects missing or malformed module artifact digests", () => {
+  for (const digest of [undefined, "not-a-digest", "a".repeat(63), "g".repeat(64)]) {
+    const input = validInput();
+    input.request.artifact_digest = digest;
+    input.module.artifact_digest = digest;
+    input.trust.artifact_digest = digest;
+    const result = evaluateExecutionAdmission(input, now);
+    assert.equal(result.admitted, false);
+    assert.ok(result.reasonCodes.includes("INVALID_OR_EXPIRED_EXECUTION_REQUEST"));
+  }
+});
