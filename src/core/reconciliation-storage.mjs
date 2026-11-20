@@ -197,7 +197,11 @@ export function createInMemoryReconciliationStore() {
           if (existing && canonicalJson(existing) !== canonicalJson(record)) {
             return {committed:false, reasonCode:"EVIDENCE_DIGEST_CONFLICT"};
           }
-          if (record.conclusion !== decision.conclusion) {
+          // Conflicting authenticated records may be retained only under an
+          // unresolved STILL_UNKNOWN decision. A terminal decision must match
+          // its sole authoritative evidence record.
+          if (record.conclusion !== decision.conclusion &&
+              decision.conclusion !== "STILL_UNKNOWN") {
             return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
           }
           if (!existing) merged.push(clone(record));
