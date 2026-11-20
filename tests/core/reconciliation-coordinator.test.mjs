@@ -306,3 +306,52 @@ test("provider response arriving after lease expiry cannot be committed", async 
   });
   assert.ok(replacement);
 });
+
+
+test("rejects invalid policy configuration before reconciliation begins", async () => {
+  const { store } = await setup();
+  const base = {
+    store,
+    getPriorRequest: async () => structuredClone(priorRequest),
+    adapterRegistry: { get: async () => createMockReconciliationAdapter({
+      providerId: "provider-x", evidenceByOperation: { "operation-123": [evidence()] }
+    }) },
+    verifier: { async verifyProviderResponse(input) {
+      return { authenticated: true, evidenceRecords: input.response.evidence_records };
+    } },
+    createId: prefix => `${prefix}-policy-test`
+  };
+  assert.throws(() => createReconciliationCoordinator({
+    ...base, policy: { freshnessWindowMs: 0 }
+  }), /POLICY_INVALID/);
+  assert.throws(() => createReconciliationCoordinator({
+    ...base, policy: { leaseTtlMs: 1.5 }
+  }), /POLICY_INVALID/);
+  assert.throws(() => createReconciliationCoordinator({
+    ...base, policy: { version: " " }
+  }), /POLICY_INVALID/);
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+});
+
+test("storage version conflict fails closed without repeating provider lookup", async () => {
+  const { store, adapter, coordinator } = await setup();
+  const originalCommit = store.commitDecision.bind(store);
+  let commitCalls = 0;
+  store.commitDecision = async input => {
+    commitCalls++;
+    return { committed: false, reasonCode: "TASK_VERSION_CONFLICT" };
+  };
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  store.commitDecision = originalCommit;
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "TASK_VERSION_CONFLICT");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal(commitCalls, 1);
+  assert.equal((await store.getTask("task-0001")).version, 1);
+  assert.equal((await store.listDecisions("task-0001")).length, 0);
+  const nextLease = await store.acquireLease({
+    taskId: "task-0001", owner: "worker-b",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(nextLease);
+});
