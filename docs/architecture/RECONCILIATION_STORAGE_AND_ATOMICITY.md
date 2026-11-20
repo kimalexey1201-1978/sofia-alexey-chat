@@ -159,38 +159,37 @@ The lease clock must be the persistence service's trusted time source, not an un
 11. Storage outage, lease outage or audit failure cannot resolve a task or permit retry.
 12. A stale worker cannot write after another worker obtains a higher fencing token.
 
-## 9. Implementation decision gates
+## 9. Current implementation status and production decision gates
 
-Before coding the storage adapter, decide and document:
-- actual persistence service and its transaction/isolation guarantees;
+The repository already contains the reconciliation storage-port prototype and versioned record contracts. The implemented components are:
+
+- `src/core/reconciliation-storage.mjs`: process-local in-memory transactional test double with serialized critical sections, task-version checks, lease fencing and renewal, evidence deduplication/conflict rejection, and atomic in-memory updates;
+- `tests/core/reconciliation-storage.test.mjs`: deterministic tests for commit atomicity, compare-and-swap, lease expiry and fencing, renewal, evidence conflicts, and audit binding;
+- `contracts/v1/`: versioned JSON Schemas for task, decision, lease, evidence, and audit outbox records;
+- `src/core/reconciliation-manager.mjs`: pure evaluator for trusted, already-verified provider evidence.
+
+This prototype is not durable, is not shared across Worker isolates, and is not production-safe. No production database binding or durable reconciliation adapter is configured. Reconciliation is therefore not connected to the chat route, Worker execution path, or production accounting.
+
+Before implementing a durable adapter, decide and document:
+- persistence service and its transaction/isolation guarantees;
 - migration/versioning mechanism and backup/restore process;
 - lease implementation and trusted clock source;
 - evidence-vault requirements and retention;
 - outbox delivery mechanism and consumer deduplication;
 - access-control identities and key-management boundary.
 
-No database or Cloudflare resource is provisioned by this design. The next safe repository step is to define versioned storage record contracts and a storage-port interface with an in-memory transactional test double. A concrete Cloudflare binding and production storage implementation require a separate explicit platform decision and approval.
+A concrete Cloudflare binding and production storage implementation require a separate explicit platform decision and approval. Until then, the in-memory implementation remains a test fixture only.
 
-## 10. Storage-port prototype boundary — implementation status
+## 10. Storage-port contract
 
-The storage-port prototype described in this section is a required next implementation step, not an existing production capability. At the time of this design, this document does not establish that versioned storage record schemas, a storage-port implementation, or an in-memory transactional test double are present in the repository.
+The reconciliation manager and future execution supervisor must depend on a storage-port contract rather than a specific database:
 
-The next repository change must add these artifacts on the isolated development branch only:
-- versioned JSON Schemas for the uncertain task snapshot, reconciliation decision, lease, and audit outbox record;
-- a narrow storage-port contract;
-- an in-memory test double with serialized critical sections, task-version compare-and-swap, lease fencing, evidence deduplication/conflict rejection, and all-or-nothing updates;
-- deterministic tests for concurrency, stale fencing tokens, duplicate evidence, conflicting evidence, and atomic rollback behavior.
-
-The in-memory implementation is a process-local test fixture only. It must not be represented as durable, shared across Worker isolates, or production-safe.
-
-## 11. Storage-port contract and acceptance criteria
-
-The reconciliation manager must depend on a storage-port contract rather than a specific database:
 - `seedTask(task)` is a test-fixture operation only.
 - `getTask(taskId)` reads the current aggregate record.
 - `acquireLease({ taskId, owner, now, ttlMs })` returns a lease or `null`; every successful acquisition advances a per-task fencing generation, including after explicit release.
-- `commitDecision(input)` is the atomic write boundary. It compares the expected task version, validates the active lease owner/fencing token/expiry, binds decision and evidence to the task's current request, and atomically appends evidence, decision, and audit outbox while updating task state.
+- `renewLease({ taskId, owner, fencingToken, now, ttlMs })` renews only the currently held, unexpired lease and preserves its fencing token.
+- `commitDecision(input)` is the atomic write boundary. It compares the expected task version, validates the active lease owner/fencing token/expiry, binds decision and evidence to the task's current request, binds the audit outbox payload to the decision, and atomically appends evidence, decision, and audit outbox while updating task state.
 - `listEvidence(taskId)`, `listDecisions(taskId)`, and `listOutbox()` are read/test inspection operations.
 - `releaseLease({ taskId, owner, fencingToken })` succeeds only for the currently held matching lease. Releasing a lease must not reset its fencing generation.
 
-Acceptance tests must prove the contract's behavior, including rollback on every rejected write. Until these tests and the implementation exist, reconciliation remains design-only and must not be wired into the chat route, Worker execution path, or production accounting.
+Acceptance tests must prove rollback on every rejected write, concurrency safety, stale-token rejection, duplicate evidence behavior, and audit consistency. A durable implementation must preserve these invariants using database-enforced transactions or an equivalent atomic primitive; process-local serialization is not a substitute.
