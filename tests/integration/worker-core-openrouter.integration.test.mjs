@@ -47,3 +47,44 @@ test("runs the complete Worker route -> Core -> OpenRouter adapter -> legacy res
   });
   assert.equal(JSON.stringify(payload).includes("test-secret-never-return-this"), false);
 });
+
+test("uses the server-side FREE_ONLY default model and rejects client model selection", async () => {
+  let upstreamRequest;
+  const fetchImpl = async (url, init) => {
+    upstreamRequest = { url, init, body: JSON.parse(init.body) };
+    return Response.json({
+      model: "openrouter/free",
+      choices: [{ message: { role: "assistant", content: "Ответ получен через серверную модель по умолчанию." } }]
+    });
+  };
+
+  const invalidRequest = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "attacker/paid-model",
+      messages: [{ role: "user", content: "Выбери модель." }]
+    })
+  });
+  const rejected = await handleChatRequest(invalidRequest, {
+    OPENROUTER_API_KEY: "test-secret"
+  }, { fetchImpl });
+  assert.equal(rejected.status, 400);
+  assert.equal(upstreamRequest, undefined);
+
+  const validRequest = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Используй серверную модель по умолчанию." }]
+    })
+  });
+  const response = await handleChatRequest(validRequest, {
+    OPENROUTER_API_KEY: "test-secret"
+  }, { fetchImpl });
+  assert.equal(response.status, 200);
+  assert.equal(upstreamRequest.body.model, "openrouter/free");
+  assert.equal(upstreamRequest.init.headers.Authorization, "Bearer test-secret");
+  assert.equal(JSON.stringify(await response.json()).includes("test-secret"), false);
+});
+
