@@ -56,8 +56,10 @@ export function createInMemoryReconciliationStore() {
           throw new Error("LEASE_INPUT_INVALID");
         }
         const current = leases.get(taskId);
-        if (current && Date.parse(current.lease_expires_at) > nowMs &&
-            current.lease_owner !== owner) return null;
+        // Acquisition is for an unleased task only. Renewal is a separate
+        // fencing-token-checked operation; owner-name reuse must not steal a
+        // live lease from another worker instance using the same identity.
+        if (current && Date.parse(current.lease_expires_at) > nowMs) return null;
         const token = (leaseGenerations.get(taskId) ?? 0) + 1;
         leaseGenerations.set(taskId, token);
         const lease = {
@@ -67,6 +69,25 @@ export function createInMemoryReconciliationStore() {
         };
         leases.set(taskId, lease);
         return clone(lease);
+      });
+    },
+
+    async renewLease({taskId, owner, fencingToken, now, ttlMs}) {
+      return serialize(() => {
+        const task = tasks.get(taskId);
+        const current = leases.get(taskId);
+        const nowMs = Date.parse(now ?? "");
+        if (!task || task.state !== "outcome_uncertain" || !current ||
+            current.lease_owner !== owner || current.fencing_token !== fencingToken ||
+            !Number.isFinite(nowMs) || Date.parse(current.lease_expires_at) <= nowMs ||
+            !Number.isSafeInteger(ttlMs) || ttlMs <= 0) return null;
+        const renewed = {
+          ...current,
+          lease_expires_at: new Date(nowMs + ttlMs).toISOString(),
+          renewed_at: new Date(nowMs).toISOString()
+        };
+        leases.set(taskId, renewed);
+        return clone(renewed);
       });
     },
 
@@ -104,12 +125,35 @@ export function createInMemoryReconciliationStore() {
           return {committed:false, reasonCode:"DUPLICATE_COMMIT_ID"};
         }
 
+        const expectedState = decision.conclusion === "CONFIRMED_APPLIED" ? "completed" :
+          decision.conclusion === "CONFIRMED_NOT_APPLIED" ? "failed" : "outcome_uncertain";
+        const expectedVersionAfter = expectedState === "outcome_uncertain" ?
+          expectedVersion : expectedVersion + 1;
+        const expectedEventType = {
+          CONFIRMED_APPLIED: "reconciliation.confirmed_applied",
+          CONFIRMED_NOT_APPLIED: "reconciliation.confirmed_not_applied",
+          STILL_UNKNOWN: "reconciliation.still_unknown"
+        }[decision.conclusion];
+        if (decision.task_version_after !== expectedVersionAfter ||
+            typeof decision.reason_code !== "string" || !decision.reason_code ||
+            typeof decision.evidence_set_digest !== "string" ||
+            !/^[a-f0-9]{64}$/i.test(decision.evidence_set_digest) ||
+            auditEvent.aggregate_id !== taskId ||
+            auditEvent.aggregate_version !== expectedVersionAfter ||
+            auditEvent.event_type !== expectedEventType ||
+            auditEvent.payload?.conclusion !== decision.conclusion ||
+            auditEvent.payload?.reason_code !== decision.reason_code ||
+            auditEvent.payload?.evidence_set_digest !== decision.evidence_set_digest) {
+          return {committed:false, reasonCode:"COMMIT_DECISION_AUDIT_BINDING_INVALID"};
+        }
+
         const priorEvidence = evidence.get(taskId) ?? [];
         const merged = [...priorEvidence];
         for (const record of evidenceRecords) {
           if (!record || typeof record.evidence_digest !== "string" ||
               !/^[a-f0-9]{64}$/i.test(record.evidence_digest) ||
-              record.task_id !== taskId || record.request_id !== task.current_request_id) {
+              record.task_id !== taskId || record.request_id !== task.current_request_id ||
+              record.conclusion !== decision.conclusion) {
             return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
           }
           const existing = merged.find(item => item.evidence_digest === record.evidence_digest);
@@ -119,14 +163,8 @@ export function createInMemoryReconciliationStore() {
           if (!existing) merged.push(clone(record));
         }
 
-        const nextState = decision.conclusion === "CONFIRMED_APPLIED" ? "completed" :
-          decision.conclusion === "CONFIRMED_NOT_APPLIED" ? "failed" : "outcome_uncertain";
-        const nextVersion = nextState === "outcome_uncertain" ? expectedVersion : expectedVersion + 1;
-        if (decision.task_version_after !== nextVersion ||
-            auditEvent.aggregate_id !== taskId ||
-            auditEvent.aggregate_version !== nextVersion) {
-          return {committed:false, reasonCode:"COMMIT_VERSION_BINDING_INVALID"};
-        }
+        const nextState = expectedState;
+        const nextVersion = expectedVersionAfter;
 
         // All mutations occur together within this serialized critical section.
         evidence.set(taskId, merged);
