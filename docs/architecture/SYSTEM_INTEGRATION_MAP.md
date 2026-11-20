@@ -28,6 +28,7 @@ A user request follows this logical path:
 12. **Audit & Observability Manager** records correlated decisions, transitions and evidence with privacy-aware redaction.
 13. **Knowledge & Memory Manager** stores only data permitted by purpose, consent and retention policy; memory is not automatically created from every interaction.
 14. **Proactive Intelligence Manager** may later propose a follow-up based on authorized sources; a suggestion is not permission to act.
+15. **Social Media Integration Manager** may prepare and adapt content through Media Processing and File & Document Managers, then submit only through a verified official platform adapter or documented user hand-off. Publication requires fresh approval bound to the exact content hash, account, visibility, and operation; platform status must be independently checked.
 
 Not every request traverses every component. The Orchestrator must declare the required components and fail closed when a mandatory control is unavailable.
 
@@ -77,6 +78,7 @@ Do not put raw credentials, private key material or unrestricted bearer tokens i
 | Device operations | Device Integration Gateway | Device Manager, Security, Privacy |
 | Voice capture and speaker handling | Voice Interaction Manager | Identity, Privacy, Android Runtime |
 | Communication delivery | Communication Manager | Identity, Security, Privacy, Audit |
+| Social platform publishing and analytics | Social Media Integration Manager | Media Processing, File & Document, Identity, Security, Privacy, Autonomy, Workflow, Audit |
 | Memory lifecycle | Knowledge & Memory Manager | Privacy, Identity, Audit |
 | Independent result checking | Verifier / AI Evaluation & Quality | Orchestrator, Audit |
 | Logs and evidence | Audit & Observability Manager | All modules |
@@ -121,6 +123,10 @@ A module is not integration-ready until:
 - independent contract, integration, security and failure tests pass;
 - version compatibility and rollback behavior are documented.
 
-## 9. Current status
+## 9. Social publishing integration boundary
+
+Social Media Integration Manager is a separate platform adapter layer. Media creation remains owned by Media Processing Manager; file custody remains with File & Document Manager. SMIM owns platform account connection metadata, capability discovery, content packaging, publication workflow, and platform result verification. OAuth secrets remain in a protected credential vault and never enter client storage, model prompts, logs, or repository files. API access, scopes, app review, account eligibility, and regional availability are checked per platform and API version. A prepared video is not a published video; upload acceptance, processing, scheduling, and publication are distinct states. No direct platform API calls or account connections are implemented by the architecture documents.
+
+## 10. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
