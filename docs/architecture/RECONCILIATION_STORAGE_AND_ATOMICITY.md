@@ -215,6 +215,18 @@ Before implementing a durable adapter, decide and document:
 
 A concrete Cloudflare binding and production storage implementation require a separate explicit platform decision and approval. Until then, the in-memory implementation remains a test fixture only.
 
+## 9A. Integrity-protected coordinator storage adapter
+
+A coordinator-facing adapter is prototyped in `src/core/integrity-protected-reconciliation-store.mjs`. It preserves the coordinator's existing store-facing method shape while enforcing an evidence trust boundary:
+
+- `listEvidence(taskId)` reads `{record,envelope}` entries from the durable adapter and returns records only after whole-batch verification and task binding.
+- `commitDecision(input)` seals every evidence record first, strips the raw `evidenceRecords` field, and passes only `evidenceEntries` to the durable adapter.
+- The durable adapter's `commitDecision` must persist `evidenceEntries`, task transition, decision and audit outbox atomically, or persist none.
+- The durable adapter must expose `listEvidenceEntries(taskId)` from a consistent snapshot. It must not provide a bypass that exposes raw persisted evidence to the coordinator.
+- Key resolution and sealing remain injected trust boundaries; no key material is stored in this module.
+
+This adapter is a contract prototype tested with a fake transactional adapter. It is not connected to the current in-memory test double or production runtime. The fake test proves the wrapper's call contract, not database transaction semantics. A real durable adapter still needs transaction/rollback tests against its actual database engine, key lifecycle controls, and the reusable storage contract suite.
+
 ## 10. Storage-port contract
 
 The reconciliation manager and future execution supervisor must depend on a storage-port contract rather than a specific database:
