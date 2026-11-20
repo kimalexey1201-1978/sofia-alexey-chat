@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-adapter-health.schema.json",
+  "title": "Sofia AI Device Adapter Health v1",
+  "description": "Time-bounded operational health observation. Health is not trust, authorization or capability grant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["adapter_id", "adapter_version", "state", "observed_at", "expires_at"],
+  "properties": {
+    "adapter_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "adapter_version": {"type": "string", "minLength": 1, "maxLength": 80},
+    "artifact_digest": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "state": {"type": "string", "enum": ["healthy", "degraded", "unhealthy", "unknown", "suspended"]},
+    "platform": {"type": "string", "enum": ["android", "ios", "windows", "linux", "macos", "embedded", "cloud"]},
+    "connection_state": {"type": "string", "enum": ["unknown", "offline", "connecting", "connected", "intermittent"]},
+    "latency_ms": {"type": "integer", "minimum": 0},
+    "error_rate_percent": {"type": "number", "minimum": 0, "maximum": 100},
+    "active_invocations": {"type": "integer", "minimum": 0},
+    "last_error_code": {"type": "string", "maxLength": 128},
+    "reason_code": {"type": "string", "maxLength": 128},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
