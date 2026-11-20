@@ -109,12 +109,13 @@ function createFakeDurableStore() {
 async function setup(records = [evidence()]) {
   const key = await makeKey();
   const durable = createFakeDurableStore();
+  let keyAvailable = true;
   const protectedStore = createIntegrityProtectedReconciliationStore({
     store: durable,
     sealEvidence: record => createEvidenceIntegrityEnvelope(record, {
       key, keyId: "integration-key-1", acceptedAt: now.toISOString()
     }),
-    resolveKey: async id => id === "integration-key-1" ? key : null
+    resolveKey: async id => keyAvailable && id === "integration-key-1" ? key : null
   });
   const adapter = createMockReconciliationAdapter({
     providerId: "provider-x", evidenceByOperation: { "operation-123": records }
@@ -134,7 +135,8 @@ async function setup(records = [evidence()]) {
     createId: prefix => `${prefix}-${String(++id).padStart(4, "0")}`,
     policy: { version: "integration-test-1", freshnessWindowMs: 300000, leaseTtlMs: 30000 }
   });
-  return { durable, protectedStore, adapter, coordinator };
+  return { durable, protectedStore, adapter, coordinator,
+    setKeyAvailable(value) { keyAvailable = value; } };
 }
 
 test("end-to-end coordinator uses protected storage for verified read and atomic sealed commit", async () => {
@@ -178,6 +180,34 @@ test("end-to-end coordinator fails closed on tampered persisted history before p
   assert.equal(durable.outbox.length, 1);
 });
 
+
+test("unavailable integrity key blocks history read before provider query", async () => {
+  const first = evidence("STILL_UNKNOWN");
+  first.evidence_digest = "2".repeat(64);
+  const { durable, adapter, coordinator, setKeyAvailable } = await setup([first]);
+
+  const initial = await coordinator.reconcile({
+    taskId, owner: "worker-key-available"
+  });
+  assert.equal(initial.reconciled, true);
+  assert.equal(initial.taskState, "outcome_uncertain");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal(durable.decisions.length, 1);
+  assert.equal(durable.outbox.length, 1);
+
+  setKeyAvailable(false);
+  const blocked = await coordinator.reconcile({
+    taskId, owner: "worker-key-unavailable"
+  });
+
+  assert.equal(blocked.reconciled, false);
+  assert.equal(blocked.reasonCode, "RECONCILIATION_DEPENDENCY_ERROR");
+  assert.equal(adapter.calls.length, 1); // no provider query after key resolution failure
+  assert.equal(durable.atomicCommitCalls, 1);
+  assert.equal(durable.decisions.length, 1);
+  assert.equal(durable.outbox.length, 1);
+  assert.equal((await durable.getTask(taskId)).state, "outcome_uncertain");
+});
 
 test("storage read failure stops before provider query and releases the lease", async () => {
   const { durable, adapter, coordinator } = await setup();
