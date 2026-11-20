@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/output-policy-decision.schema.json",
+  "title": "Sofia AI Output Policy Decision v1",
+  "description": "Deterministic policy result enforced by an output adapter; a model suggestion is never an authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "decision", "content_classification", "output_route", "reason_codes", "issued_at", "expires_at", "policy_version"],
+  "properties": {
+    "decision_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "decision": {"type": "string", "enum": ["ALLOW_VOICE", "ALLOW_PRIVATE_DISPLAY", "ASK_OWNER", "REQUIRE_STEP_UP", "DENY_DISCLOSURE"]},
+    "content_classification": {"type": "string", "enum": ["public", "personal", "sensitive", "highly_sensitive", "unknown"]},
+    "output_route": {"type": "string", "enum": ["speaker", "earpiece", "headphones", "personal_display", "shared_display", "wearable", "vehicle_audio", "smart_speaker", "unknown"]},
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": ["owner_session_missing", "owner_attribution_uncertain", "other_speakers_detected", "environment_unknown", "route_not_private", "shared_display", "screen_locked", "explicit_consent_missing", "step_up_required", "sensor_permission_missing", "signal_stale", "policy_allowed", "content_class_high"]}
+    },
+    "required_consent_scope": {"type": "string", "enum": ["none", "current_item_voice", "current_item_display", "sensitive_item_voice", "action_specific"]},
+    "owner_choice_ref": {"type": "string", "maxLength": 128},
+    "observation_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
