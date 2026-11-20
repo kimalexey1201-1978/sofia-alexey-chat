@@ -130,7 +130,7 @@ export function createInMemoryReconciliationStore() {
     },
 
     async commitDecision(input) {
-      return serialize(() => {
+      return serialize(async () => {
         const {taskId, expectedVersion, leaseOwner, fencingToken, now,
           evidenceRecords, decision, auditEvent} = input ?? {};
         if (typeof taskId !== "string" || !taskId ||
