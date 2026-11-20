@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/communication-channel.schema.json",
+  "title": "Sofia AI Communication Channel v1",
+  "description": "Registered communication channel adapter and its declared capabilities and permission scopes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_id", "adapter_module_id", "adapter_version", "channel_type", "lifecycle_state", "supported_operations", "permission_scopes", "platform_constraints"],
+  "properties": {
+    "channel_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "adapter_module_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "adapter_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "channel_type": {"type": "string", "enum": ["native_text", "native_voice", "sms", "messaging_app", "email", "voice_call", "video_call", "notification", "enterprise_messaging", "wearable", "other"]},
+    "lifecycle_state": {"type": "string", "enum": ["discovered", "quarantined", "validating", "testing", "staged", "active", "suspended", "disabled", "revoked", "failed"]},
+    "supported_operations": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true, "minItems": 1},
+    "permission_scopes": {"type": "array", "items": {"type": "string", "maxLength": 256}, "uniqueItems": true},
+    "platform_constraints": {"type": "array", "items": {"type": "string", "maxLength": 512}, "maxItems": 256},
+    "regions": {"type": "array", "items": {"type": "string", "maxLength": 64}, "uniqueItems": true},
+    "rate_limit_policy_ref": {"type": "string", "maxLength": 256},
+    "delivery_receipt_support": {"type": "string", "enum": ["none", "provider_acceptance", "delivered", "read", "varies"]},
+    "attachment_constraints": {"type": "object", "additionalProperties": false, "properties": {
+      "max_bytes": {"type": "integer", "minimum": 0},
+      "allowed_mime_types": {"type": "array", "items": {"type": "string", "maxLength": 128}, "uniqueItems": true}
+    }},
+    "tested_app_versions": {"type": "array", "items": {"type": "string", "maxLength": 128}, "uniqueItems": true},
+    "last_verified_at": {"type": "string", "format": "date-time"}
+  }
+}
