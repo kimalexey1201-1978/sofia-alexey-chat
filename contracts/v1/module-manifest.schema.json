@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/module-manifest.schema.json",
+  "title": "Sofia AI Module Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "module_id",
+    "name",
+    "version",
+    "publisher",
+    "artifact",
+    "compatibility",
+    "runtime",
+    "dependencies",
+    "capabilities",
+    "permissions",
+    "resources",
+    "data_handling"
+  ],
+  "properties": {
+    "module_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+([.-][a-z0-9]+)+$",
+      "maxLength": 160
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publisher_id"
+      ],
+      "properties": {
+        "publisher_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "display_name": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "verification": {
+          "enum": [
+            "verified",
+            "unverified",
+            "revoked",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "digest_algorithm",
+        "digest"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "digest_algorithm": {
+          "const": "sha256"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "signature": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "signature_format": {
+          "type": "string",
+          "maxLength": 80
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "core_api"
+      ],
+      "properties": {
+        "core_api": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "contract_versions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "android",
+              "web",
+              "windows",
+              "linux",
+              "macos",
+              "cloud"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "wasm",
+            "isolated_process",
+            "container",
+            "android_service",
+            "web_worker",
+            "remote_service"
+          ]
+        },
+        "entrypoint": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "minimum_os_version": {
+          "type": "string",
+          "maxLength": 80
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "module_id",
+          "version_range"
+        ],
+        "properties": {
+          "module_id": {
+            "type": "string"
+          },
+          "version_range": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "optional": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability_id",
+          "contract_version"
+        ],
+        "properties": {
+          "capability_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$",
+            "maxLength": 180
+          },
+          "contract_version": {
+            "type": "string"
+          },
+          "schema_ref": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      },
+      "uniqueItems": true
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "purpose"
+        ],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "optional": {
+            "type": "boolean",
+            "default": false
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 31536000
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_memory_mb",
+        "max_execution_ms",
+        "max_concurrency"
+      ],
+      "properties": {
+        "max_memory_mb": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "max_execution_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600000
+        },
+        "max_concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "max_storage_mb": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1048576
+        },
+        "network_egress_allowlist": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 253
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "data_handling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data_classes",
+        "retention"
+      ],
+      "properties": {
+        "data_classes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "public",
+              "user_content",
+              "personal_data",
+              "sensitive_data",
+              "credentials",
+              "device_telemetry"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "retention": {
+          "enum": [
+            "none",
+            "ephemeral",
+            "user_configured",
+            "persistent"
+          ]
+        },
+        "cross_session_storage": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "health_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120000
+        },
+        "interval_seconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 86400
+        }
+      }
+    },
+    "shutdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grace_period_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120000
+        },
+        "supports_cancellation": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
