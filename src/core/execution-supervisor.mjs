@@ -53,6 +53,9 @@ export function evaluateExecutionRetry(input) {
   if (priorState === "outcome_uncertain" || providerOutcome === "UNKNOWN") {
     return { allowed: false, reasonCode: "OUTCOME_RECONCILIATION_REQUIRED" };
   }
+  if (!["CONFIRMED_NOT_APPLIED", "CONFIRMED_APPLIED"].includes(providerOutcome)) {
+    return { allowed: false, reasonCode: "RETRY_SAFETY_NOT_ESTABLISHED" };
+  }
   if (providerOutcome === "CONFIRMED_APPLIED") {
     return { allowed: false, reasonCode: "PRIOR_SIDE_EFFECT_ALREADY_APPLIED" };
   }

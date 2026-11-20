@@ -174,3 +174,15 @@ test("rejects missing or malformed module artifact digests", () => {
     assert.ok(result.reasonCodes.includes("INVALID_OR_EXPIRED_EXECUTION_REQUEST"));
   }
 });
+
+
+test("rejects missing or unrecognized provider outcomes even for naturally idempotent operations", () => {
+  const base = { priorState:"failed", idempotencyKey:"idem-key-0001",
+    retryIdempotencyKey:"idem-key-0001", sameCanonicalOperation:true,
+    naturallyIdempotent:true };
+  assert.equal(evaluateExecutionRetry(base).reasonCode, "RETRY_SAFETY_NOT_ESTABLISHED");
+  assert.equal(evaluateExecutionRetry({...base, providerOutcome:"MAYBE_APPLIED"}).reasonCode,
+    "RETRY_SAFETY_NOT_ESTABLISHED");
+  assert.equal(evaluateExecutionRetry({...base, providerOutcome:"UNKNOWN"}).reasonCode,
+    "OUTCOME_RECONCILIATION_REQUIRED");
+});
