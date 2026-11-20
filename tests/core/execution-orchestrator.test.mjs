@@ -130,3 +130,15 @@ test("does not prepare a draft or awaiting-approval plan", () => {
   assert.equal(result.ok, false);
   assert.ok(result.reasonCodes.includes("PLAN_NOT_APPROVED_FOR_EXECUTION"));
 });
+
+test("does not route Core-owned inference through external executor selection", () => {
+  const plan = makePlan();
+  plan.steps[0].step_type = "reason";
+  plan.steps[0].required_capabilities = [];
+  const result = prepareExecution(plan, [], {}, now);
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "NOT_REQUIRED");
+  assert.ok(result.reasonCodes.includes("INTERNAL_INFERENCE_DOES_NOT_REQUIRE_EXECUTOR"));
+  assert.equal(result.selectedModuleRef, null);
+  assert.equal(result.dispatchPerformed, false);
+});
