@@ -43,6 +43,9 @@ export function createOpenRouterProvider(config = {}) {
       }
 
       try {
+        if (controller.signal.aborted) {
+          throw new Error("Provider request was cancelled before dispatch");
+        }
         const response = await fetchImpl(OPENROUTER_ENDPOINT, {
           method: "POST",
           headers,
