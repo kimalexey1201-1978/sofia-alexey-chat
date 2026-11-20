@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/resource-usage-event.schema.json",
+  "title": "Sofia AI Resource Usage Event v1",
+  "description": "Minimal accounting event for measured or estimated resource consumption. Must not contain prompts, secrets or protected payloads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "reservation_id", "principal_ref", "task_id", "resource_type", "quantity", "unit", "measurement_status", "source", "occurred_at"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "reservation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "principal_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "module_id": {"type": "string", "maxLength": 160},
+    "provider_id": {"type": "string", "maxLength": 128},
+    "resource_type": {"type": "string", "enum": ["money", "input_tokens", "output_tokens", "provider_call", "cpu_time", "wall_time", "memory", "storage", "network_bytes", "concurrency", "task_step", "retry", "data_export"]},
+    "quantity": {"type": "integer", "minimum": 0},
+    "unit": {"type": "string", "minLength": 1, "maxLength": 32},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "measurement_status": {"type": "string", "enum": ["estimated", "measured", "pending", "reconciled"]},
+    "source": {"type": "string", "minLength": 1, "maxLength": 256},
+    "pricing_version": {"type": "string", "maxLength": 128},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
