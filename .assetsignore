@@ -1,1 +1,19 @@
+# Only browser-facing files are published as static assets.
+# Keep the Worker entrypoint out of the public asset manifest.
 _worker.js
+
+# Server-side implementation must never be served as static files.
+src/core/
+src/providers/
+src/worker/
+
+# Internal project material is not part of the browser application.
+tests/
+docs/
+contracts/
+.github/
+.wrangler/
+node_modules/
+
+# Runtime/deployment configuration is not a public browser asset.
+wrangler.jsonc
