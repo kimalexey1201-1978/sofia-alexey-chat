@@ -17,6 +17,12 @@ export function createOpenRouterProvider(config = {}) {
           typeof request.systemInstruction !== "string") {
         throw new TypeError("Invalid provider request");
       }
+      if (request.signal !== undefined &&
+          (!request.signal || typeof request.signal.aborted !== "boolean" ||
+           typeof request.signal.addEventListener !== "function" ||
+           typeof request.signal.removeEventListener !== "function")) {
+        throw new TypeError("Invalid provider cancellation signal");
+      }
       const timeoutMs = Number.isSafeInteger(request.timeoutMs) && request.timeoutMs > 0
         ? request.timeoutMs : 20000;
       const controller = new AbortController();

@@ -127,3 +127,40 @@ test("does not leak cancellation reason or credentials through adapter errors", 
   assert.equal(upstreamSignal.aborted, true);
 });
 
+test("rejects malformed cancellation signal before upstream dispatch", async () => {
+  let fetchCalled = false;
+  const provider = createOpenRouterProvider({
+    apiKey: "test-secret",
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return jsonResponse({ choices: [{ message: { content: "unexpected" } }] });
+    }
+  });
+  await assert.rejects(provider.generate({
+    ...providerRequest,
+    signal: { aborted: false, addEventListener() {} }
+  }), /OpenRouter provider unavailable/);
+  assert.equal(fetchCalled, false);
+});
+
+test("removes Core abort listener after successful upstream response", async () => {
+  const coreController = new AbortController();
+  let added = 0;
+  let removed = 0;
+  const add = coreController.signal.addEventListener.bind(coreController.signal);
+  const remove = coreController.signal.removeEventListener.bind(coreController.signal);
+  coreController.signal.addEventListener = (...args) => { added++; return add(...args); };
+  coreController.signal.removeEventListener = (...args) => { removed++; return remove(...args); };
+
+  const provider = createOpenRouterProvider({
+    apiKey: "test-secret",
+    fetchImpl: async () => jsonResponse({ choices: [{ message: { content: "success" } }] })
+  });
+  const result = await provider.generate({
+    ...providerRequest,
+    signal: coreController.signal
+  });
+  assert.equal(result.text, "success");
+  assert.equal(added, 1);
+  assert.equal(removed, 1);
+});

@@ -153,4 +153,36 @@ test("does not invoke provider when caller cancellation predates Core execution"
   assert.equal(result.error.code, "REQUEST_CANCELLED");
   assert.equal(calls, 0);
 });
+ 
+test("rejects malformed cancellation signal before provider invocation", async () => {
+  let calls = 0;
+  const provider = { async generate() {
+    calls++;
+    return { text: "unexpected", providerId: "mock", modelId: "fixture" };
+  }};
+  const result = await runSofiaCore(provider, request, {
+    ...config,
+    signal: { aborted: false, addEventListener() {} }
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "INTERNAL_FAILURE");
+  assert.equal(calls, 0);
+});
 
+test("removes caller abort listener after successful completion", async () => {
+  const caller = new AbortController();
+  let added = 0;
+  let removed = 0;
+  const add = caller.signal.addEventListener.bind(caller.signal);
+  const remove = caller.signal.removeEventListener.bind(caller.signal);
+  caller.signal.addEventListener = (...args) => { added++; return add(...args); };
+  caller.signal.removeEventListener = (...args) => { removed++; return remove(...args); };
+
+  const result = await runSofiaCore(createMockProvider({
+    text: "Готово", providerId: "mock", modelId: "fixture"
+  }), request, { ...config, signal: caller.signal });
+
+  assert.equal(result.ok, true);
+  assert.equal(added, 1);
+  assert.equal(removed, 1);
+});

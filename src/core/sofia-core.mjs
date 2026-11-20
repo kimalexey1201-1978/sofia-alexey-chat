@@ -117,7 +117,8 @@ export async function runSofiaCore(provider, request, config = {}) {
 
   if (config.signal !== undefined &&
       (!config.signal || typeof config.signal.aborted !== "boolean" ||
-       typeof config.signal.addEventListener !== "function")) {
+       typeof config.signal.addEventListener !== "function" ||
+       typeof config.signal.removeEventListener !== "function")) {
     return failure("INTERNAL_FAILURE", "Core configuration is invalid");
   }
   if (config.signal?.aborted) {
