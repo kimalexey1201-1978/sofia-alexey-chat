@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/integration-invocation-result.schema.json",
+  "title": "Sofia Integration Invocation Result",
+  "description": "Structured adapter outcome with side-effect and verification state.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["invocation_id", "status", "updated_at"],
+  "properties": {
+    "invocation_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["accepted", "queued", "running", "succeeded", "partially_succeeded", "failed", "rejected", "cancelled", "completion_unknown"] },
+    "provider_operation_ref": { "type": "string", "maxLength": 256 },
+    "side_effect_state": { "type": "string", "enum": ["none", "not_started", "in_progress", "completed", "reversed", "unknown"] },
+    "verification_method": { "type": "string", "enum": ["provider_status_api", "webhook", "independent_readback", "user_confirmed", "not_verified"] },
+    "verified_at": { "type": "string", "format": "date-time" },
+    "error_code": { "type": "string", "maxLength": 128 },
+    "safe_error_message": { "type": "string", "maxLength": 1024 },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
