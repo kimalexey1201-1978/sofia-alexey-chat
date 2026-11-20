@@ -5,17 +5,6 @@ function canonicalJson(value) {
     `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
 }
 
-async function digestEvidenceSet(records) {
-  if (!globalThis.crypto?.subtle) throw new Error("WEB_CRYPTO_UNAVAILABLE");
-  const unique = new Map();
-  for (const record of records) unique.set(record.evidence_digest, record);
-  const canonical = [...unique.values()]
-    .sort((a, b) => a.evidence_digest.localeCompare(b.evidence_digest))
-    .map(canonicalJson).join("\n");
-  const bytes = new TextEncoder().encode(canonical);
-  const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, "0")).join("");
-}
 
 function validDate(value) {
   return value instanceof Date && Number.isFinite(value.getTime());
@@ -151,7 +140,7 @@ export function createReconciliationCoordinator({
         }
 
         const evidenceRecords = verified.evidenceRecords;
-        const evidenceSetDigest = await digestEvidenceSet(evidenceRecords);
+        const evidenceSetDigest = await computeEvidenceSetDigest(evidenceRecords);
         const terminal = evaluation.resolved === true;
         const taskVersionAfter = terminal ? task.version + 1 : task.version;
         const conclusion = evaluation.conclusion;
@@ -233,3 +222,4 @@ export function createReconciliationCoordinator({
 }
 
 import { evaluateReconciliationEvidenceBatch } from "./reconciliation-manager.mjs";
+import { computeEvidenceSetDigest } from "./reconciliation-storage.mjs";
