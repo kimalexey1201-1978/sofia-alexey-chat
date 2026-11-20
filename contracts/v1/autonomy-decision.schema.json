@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/autonomy-decision.schema.json",
+  "title": "Sofia AI Autonomy Decision v1",
+  "description": "Auditable policy outcome for a proposed autonomous action.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "task_id", "action_ref", "decided_at", "autonomy_level", "risk_tier", "outcome", "reason_code", "policy_version"],
+  "properties": {
+    "decision_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "action_ref": {"type": "string", "minLength": 1, "maxLength": 512},
+    "decided_at": {"type": "string", "format": "date-time"},
+    "autonomy_level": {"type": "string", "enum": ["A0", "A1", "A2", "A3", "A4", "A5"]},
+    "risk_tier": {"type": "string", "enum": ["R0", "R1", "R2", "R3"]},
+    "outcome": {"type": "string", "enum": ["allow", "deny", "require_approval", "pause", "clarification_required"]},
+    "reason_code": {"type": "string", "minLength": 1, "maxLength": 128},
+    "explanation": {"type": "string", "maxLength": 2000},
+    "authority_envelope_id": {"type": "string", "maxLength": 128},
+    "security_policy_decision_id": {"type": "string", "maxLength": 128},
+    "approval_id": {"type": "string", "maxLength": 128},
+    "identity_assurance": {"type": "string", "enum": ["none", "standard", "elevated", "strong"]},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "verification_required": {"type": "boolean"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
