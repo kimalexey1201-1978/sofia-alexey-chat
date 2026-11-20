@@ -158,6 +158,21 @@ The digest covers the full persisted evidence set, not merely the latest provide
 - Define retention, deletion, backup and restore policies before production activation. Retention must preserve legal/audit requirements without retaining unnecessary personal payloads.
 - Verify backups by restore tests; a backup is not considered valid until recovery has been exercised.
 
+## 7A. Integrity of accepted historical evidence
+
+A stored `verification.status = VERIFIED` marker is metadata, not a cryptographic proof. The in-memory test double is protected from callers mutating its private maps, but a future durable adapter must assume that persisted rows, backups, imports, and administrative repair paths can be corrupted or tampered with.
+
+Before historical evidence can influence a later decision, a durable adapter must establish all of the following:
+
+1. Preserve the exact canonical evidence record that was authenticated at initial acceptance. Do not reconstruct it from a mutable subset of columns.
+2. Persist a separate storage-integrity envelope containing at minimum the canonical record digest, the evidence schema version, the verifier identity/reference, and the acceptance timestamp. Keep this distinct from the provider's `evidence_digest`; the provider digest identifies provider evidence, while the storage digest detects changes to the stored representation.
+3. Verify the storage-integrity envelope on every historical read, before passing records to the reconciliation manager. A mismatch, missing envelope, unsupported version, or unverifiable key identifier fails closed and leaves the task `outcome_uncertain`.
+4. If tamper resistance against a database writer or backup operator is required, authenticate the envelope with a key held outside the database (for example, a keyed MAC or digital signature). A plain hash stored beside the record detects accidental corruption only if the hash itself is trusted; it does not protect against an actor who can rewrite both.
+5. Bind the authenticated envelope to the task ID, request ID, provider identity, evidence digest, and schema version to prevent moving a valid record between tasks or requests.
+6. Define key rotation, key identifier retention, backup/restore verification, and an explicit migration path for historical records created before envelope enforcement. Never silently upgrade an unverified legacy row into trusted history.
+
+The manager's current historical checks validate record shape, timestamps, verifier metadata, conclusion, and immutable request binding. They do not independently verify a cryptographic storage envelope. That is an intentional limitation of this pure evaluator; the durable storage adapter is responsible for authenticating persisted history before returning it. Until that adapter exists and passes tamper/fault-injection tests, the prototype must not be treated as a production trust boundary.
+
 ## 8. Acceptance criteria before implementation
 
 1. Concurrent compare-and-swap attempts: exactly one state transition succeeds.
