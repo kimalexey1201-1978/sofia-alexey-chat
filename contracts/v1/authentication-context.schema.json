@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/authentication-context.schema.json",
+  "title": "Sofia AI Authentication Context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_id",
+    "principal_ref",
+    "session_ref",
+    "authentication_methods",
+    "assurance_level",
+    "verified_at",
+    "expires_at",
+    "issuer",
+    "correlation_id"
+  ],
+  "properties": {
+    "context_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "device_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "session_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "authentication_methods": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "passkey",
+          "device_key",
+          "platform_biometric",
+          "device_unlock",
+          "explicit_confirmation",
+          "speaker_verification"
+        ]
+      }
+    },
+    "assurance_level": {
+      "enum": [
+        "unauthenticated",
+        "low",
+        "substantial",
+        "high"
+      ]
+    },
+    "speaker_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "confidence_band"
+      ],
+      "properties": {
+        "result": {
+          "enum": [
+            "match",
+            "no_match",
+            "unknown",
+            "not_checked"
+          ]
+        },
+        "confidence_band": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "not_applicable"
+          ]
+        },
+        "quality_flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "noise",
+              "overlap",
+              "short_sample",
+              "replay_suspected",
+              "spoof_suspected",
+              "poor_signal"
+            ]
+          }
+        }
+      }
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "issuer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "nonce_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "request_binding": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "risk_signals": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    }
+  }
+}
