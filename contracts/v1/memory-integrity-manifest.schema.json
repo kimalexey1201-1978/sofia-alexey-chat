@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/memory-integrity-manifest.schema.json",
+  "title": "Sofia AI Memory Integrity Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_id",
+    "memory_id",
+    "memory_version",
+    "canonicalization_version",
+    "digest_algorithm",
+    "record_digest",
+    "created_at",
+    "key_id",
+    "checkpoint_ref"
+  ],
+  "properties": {
+    "manifest_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "memory_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "memory_version": { "type": "integer", "minimum": 1 },
+    "canonicalization_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "digest_algorithm": { "enum": ["SHA-256", "SHA-384", "SHA-512"] },
+    "record_digest": { "type": "string", "pattern": "^[A-Fa-f0-9]{64,128}$" },
+    "previous_manifest_digest": { "type": "string", "pattern": "^[A-Fa-f0-9]{64,128}$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "signature_ref": { "type": "string", "maxLength": 512 },
+    "checkpoint_ref": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "integrity_status": { "enum": ["UNVERIFIED", "VALID", "INVALID", "KEY_UNAVAILABLE", "QUARANTINED"] }
+  }
+}
