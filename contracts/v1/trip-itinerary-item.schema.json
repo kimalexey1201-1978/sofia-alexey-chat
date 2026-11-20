@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/trip-itinerary-item.schema.json",
+  "title": "Sofia Trip Itinerary Item",
+  "description": "Time-bounded proposed or confirmed trip segment or activity with timezone and dependencies.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["item_id", "trip_id", "item_type", "status", "timezone", "created_at"],
+  "properties": {
+    "item_id": { "type": "string", "format": "uuid" },
+    "trip_id": { "type": "string", "format": "uuid" },
+    "item_type": { "type": "string", "enum": ["flight", "rail", "bus", "lodging", "rental", "activity", "transfer", "meal", "other"] },
+    "title": { "type": "string", "maxLength": 512 },
+    "start_at": { "type": "string", "format": "date-time" },
+    "end_at": { "type": "string", "format": "date-time" },
+    "timezone": { "type": "string", "maxLength": 128 },
+    "location_ref": { "type": "string", "maxLength": 512 },
+    "provider_ref": { "type": "string", "maxLength": 256 },
+    "reservation_ref": { "type": "string", "maxLength": 256 },
+    "dependency_item_refs": { "type": "array", "maxItems": 64, "items": { "type": "string", "format": "uuid" } },
+    "status": { "type": "string", "enum": ["proposed", "user_confirmed", "provider_confirmed", "waitlisted", "cancelled", "completed", "disrupted"] },
+    "source_ref": { "type": "string", "maxLength": 2048 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
