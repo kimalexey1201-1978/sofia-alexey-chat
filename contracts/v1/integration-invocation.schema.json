@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/integration-invocation.schema.json",
+  "title": "Sofia Integration Invocation",
+  "description": "Bounded, policy-linked request to invoke one exact adapter operation.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["invocation_id", "connection_id", "adapter_id", "operation", "purpose", "requested_at", "authority_envelope_ref", "policy_decision_ref"],
+  "properties": {
+    "invocation_id": { "type": "string", "format": "uuid" },
+    "correlation_id": { "type": "string", "maxLength": 128 },
+    "task_id": { "type": "string", "maxLength": 128 },
+    "connection_id": { "type": "string", "format": "uuid" },
+    "adapter_id": { "type": "string", "maxLength": 160 },
+    "adapter_version": { "type": "string", "maxLength": 64 },
+    "operation": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "target_resource_ref": { "type": "string", "maxLength": 2048 },
+    "input_payload_ref": { "type": "string", "maxLength": 2048 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "data_classification": { "type": "string", "enum": ["public", "internal", "confidential", "restricted"] },
+    "idempotency_key": { "type": "string", "maxLength": 256 },
+    "deadline_at": { "type": "string", "format": "date-time" },
+    "authority_envelope_ref": { "type": "string", "maxLength": 256 },
+    "policy_decision_ref": { "type": "string", "maxLength": 256 },
+    "approval_ref": { "type": "string", "maxLength": 256 },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}
