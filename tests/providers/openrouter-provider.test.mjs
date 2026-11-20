@@ -72,7 +72,7 @@ test("maps upstream HTTP failure to a generic error without leaking response bod
 
 test("rejects malformed completion payload", async () => {
   const provider = createOpenRouterProvider({ apiKey: "test-secret",
-    fetchImpl: async () => jsonResponse({ choices: [{ message: { content: null } }]) });
+    fetchImpl: async () => jsonResponse({ choices: [{ message: { content: null } }] }) });
   await assert.rejects(provider.generate(providerRequest), /OpenRouter provider unavailable/);
 });
 
