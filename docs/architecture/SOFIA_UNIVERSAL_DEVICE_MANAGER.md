@@ -149,7 +149,7 @@ The v1 contracts introduced alongside this document define:
 - device registry record and lifecycle;
 - device capability declaration;
 - device trust assessment;
-- normalized device command request and result.
+- the existing `device-command.schema.json` request contract (preserved unchanged);\n- the new normalized `device-command-result.schema.json` result contract.
 
 Acceptance criteria for future implementation:
 1. Discovery alone never creates a paired, trusted or authorized device.
