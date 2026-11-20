@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/situation-assessment.schema.json",
+  "title": "Sofia Situation Assessment",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "assessment_id",
+    "snapshot_ref",
+    "scope",
+    "assessed_at",
+    "valid_until",
+    "claims",
+    "unresolved_conflicts",
+    "verification_status",
+    "limitations"
+  ],
+  "properties": {
+    "assessment_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "snapshot_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "assessed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "valid_until": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claims": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim",
+          "epistemic_status",
+          "confidence",
+          "supporting_item_refs"
+        ],
+        "properties": {
+          "claim": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "epistemic_status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "owner_stated",
+              "externally_reported",
+              "derived",
+              "inferred",
+              "assumed",
+              "unknown",
+              "disputed"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "supporting_item_refs": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "contradicting_item_refs": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "method_ref": {
+            "type": "string",
+            "maxLength": 256
+          }
+        }
+      }
+    },
+    "unresolved_conflicts": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "stale_sources": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "supported_with_limitations",
+        "unverified",
+        "contradicted",
+        "rejected"
+      ]
+    },
+    "verification_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "limitations": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "clarification_needed": {
+      "type": "boolean"
+    },
+    "recommended_clarification": {
+      "type": "string",
+      "maxLength": 1024
+    }
+  }
+}
