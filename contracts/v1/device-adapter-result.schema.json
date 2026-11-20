@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-adapter-result.schema.json",
+  "title": "Sofia AI Device Adapter Result v1",
+  "description": "Normalized adapter response. The broker validates invocation binding, schema and provenance before forwarding it to the Execution Supervisor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["invocation_id", "correlation_id", "adapter_id", "adapter_version", "device_ref", "status", "observed_at"],
+  "properties": {
+    "invocation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "correlation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "adapter_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "adapter_version": {"type": "string", "minLength": 1, "maxLength": 80},
+    "device_ref": {"type": "string", "minLength": 8, "maxLength": 256},
+    "status": {"type": "string", "enum": ["SUCCEEDED", "REJECTED", "FAILED", "TIMED_OUT", "CANCELLED", "OUTCOME_UNKNOWN"]},
+    "result_ref": {"type": "string", "maxLength": 512},
+    "result_digest": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "result_schema_ref": {"type": "string", "maxLength": 256},
+    "device_observation_ref": {"type": "string", "maxLength": 256},
+    "error_code": {"type": "string", "maxLength": 128},
+    "retryable": {"type": "boolean"},
+    "reconciliation_required": {"type": "boolean"},
+    "resource_usage_ref": {"type": "string", "maxLength": 256},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "SUCCEEDED"}}, "required": ["status"]}, "then": {"required": ["result_ref", "result_digest", "result_schema_ref"]}},
+    {"if": {"properties": {"status": {"enum": ["FAILED", "REJECTED", "TIMED_OUT", "CANCELLED", "OUTCOME_UNKNOWN"]}}, "required": ["status"]}, "then": {"required": ["error_code"]}}
+  ]
+}
