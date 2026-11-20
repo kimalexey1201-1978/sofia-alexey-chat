@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/memory-lifecycle-event.schema.json",
+  "title": "Sofia AI Memory Lifecycle Event v1",
+  "description": "Auditable event for memory access, admission, correction, export, retention or deletion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "occurred_at", "actor_id", "purpose", "result", "operation_id"],
+  "properties": {
+    "event_id": {"type": "string", "format": "uuid"},
+    "event_type": {"type": "string", "enum": ["candidate_created", "approval_requested", "memory_admitted", "memory_read", "memory_corrected", "memory_restricted", "memory_exported", "deletion_requested", "deletion_started", "deletion_completed", "deletion_partially_completed", "memory_expired", "memory_superseded", "index_rebuilt", "restore_tombstone_applied", "access_denied"]},
+    "memory_id": {"type": "string", "maxLength": 128},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "actor_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "actor_type": {"type": "string", "enum": ["owner", "authorized_user", "system", "policy_engine", "administrator", "module"]},
+    "purpose": {"type": "string", "minLength": 1, "maxLength": 512},
+    "scope": {"type": "string", "maxLength": 256},
+    "result": {"type": "string", "enum": ["success", "denied", "partial", "failed", "pending"]},
+    "reason_code": {"type": "string", "maxLength": 128},
+    "approval_id": {"type": "string", "maxLength": 128},
+    "operation_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "correlation_id": {"type": "string", "maxLength": 128},
+    "affected_index_refs": {"type": "array", "items": {"type": "string", "maxLength": 512}, "maxItems": 256},
+    "metadata": {"type": "object", "description": "Non-sensitive metadata only.", "additionalProperties": {"type": ["string", "number", "boolean", "null"]}}
+  }
+}
