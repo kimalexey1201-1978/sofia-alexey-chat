@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/identifier-policy.schema.json",
+  "title": "Sofia AI Identifier Policy",
+  "description": "Canonical entity-specific identifier rules. Identifier values are references, never authorization credentials.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "entity_rules", "security_rules", "version"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "policy_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$" },
+    "entity_rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["entity_type", "identifier_kind", "immutable", "authorization_use"],
+        "properties": {
+          "entity_type": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "identifier_kind": { "type": "string", "enum": ["reverse_dns", "namespaced_slug", "uuidv7", "opaque_external", "w3c_trace"] },
+          "pattern": { "type": "string", "maxLength": 300 },
+          "immutable": { "type": "boolean" },
+          "authorization_use": { "const": "reference_only" },
+          "reuse_after_revocation": { "type": "boolean", "const": false }
+        }
+      }
+    },
+    "security_rules": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["never_embed_personal_data", "never_treat_id_as_secret", "resolve_ownership_server_side", "avoid_sequential_external_ids", "validate_namespace", "do_not_reuse_revoked_ids"] }
+    },
+    "legacy_compatibility": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["legacy_field", "entity_type", "migration_mode"],
+        "properties": {
+          "legacy_field": { "type": "string", "maxLength": 160 },
+          "entity_type": { "type": "string", "maxLength": 100 },
+          "migration_mode": { "type": "string", "enum": ["preserve", "adapter", "new_major_contract", "manual_review"] },
+          "notes": { "type": "string", "maxLength": 2000 }
+        }
+      }
+    },
+    "approved_by": { "type": "string", "maxLength": 200 },
+    "approved_at": { "type": "string", "format": "date-time" }
+  }
+}
