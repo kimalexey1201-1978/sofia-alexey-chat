@@ -103,14 +103,54 @@ export function evaluateReconciliation(input, now = new Date()) {
  */
 export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
   const records = input?.evidenceRecords;
+  const historical = input?.historicalEvidenceRecords ?? [];
   const unknown = reasonCode => ({ resolved: false, taskState: "outcome_uncertain",
     conclusion: "STILL_UNKNOWN", reasonCode });
-  if (!Array.isArray(records) || records.length === 0) {
+  if (!Array.isArray(records) || records.length === 0 || !Array.isArray(historical)) {
     return unknown("RECONCILIATION_EVIDENCE_MISSING");
   }
 
   const byDigest = new Map();
   const evaluations = [];
+  const expected = {
+    task_id: input.task?.task_id,
+    request_id: input.priorRequest?.request_id,
+    provider_id: input.priorRequest?.provider_id,
+    provider_operation_ref: input.priorRequest?.provider_operation_ref,
+    target_ref: input.priorRequest?.target_ref,
+    operation_digest: input.priorRequest?.operation_digest,
+    idempotency_key_digest: input.priorRequest?.idempotency_key_digest
+  };
+
+  // Historical records were authenticated and freshness-checked when first
+  // accepted by the store. Re-check their immutable binding and structure,
+  // but do not make their continued validity depend on the current clock.
+  for (const record of historical) {
+    if (!record || typeof record !== "object" || Array.isArray(record) ||
+        typeof record.evidence_digest !== "string" ||
+        !/^[a-fA-F0-9]{64}$/.test(record.evidence_digest) ||
+        !CONCLUSIONS.has(record.conclusion) ||
+        record.schema_version !== "1.0.0" ||
+        record.verification?.status !== "VERIFIED" ||
+        !record.verification?.verifier_ref ||
+        !record.verification?.verified_at) {
+      return unknown("PERSISTED_EVIDENCE_INVALID");
+    }
+    for (const [field, value] of Object.entries(expected)) {
+      if (typeof value !== "string" || !value || record[field] !== value) {
+        return unknown("PERSISTED_EVIDENCE_BINDING_MISMATCH");
+      }
+    }
+    const serialized = canonicalJson(record);
+    const previous = byDigest.get(record.evidence_digest);
+    if (previous !== undefined && previous !== serialized) {
+      return unknown("DUPLICATE_EVIDENCE_DIGEST_CONFLICT");
+    }
+    byDigest.set(record.evidence_digest, serialized);
+  }
+
+  // Only newly returned provider records are subject to the current freshness
+  // window. Their exact authenticated contents are merged with history below.
   for (const record of records) {
     if (!record || typeof record !== "object" || Array.isArray(record) ||
         typeof record.evidence_digest !== "string" ||
@@ -119,26 +159,24 @@ export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
     }
     const serialized = canonicalJson(record);
     const previous = byDigest.get(record.evidence_digest);
-    if (previous !== undefined && previous !== serialized) {
-      return unknown("DUPLICATE_EVIDENCE_DIGEST_CONFLICT");
+    if (previous !== undefined) {
+      if (previous !== serialized) return unknown("DUPLICATE_EVIDENCE_DIGEST_CONFLICT");
+      continue;
     }
-    if (previous === undefined) {
-      byDigest.set(record.evidence_digest, serialized);
-      evaluations.push(evaluateReconciliation({
-        task: input.task,
-        priorRequest: input.priorRequest,
-        evidence: record,
-        freshnessWindowMs: input.freshnessWindowMs
-      }, now));
-    }
+    byDigest.set(record.evidence_digest, serialized);
+    evaluations.push(evaluateReconciliation({
+      task: input.task,
+      priorRequest: input.priorRequest,
+      evidence: record,
+      freshnessWindowMs: input.freshnessWindowMs
+    }, now));
   }
 
   const invalid = evaluations.find(result =>
     result.reasonCode !== "PROVIDER_STATE_STILL_UNKNOWN" && !result.resolved);
   if (invalid) return invalid;
 
-  if (byDigest.size > 1) {
-    return unknown("MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
-  }
+  if (byDigest.size > 1) return unknown("MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
+  if (evaluations.length === 0) return unknown("RECONCILIATION_EVIDENCE_MISSING");
   return evaluations[0];
 }
