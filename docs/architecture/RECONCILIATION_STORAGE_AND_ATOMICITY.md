@@ -126,7 +126,21 @@ The lease clock must be the persistence service's trusted time source, not an un
 - Expired lease: a new fencing generation is issued; stale worker writes are rejected.
 - Storage or audit outbox unavailable: do not resolve task, release pending reservation, or authorize retry.
 
-## 6. Idempotency and conflict rules
+## 6. Evidence-set digest canonicalization
+
+The `evidence_set_digest` is SHA-256 over the UTF-8 bytes of a canonical JSON array containing the complete persisted evidence set for the task at the time of the decision.
+
+Canonicalization rules:
+
+1. Canonicalize each record as JSON with object keys sorted lexicographically at every object level; preserve array order and JSON value types.
+2. Deduplicate exact repeated records by `evidence_digest`. Reuse of one `evidence_digest` with different canonical record content is an integrity conflict and must be rejected.
+3. Sort the deduplicated records by `evidence_digest` ascending; use the canonical JSON string as a deterministic tie-breaker.
+4. Serialize the sorted canonical records as one compact JSON array with no insignificant whitespace.
+5. Compute SHA-256 over the UTF-8 encoding of that exact array. Encode the resulting 32 bytes as 64 lowercase hexadecimal characters.
+
+The digest covers the full persisted evidence set, not merely the latest provider response. Every adapter must compute and compare it inside the same atomic commit boundary after merging and deduplicating persisted evidence. A terminal resolution is rejected if more than one distinct evidence digest remains; ambiguous evidence leaves the task `outcome_uncertain`.
+
+## 7. Idempotency and conflict rules
 
 - Repeated delivery of the same evidence digest and canonical content is deduplicated.
 - Same digest with different canonical content is an integrity conflict and remains unresolved.
@@ -163,7 +177,7 @@ The lease clock must be the persistence service's trusted time source, not an un
 
 The repository already contains the reconciliation storage-port prototype and versioned record contracts. The implemented components are:
 
-- `src/core/reconciliation-storage.mjs`: process-local in-memory transactional test double with serialized critical sections, task-version checks, lease fencing and renewal, evidence deduplication/conflict rejection, and atomic in-memory updates;
+- `src/core/reconciliation-storage.mjs`: process-local in-memory transactional test double with serialized critical sections, task-version checks, lease fencing and renewal, evidence deduplication/conflict rejection, canonical evidence-set SHA-256 verification, and atomic in-memory updates;
 - `tests/core/reconciliation-storage.test.mjs`: deterministic tests for commit atomicity, compare-and-swap, lease expiry and fencing, renewal, evidence conflicts, and audit binding;
 - `contracts/v1/`: versioned JSON Schemas for task, decision, lease, evidence, and audit outbox records;
 - `src/core/reconciliation-manager.mjs`: pure evaluator for trusted, already-verified provider evidence.
@@ -188,7 +202,7 @@ The reconciliation manager and future execution supervisor must depend on a stor
 - `getTask(taskId)` reads the current aggregate record.
 - `acquireLease({ taskId, owner, now, ttlMs })` returns a lease or `null`; every successful acquisition advances a per-task fencing generation, including after explicit release.
 - `renewLease({ taskId, owner, fencingToken, now, ttlMs })` renews only the currently held, unexpired lease and preserves its fencing token.
-- `commitDecision(input)` is the atomic write boundary. It compares the expected task version, validates the active lease owner/fencing token/expiry, binds decision and evidence to the task's current request, binds the audit outbox payload to the decision, and atomically appends evidence, decision, and audit outbox while updating task state.
+- `commitDecision(input)` is the atomic write boundary. It compares the expected task version, validates the active lease owner/fencing token/expiry, binds decision and evidence to the task's current request, recomputes the canonical SHA-256 evidence-set digest over the complete merged evidence set, rejects terminal decisions based on multiple distinct evidence records, binds the audit outbox payload to the decision, and atomically appends evidence, decision, and audit outbox while updating task state.
 - `listEvidence(taskId)`, `listDecisions(taskId)`, and `listOutbox()` are read/test inspection operations.
 - `releaseLease({ taskId, owner, fencingToken })` succeeds only for the currently held matching lease. Releasing a lease must not reset its fencing generation.
 
