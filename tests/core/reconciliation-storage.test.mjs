@@ -156,3 +156,49 @@ test("rejects duplicate decision and outbox identifiers without partial mutation
   assert.equal((await store.listOutbox()).length,1);
 });
 
+
+test("does not allow a second worker with the same owner identity to steal a live lease", async () => {
+  const {store,lease}=await preparedStore();
+  const duplicate=await store.acquireLease({taskId:"task-0001",owner:"worker-a",
+    now:"2026-11-20T15:00:01.000Z",ttlMs:30000});
+  assert.equal(duplicate,null);
+  const renewed=await store.renewLease({taskId:"task-0001",owner:"worker-a",
+    fencingToken:lease.fencing_token,now:"2026-11-20T15:00:01.000Z",ttlMs:30000});
+  assert.equal(renewed.fencing_token,lease.fencing_token);
+  assert.equal(renewed.renewed_at,"2026-11-20T15:00:01.000Z");
+});
+
+test("rejects lease renewal with a stale fencing token or after expiry", async () => {
+  const {store,lease}=await preparedStore();
+  const stale=await store.renewLease({taskId:"task-0001",owner:"worker-a",
+    fencingToken:lease.fencing_token+1,now:"2026-11-20T15:00:01.000Z",ttlMs:30000});
+  assert.equal(stale,null);
+  const expired=await store.renewLease({taskId:"task-0001",owner:"worker-a",
+    fencingToken:lease.fencing_token,now:"2026-11-20T15:00:31.000Z",ttlMs:30000});
+  assert.equal(expired,null);
+});
+
+test("rejects evidence whose conclusion differs from the committed decision", async () => {
+  const {store,lease}=await preparedStore();
+  const result=await store.commitDecision(commitInput(lease,{
+    evidenceRecords:[{...evidence(),conclusion:"CONFIRMED_NOT_APPLIED"}]
+  }));
+  assert.equal(result.committed,false);
+  assert.equal(result.reasonCode,"EVIDENCE_RECORD_INVALID");
+  assert.equal((await store.getTask("task-0001")).version,1);
+  assert.equal((await store.listEvidence("task-0001")).length,0);
+});
+
+test("rejects an audit outbox payload that does not match the decision", async () => {
+  const {store,lease}=await preparedStore();
+  const input=commitInput(lease);
+  input.auditEvent={...input.auditEvent,payload:{
+    ...input.auditEvent.payload,conclusion:"CONFIRMED_NOT_APPLIED"
+  }};
+  const result=await store.commitDecision(input);
+  assert.equal(result.committed,false);
+  assert.equal(result.reasonCode,"COMMIT_DECISION_AUDIT_BINDING_INVALID");
+  assert.equal((await store.getTask("task-0001")).version,1);
+  assert.equal((await store.listDecisions("task-0001")).length,0);
+  assert.equal((await store.listOutbox()).length,0);
+});
