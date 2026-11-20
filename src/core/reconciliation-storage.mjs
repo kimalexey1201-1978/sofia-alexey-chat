@@ -1,4 +1,10 @@
 const clone = value => structuredClone(value);
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map(key =>
+    `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+}
 const TERMINAL = new Set(["completed", "failed"]);
 const CONCLUSIONS = new Set([
   "CONFIRMED_APPLIED", "CONFIRMED_NOT_APPLIED", "STILL_UNKNOWN"
@@ -156,7 +162,7 @@ export function createInMemoryReconciliationStore() {
             return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
           }
           const existing = merged.find(item => item.evidence_digest === record.evidence_digest);
-          if (existing && JSON.stringify(existing) !== JSON.stringify(record)) {
+          if (existing && canonicalJson(existing) !== canonicalJson(record)) {
             return {committed:false, reasonCode:"EVIDENCE_DIGEST_CONFLICT"};
           }
           if (record.conclusion !== decision.conclusion) {
