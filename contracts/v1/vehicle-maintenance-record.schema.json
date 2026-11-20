@@ -1,0 +1,22 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sofia.ai/contracts/v1/vehicle-maintenance-record.schema.json",
+  "title":"Vehicle Maintenance Record",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","record_id","vehicle_id","record_type","record_date","source","summary","verification_status","created_at"],
+  "properties":{
+    "schema_version":{"const":"1.0.0"},
+    "record_id":{"type":"string","minLength":1,"maxLength":200},
+    "vehicle_id":{"type":"string","minLength":1,"maxLength":200},
+    "record_type":{"enum":["scheduled_service","inspection","repair","recall","diagnostic_report","user_note"]},
+    "record_date":{"type":"string","format":"date"},
+    "odometer_value":{"type":"number","minimum":0},
+    "odometer_unit":{"enum":["km","mi"]},
+    "source":{"enum":["oem","authorized_service","independent_service","user_entered","imported_document"]},
+    "summary":{"type":"string","minLength":1,"maxLength":2000},
+    "document_refs":{"type":"array","maxItems":30,"items":{"type":"string","maxLength":200}},
+    "verification_status":{"enum":["source_verified","user_supplied","unverified"]},
+    "created_at":{"type":"string","format":"date-time"}
+  }
+}
