@@ -8,5 +8,20 @@
     "run_worker_first": [
       "/api/*"
     ]
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false,
+      "head_sampling_rate": 1,
+      "persist": true
+    },
+    "traces": {
+      "enabled": false
+    },
+    "issues": {
+      "enabled": false
+    }
   }
 }
