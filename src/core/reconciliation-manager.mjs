@@ -78,3 +78,41 @@ export function evaluateReconciliation(input, now = new Date()) {
     retryMayBeConsidered: evidence.conclusion === "CONFIRMED_NOT_APPLIED"
   };
 }
+
+/**
+ * Evaluate a provider adapter's complete evidence batch. Exact repeated
+ * records are deduplicated by digest and content. Any distinct or conflicting
+ * record is treated as ambiguous; the task remains outcome_uncertain.
+ */
+export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
+  const records = input?.evidenceRecords;
+  const unknown = reasonCode => ({ resolved: false, taskState: "outcome_uncertain",
+    conclusion: "STILL_UNKNOWN", reasonCode });
+  if (!Array.isArray(records) || records.length === 0) {
+    return unknown("RECONCILIATION_EVIDENCE_MISSING");
+  }
+
+  const byDigest = new Map();
+  for (const record of records) {
+    if (!record || typeof record !== "object" || Array.isArray(record) ||
+        typeof record.evidence_digest !== "string" ||
+        !/^[a-fA-F0-9]{64}$/.test(record.evidence_digest)) {
+      return unknown("EVIDENCE_BATCH_INVALID");
+    }
+    const serialized = JSON.stringify(record);
+    const previous = byDigest.get(record.evidence_digest);
+    if (previous !== undefined && previous !== serialized) {
+      return unknown("DUPLICATE_EVIDENCE_DIGEST_CONFLICT");
+    }
+    byDigest.set(record.evidence_digest, serialized);
+  }
+  if (byDigest.size !== 1) {
+    return unknown("MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
+  }
+  return evaluateReconciliation({
+    task: input.task,
+    priorRequest: input.priorRequest,
+    evidence: records[0],
+    freshnessWindowMs: input.freshnessWindowMs
+  }, now);
+}

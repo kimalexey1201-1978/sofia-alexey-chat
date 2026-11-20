@@ -127,3 +127,7 @@ The repository contains a pure reconciliation decision helper and tests only. It
 ## 13. Mock adapter boundary
 
 The test-only `createMockReconciliationAdapter` exposes a read-only `queryOperationStatus` contract over preloaded evidence fixtures. It is deterministic, performs no network I/O, does not authenticate or normalize evidence, does not persist state, and cannot invoke external operations. It returns a defensive copy of all configured records for the exact provider operation so higher-level tests can exercise duplicates and contradictory observations without implying that the adapter itself establishes trust. Provider identity mismatch and malformed requests fail closed. This fixture must not be registered for production execution.
+
+## 14. Evidence batch handling
+
+The pure `evaluateReconciliationEvidenceBatch` helper accepts the complete evidence-record batch returned by an adapter. Byte-for-byte-equivalent JSON records sharing one evidence digest are treated as repeated delivery of the same record. Reuse of a digest for different record content, malformed records, an empty batch, or multiple distinct evidence digests fails closed and leaves the task `outcome_uncertain`. This deliberately conservative v0.1 rule does not attempt to rank or reconcile competing provider claims; any distinct records require a separately specified provider-specific conflict-resolution policy.
