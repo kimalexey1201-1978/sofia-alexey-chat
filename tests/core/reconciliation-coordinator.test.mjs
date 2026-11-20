@@ -1,0 +1,206 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createInMemoryReconciliationStore } from "../../src/core/reconciliation-storage.mjs";
+import { createReconciliationCoordinator } from "../../src/core/reconciliation-coordinator.mjs";
+import { createMockReconciliationAdapter } from "../../src/providers/mock-reconciliation-adapter.mjs";
+
+const now = new Date("2026-11-20T15:00:00.000Z");
+const priorRequest = {
+  request_id: "request-0001",
+  provider_id: "provider-x",
+  provider_operation_ref: "operation-123",
+  target_ref: "mailbox:user-1",
+  operation_digest: "a".repeat(64),
+  idempotency_key_digest: "b".repeat(64)
+};
+
+function evidence(conclusion = "CONFIRMED_APPLIED") {
+  return {
+    schema_version: "1.0.0",
+    task_id: "task-0001",
+    request_id: priorRequest.request_id,
+    provider_id: priorRequest.provider_id,
+    provider_operation_ref: priorRequest.provider_operation_ref,
+    target_ref: priorRequest.target_ref,
+    operation_digest: priorRequest.operation_digest,
+    idempotency_key_digest: priorRequest.idempotency_key_digest,
+    conclusion,
+    evidence_digest: "c".repeat(64),
+    evidence_ref: "provider-evidence:123",
+    observed_at: "2026-11-20T14:59:30.000Z",
+    verification: {
+      status: "VERIFIED",
+      verifier_ref: "test-verifier:provider-x",
+      verified_at: "2026-11-20T14:59:40.000Z"
+    }
+  };
+}
+
+async function setup({
+  records = [evidence()],
+  verifierOverride,
+  adapterOverride,
+  clock = () => now
+} = {}) {
+  const store = createInMemoryReconciliationStore();
+  await store.seedTask({
+    task_id: "task-0001",
+    state: "outcome_uncertain",
+    version: 1,
+    current_request_id: priorRequest.request_id,
+    correlation_id: "corr-0001",
+    created_at: now.toISOString(),
+    updated_at: now.toISOString()
+  });
+  const adapter = adapterOverride ?? createMockReconciliationAdapter({
+    providerId: "provider-x",
+    evidenceByOperation: { "operation-123": records }
+  });
+  let id = 0;
+  const verifier = verifierOverride ?? {
+    // Test-only verifier stub. This is not a production trust implementation.
+    async verifyProviderResponse(input) {
+      assert.equal(input.providerId, priorRequest.provider_id);
+      assert.equal(input.expectedTaskId, "task-0001");
+      assert.equal(input.expectedRequestId, priorRequest.request_id);
+      return { authenticated: true,
+        evidenceRecords: input.response.evidence_records };
+    }
+  };
+  const coordinator = createReconciliationCoordinator({
+    store,
+    getPriorRequest: async requestId =>
+      requestId === priorRequest.request_id ? structuredClone(priorRequest) : null,
+    adapterRegistry: { get: async providerId =>
+      providerId === "provider-x" ? adapter : null },
+    verifier,
+    clock,
+    createId: prefix => `${prefix}-${String(++id).padStart(4, "0")}`,
+    policy: { version: "test-1", freshnessWindowMs: 300000, leaseTtlMs: 30000 }
+  });
+  return { store, adapter, coordinator };
+}
+
+test("commits authenticated applied evidence, task transition and audit atomically", async () => {
+  const { store, coordinator } = await setup();
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reconciled, true);
+  assert.equal(result.taskState, "completed");
+  assert.equal(result.taskVersion, 2);
+  assert.equal((await store.getTask("task-0001")).state, "completed");
+  assert.equal((await store.listEvidence("task-0001")).length, 1);
+  assert.equal((await store.listDecisions("task-0001")).length, 1);
+  assert.equal((await store.listOutbox()).length, 1);
+});
+
+test("commits authenticated not-applied evidence but never dispatches a retry", async () => {
+  const { store, coordinator, adapter } = await setup({
+    records: [evidence("CONFIRMED_NOT_APPLIED")]
+  });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reconciled, true);
+  assert.equal(result.taskState, "failed");
+  assert.equal(result.retryMayBeConsidered, true);
+  assert.equal(adapter.calls.length, 1);
+  assert.equal((await store.getTask("task-0001")).state, "failed");
+});
+
+test("commits a verified STILL_UNKNOWN record without leaving uncertainty", async () => {
+  const { store, coordinator } = await setup({
+    records: [evidence("STILL_UNKNOWN")]
+  });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reconciled, true);
+  assert.equal(result.taskState, "outcome_uncertain");
+  assert.equal(result.taskVersion, 1);
+  assert.equal((await store.listOutbox()).length, 1);
+});
+
+test("empty provider evidence leaves all records unchanged and releases the lease", async () => {
+  const { store, coordinator } = await setup({ records: [] });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "PROVIDER_EVIDENCE_UNTRUSTED");
+  assert.equal((await store.getTask("task-0001")).version, 1);
+  assert.equal((await store.listEvidence("task-0001")).length, 0);
+  assert.equal((await store.listDecisions("task-0001")).length, 0);
+  assert.equal((await store.listOutbox()).length, 0);
+  const nextLease = await store.acquireLease({
+    taskId: "task-0001", owner: "worker-b",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(nextLease);
+});
+
+test("does not trust a provider VERIFIED marker when the verifier rejects evidence", async () => {
+  const { store, coordinator } = await setup({
+    verifierOverride: {
+      async verifyProviderResponse() {
+        return { authenticated: false, reasonCode: "SIGNATURE_INVALID" };
+      }
+    }
+  });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "SIGNATURE_INVALID");
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+  assert.equal((await store.listOutbox()).length, 0);
+});
+
+test("rejects a provider operation identity mismatch before calling verifier", async () => {
+  let verifierCalls = 0;
+  const adapter = {
+    providerId: "provider-x",
+    async queryOperationStatus() {
+      return {
+        provider_id: "provider-x",
+        provider_operation_ref: "different-operation",
+        evidence_records: [evidence()]
+      };
+    }
+  };
+  const { store, coordinator } = await setup({
+    adapterOverride: adapter,
+    verifierOverride: { async verifyProviderResponse() {
+      verifierCalls++;
+      return { authenticated: true, evidenceRecords: [evidence()] };
+    } }
+  });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reasonCode, "PROVIDER_RESPONSE_BINDING_INVALID");
+  assert.equal(verifierCalls, 0);
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+});
+
+test("adapter exceptions fail closed and release the lease", async () => {
+  const adapter = {
+    providerId: "provider-x",
+    async queryOperationStatus() { throw new Error("simulated provider outage"); }
+  };
+  const { store, coordinator } = await setup({ adapterOverride: adapter });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reasonCode, "RECONCILIATION_DEPENDENCY_ERROR");
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+  const nextLease = await store.acquireLease({
+    taskId: "task-0001", owner: "worker-b",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(nextLease);
+});
+
+test("invalid coordinator clock fails before acquiring a lease", async () => {
+  const { store, coordinator } = await setup({ clock: () => new Date("invalid") });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reasonCode, "RECONCILIATION_TIME_INVALID");
+  const lease = await store.acquireLease({
+    taskId: "task-0001", owner: "worker-b",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(lease);
+});
+
+test("rejects missing or malformed coordinator inputs", async () => {
+  const { coordinator } = await setup();
+  assert.equal((await coordinator.reconcile()).reasonCode, "COORDINATOR_INPUT_INVALID");
+  assert.throws(() => createReconciliationCoordinator({}), /DEPENDENCIES_INVALID/);
+});
