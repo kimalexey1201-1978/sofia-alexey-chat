@@ -87,7 +87,7 @@ function makeRequestId() {
  * @param {import("./ai-provider.mjs").AIProvider} provider
  * @param {{messages: Array<{role:string,content:string}>}} request
  * @param {{systemInstruction:string, model?:string, maxOutputTokens?:number,
- *   timeoutMs?:number, limits?:Partial<typeof DEFAULTS>, requestId?:string}} config
+ *   timeoutMs?:number, limits?:Partial<typeof DEFAULTS>, requestId?:string, signal?:AbortSignal}} config
  */
 export async function runSofiaCore(provider, request, config = {}) {
   try { assertAIProvider(provider); }
@@ -115,7 +115,18 @@ export async function runSofiaCore(provider, request, config = {}) {
   try { taskPlan = createInferencePlan(checked.messages); }
   catch { return failure("INTERNAL_FAILURE", "Task planning could not create a valid plan"); }
 
+  if (config.signal !== undefined &&
+      (!config.signal || typeof config.signal.aborted !== "boolean" ||
+       typeof config.signal.addEventListener !== "function")) {
+    return failure("INTERNAL_FAILURE", "Core configuration is invalid");
+  }
+  if (config.signal?.aborted) {
+    return failure("REQUEST_CANCELLED", "Request was cancelled");
+  }
+
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(config.signal?.reason);
+  config.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const providerRequest = {
     requestId: config.requestId || makeRequestId(),
     messages: checked.messages,
@@ -140,12 +151,22 @@ export async function runSofiaCore(provider, request, config = {}) {
     let rawResult;
     try {
       rawResult = await Promise.race([
-        Promise.resolve().then(() => provider.generate(providerRequest)),
+        Promise.resolve().then(() => {
+          if (controller.signal.aborted) {
+            const error = new Error("Request cancelled");
+            error.code = "SOFIA_REQUEST_CANCELLED";
+            throw error;
+          }
+          return provider.generate(providerRequest);
+        }),
         timeout
       ]);
     } catch (error) {
       if (error?.code === "SOFIA_PROVIDER_TIMEOUT") {
         return failure("PROVIDER_TIMEOUT", "The AI provider did not respond in time");
+      }
+      if (controller.signal.aborted && config.signal?.aborted) {
+        return failure("REQUEST_CANCELLED", "Request was cancelled");
       }
       return failure("PROVIDER_UNAVAILABLE", "The AI provider is temporarily unavailable");
     }
@@ -178,5 +199,6 @@ export async function runSofiaCore(provider, request, config = {}) {
     return failure("INTERNAL_FAILURE", "Core could not complete the request");
   } finally {
     if (timer) clearTimeout(timer);
+    config.signal?.removeEventListener("abort", abortFromCaller);
   }
 }

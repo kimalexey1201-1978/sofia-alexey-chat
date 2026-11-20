@@ -122,3 +122,35 @@ test("accepts valid bounded resource limit overrides", async () => {
   assert.equal(result.ok, true);
   assert.equal(captured.messages.length, 1);
 });
+
+test("propagates caller cancellation through Core to the provider and returns a typed cancellation", async () => {
+  const caller = new AbortController();
+  let providerSignal;
+  let calls = 0;
+  const provider = { generate(input) {
+    calls++;
+    providerSignal = input.signal;
+    return new Promise((_, reject) => input.signal.addEventListener("abort", () => reject(input.signal.reason), { once: true }));
+  }};
+  const pending = runSofiaCore(provider, request, { ...config, signal: caller.signal });
+  await Promise.resolve();
+  caller.abort(new Error("caller disconnected"));
+  const result = await pending;
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "REQUEST_CANCELLED");
+  assert.equal(calls, 1);
+  assert.equal(providerSignal.aborted, true);
+});
+
+test("does not invoke provider when caller cancellation predates Core execution", async () => {
+  const caller = new AbortController();
+  caller.abort();
+  let calls = 0;
+  const result = await runSofiaCore({ async generate() {
+    calls++;
+    return { text: "unexpected", providerId: "mock", modelId: "fixture" };
+  }}, request, { ...config, signal: caller.signal });
+  assert.equal(result.error.code, "REQUEST_CANCELLED");
+  assert.equal(calls, 0);
+});
+

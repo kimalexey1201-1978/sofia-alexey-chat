@@ -131,7 +131,8 @@ export async function handleChatRequest(request, env, dependencies = {}) {
     result = await runCore(provider, { messages }, {
       systemInstruction: SYSTEM_INSTRUCTION,
       maxOutputTokens: 1200,
-      timeoutMs: 20000
+      timeoutMs: 20000,
+      signal: request.signal
     });
   } catch {
     return json({ error: { code: "INTERNAL_FAILURE", message: "Core could not complete the request" } }, 500);
@@ -147,6 +148,7 @@ export async function handleChatRequest(request, env, dependencies = {}) {
       UNSUPPORTED_ROLE: [400, "Message role is not supported"],
       REQUEST_TOO_LARGE: [413, "Request exceeds the allowed size"],
       PROVIDER_TIMEOUT: [504, "The AI provider did not respond in time"],
+      REQUEST_CANCELLED: [499, "Request was cancelled"],
       PROVIDER_UNAVAILABLE: [502, "The AI provider is temporarily unavailable"],
       VERIFIER_REJECTED: [502, "Provider response failed validation"],
       INTERNAL_FAILURE: [500, "Core could not complete the request"]
