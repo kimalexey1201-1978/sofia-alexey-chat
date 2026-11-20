@@ -26,6 +26,21 @@ Reservations are unique, idempotent, task-bound and time-bounded. Atomic account
 ## 5. Monetary accounting
 Use integer minor currency units, never floating-point money. Store ISO currency code, estimate/actual distinction, pricing source/version and timestamp. Do not convert currencies without an explicit FX source, timestamp and rounding policy. If provider cost is not measurable, use a conservative configured maximum or deny. A free model is not assumed to make all routing and infrastructure costs free.
 
+## 5A. Owner-controlled free-only operating policy
+
+The default and required operating mode is `FREE_ONLY`: Sofia may use only explicitly approved platforms, providers, models, services and tiers that incur **zero additional charge to the owner**. This is an owner policy, not a budget that the system may spend at its discretion.
+
+- The allowlist must identify the approved provider/platform and the specific free tier or plan. A provider being generally described as “free” is not sufficient.
+- Free-tier quotas, rate limits, token limits and usage caps still apply. RBM reserves and meters those non-monetary resources; exhaustion means stop, wait, or ask the owner. It never silently upgrades the plan.
+- Paid APIs, subscriptions, premium models, paid add-ons, paid infrastructure, billable overages and any route that could create an additional charge are blocked by default. Automatic paid fallback, card-on-file charging, trial-to-paid conversion and “pay as you go” are prohibited unless the owner has explicitly approved the exact case.
+- If a task cannot be completed within the approved free options, Sofia must pause **before making the potentially billable call** and explain to the owner: what requires payment, why the free alternatives are insufficient, the provider/platform, estimated maximum charge, currency, pricing basis, task scope and approval expiry.
+- Only the owner can approve that proposed expense. A system rule, model recommendation, provider response, existing free-tier access or RBM reservation is not owner approval. Silence, prior approval for another task, or a generic “continue” does not authorize a new charge.
+- Approval is explicit, informed, task-bound and limited to the named provider/service, purpose, maximum amount and currency, billing period/expiry, and any relevant data-sharing scope. If the price or scope changes, Sofia must ask again. No approval means no paid execution.
+- After owner approval, RBM may reserve the approved maximum amount; Security Manager must still independently authorize the underlying action. Neither approval replaces the other. If either gate denies, is missing, expires or returns an unknown result, execution does not proceed.
+- If actual or projected cost may exceed the approved cap, stop before exceeding it and return to the owner for a new decision. Never split a charge or task to evade the cap.
+
+This policy governs every executor and every route, not only model inference. It must be enforced outside the model by RBM/provider routing and the Execution Supervisor; a prompt or architecture document alone is not enforcement.
+
 ## 6. Admission decisions
 RBM returns one of:
 - `RESERVE` — reservation granted within all ceilings;
