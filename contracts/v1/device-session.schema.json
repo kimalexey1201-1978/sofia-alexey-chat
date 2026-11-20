@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/device-session.schema.json",
+  "title": "Sofia AI Device Session v1",
+  "description": "Authenticated, scoped session between Sofia and one device through a validated adapter.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "device_id", "adapter_id", "adapter_version", "trust_state", "session_state", "established_at", "granted_capability_ids"],
+  "properties": {
+    "session_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "device_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "adapter_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "trust_state": {"type": "string", "enum": ["discovered", "pairing", "paired_untrusted", "trusted_limited", "suspended", "revoked", "disconnected"]},
+    "session_state": {"type": "string", "enum": ["connecting", "active", "degraded", "closing", "closed", "failed"]},
+    "established_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "last_authenticated_at": {"type": "string", "format": "date-time"},
+    "granted_capability_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true, "maxItems": 256},
+    "permission_grant_ids": {"type": "array", "items": {"type": "string", "maxLength": 128}, "uniqueItems": true, "maxItems": 256},
+    "transport": {"type": "string", "enum": ["bluetooth_le", "bluetooth_classic", "wifi_lan", "usb", "nfc", "vendor_sdk", "authenticated_cloud", "companion_app", "other"]},
+    "credential_reference": {"type": "string", "description": "Opaque reference to secure credential storage; never embed a secret.", "maxLength": 256},
+    "policy_decision_id": {"type": "string", "maxLength": 128},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
