@@ -12,6 +12,7 @@ import { createMockReconciliationAdapter } from "../../src/providers/mock-reconc
 const now = new Date("2026-11-20T15:00:00.000Z");
 function fixture(conclusion = "CONFIRMED_APPLIED") {
   const evidence = {
+    schema_version: "1.0.0",
     task_id: "task-0001", request_id: "request-0001",
     provider_id: "provider-x", provider_operation_ref: "operation-123",
     target_ref: "mailbox:user-1", operation_digest: "a".repeat(64),
@@ -137,4 +138,13 @@ test("does not let STILL_UNKNOWN leave outcome_uncertain", async () => {
   assert.equal(result.resolved, false);
   assert.equal(transition.allowed, false);
   assert.equal(transition.reasonCode, "AUTHORITATIVE_RECONCILIATION_REQUIRED");
+});
+
+
+test("deduplicates semantically identical evidence independent of object key order", async () => {
+  const input = fixture("CONFIRMED_APPLIED");
+  const reordered = Object.fromEntries(Object.entries(input.evidence).reverse());
+  const result = await reconcile(queryAdapter([input.evidence, reordered]), input);
+  assert.equal(result.resolved, true);
+  assert.equal(result.taskState, "completed");
 });
