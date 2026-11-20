@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/sensor-data-access-request.schema.json",
+  "title": "Sofia Sensor Data Access Request",
+  "description": "Least-privilege request to access a bounded sensor data product or observation stream.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "requesting_principal_id",
+    "requesting_module_id",
+    "purpose",
+    "sensor_types",
+    "operations",
+    "destination_ref",
+    "requested_at"
+  ],
+  "properties": {
+    "request_id": { "type": "string", "format": "uuid" },
+    "requesting_principal_id": { "type": "string", "maxLength": 128 },
+    "requesting_module_id": { "type": "string", "maxLength": 160 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "sensor_types": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 64 }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["read", "transform", "aggregate", "export", "subscribe"]
+      }
+    },
+    "device_ids": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 128 }
+    },
+    "maximum_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "maximum_rate_per_minute": { "type": "integer", "minimum": 1, "maximum": 100000 },
+    "maximum_bytes": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+    "destination_ref": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "consent_reference": { "type": "string", "maxLength": 256 },
+    "requested_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" }
+  }
+}
