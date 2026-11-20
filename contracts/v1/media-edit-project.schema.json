@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/media-edit-project.schema.json",
+  "title": "Sofia Media Edit Project",
+  "description": "Versioned non-destructive timeline project referencing immutable source media assets.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project_id", "project_version", "timebase", "tracks", "created_at", "updated_at"],
+  "properties": {
+    "project_id": { "type": "string", "format": "uuid" },
+    "project_version": { "type": "integer", "minimum": 1 },
+    "timebase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticks_per_second"],
+      "properties": {
+        "ticks_per_second": { "type": "integer", "minimum": 1, "maximum": 1000000000 }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["track_id", "track_type", "clips"],
+        "properties": {
+          "track_id": { "type": "string", "maxLength": 128 },
+          "track_type": { "type": "string", "enum": ["video", "audio", "image", "text", "overlay"] },
+          "muted": { "type": "boolean", "default": false },
+          "clips": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["clip_id", "media_asset_id", "source_in_ticks", "source_out_ticks", "timeline_start_ticks"],
+              "properties": {
+                "clip_id": { "type": "string", "maxLength": 128 },
+                "media_asset_id": { "type": "string", "format": "uuid" },
+                "source_in_ticks": { "type": "integer", "minimum": 0 },
+                "source_out_ticks": { "type": "integer", "minimum": 1 },
+                "timeline_start_ticks": { "type": "integer", "minimum": 0 },
+                "playback_rate_num": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 },
+                "playback_rate_den": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 },
+                "effect_refs": {
+                  "type": "array",
+                  "maxItems": 256,
+                  "items": { "type": "string", "maxLength": 160 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "output_profile_id": { "type": "string", "maxLength": 160 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
