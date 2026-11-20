@@ -18,5 +18,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Validate Cloudflare Worker build (dry run)
+        run: npx --yes wrangler@4 deploy --dry-run --outdir .wrangler/deploy
       - name: Run provider and Core tests
         run: node --test $(find tests -type f -name '*.test.mjs' -print)
