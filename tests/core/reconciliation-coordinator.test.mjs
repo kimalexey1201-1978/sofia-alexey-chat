@@ -204,3 +204,82 @@ test("rejects missing or malformed coordinator inputs", async () => {
   assert.equal((await coordinator.reconcile()).reasonCode, "COORDINATOR_INPUT_INVALID");
   assert.throws(() => createReconciliationCoordinator({}), /DEPENDENCIES_INVALID/);
 });
+
+
+test("a second coordinator cannot process a task while the first holds its lease", async () => {
+  const { store, coordinator: first } = await setup();
+  let signalStarted;
+  let releaseQuery;
+  const started = new Promise(resolve => { signalStarted = resolve; });
+  const gate = new Promise(resolve => { releaseQuery = resolve; });
+  const slowAdapter = {
+    providerId: "provider-x",
+    async queryOperationStatus() {
+      signalStarted();
+      await gate;
+      return {
+        provider_id: "provider-x",
+        provider_operation_ref: priorRequest.provider_operation_ref,
+        evidence_records: [evidence()]
+      };
+    }
+  };
+  const second = createReconciliationCoordinator({
+    store,
+    getPriorRequest: async () => structuredClone(priorRequest),
+    adapterRegistry: { get: async () => slowAdapter },
+    verifier: {
+      async verifyProviderResponse(input) {
+        return { authenticated: true, evidenceRecords: input.response.evidence_records };
+      }
+    },
+    clock: () => now,
+    createId: prefix => `${prefix}-second`,
+    policy: { version: "test-1", leaseTtlMs: 30000 }
+  });
+  // The first coordinator holds the lease while its provider query is paused.
+  const firstRun = first.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  await started;
+  const secondResult = await second.reconcile({ taskId: "task-0001", owner: "worker-b" });
+  assert.equal(secondResult.reasonCode, "LEASE_NOT_ACQUIRED");
+  releaseQuery();
+  const firstResult = await firstRun;
+  assert.equal(firstResult.reconciled, true);
+  assert.equal((await store.listDecisions("task-0001")).length, 1);
+});
+
+test("authenticated evidence still must match the immutable task and request binding", async () => {
+  const mismatched = evidence();
+  mismatched.target_ref = "mailbox:someone-else";
+  const { store, coordinator } = await setup({
+    records: [mismatched],
+    verifierOverride: {
+      // Even a verifier boundary returning authenticated records cannot bypass
+      // the evaluator's exact task/request/target/operation binding checks.
+      async verifyProviderResponse(input) {
+        return { authenticated: true, evidenceRecords: input.response.evidence_records };
+      }
+    }
+  });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "RECONCILIATION_BINDING_MISMATCH");
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+  assert.equal((await store.listDecisions("task-0001")).length, 0);
+});
+
+test("a verifier exception fails closed and releases the lease", async () => {
+  const { store, coordinator } = await setup({
+    verifierOverride: {
+      async verifyProviderResponse() { throw new Error("verifier unavailable"); }
+    }
+  });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reasonCode, "RECONCILIATION_DEPENDENCY_ERROR");
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+  const nextLease = await store.acquireLease({
+    taskId: "task-0001", owner: "worker-b",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(nextLease);
+});
