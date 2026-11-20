@@ -140,6 +140,10 @@ Location & Navigation Manager consumes only purpose-authorized observations from
 
 Calendar & Scheduling Manager owns normalized event metadata, calendar selection, availability interpretation, scheduling proposals, and provider-specific calendar operations. Automation & Integration Manager supplies approved calendar adapters and connection metadata; credentials remain in the protected vault. Notification & Reminder Manager owns reminder scheduling and delivery, while Workflow & State Manager owns durable multi-step workflow state. Calendar reads and writes are separately scoped; availability is advisory and must be refreshed before writes. Invitations, cancellations, attendee changes, and disclosure of private event data require the applicable fresh authorization and confirmation. Timezones, all-day events, recurrence, daylight-saving transitions, concurrent edits, and uncertain provider completion must be handled explicitly. No calendar account connection, event synchronization, invitation, or live scheduling runtime is implemented by this architecture update.
 
-## 13. Current status
+## 13. Financial and expense boundary
+
+Financial & Expense Manager owns normalized transaction records, budgets, expense categorization, savings goals, cash-flow analysis, and payment-intent preparation. Automation & Integration Manager supplies approved finance-provider adapters and protected connection references; FEM does not custody credentials or funds. The default access mode is read-only. Payment, transfer, purchase, investment, credit, and account-security operations are separate high-impact workflows requiring fresh, exact-parameter authorization and provider-required authentication. Financial records use decimal-safe amounts and explicit currencies; data is restricted by default, minimized in logs and AI-provider disclosure, and reconciled against provider state. A budget or savings goal never authorizes a transfer. No bank connection, live balance access, financial data import, or payment execution is implemented by this architecture update.
+
+## 14. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
