@@ -106,3 +106,27 @@ test("does not select a candidate with unverified pricing", () => {
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.selectedModuleRef, null);
 });
+
+test("does not prepare a step until all dependencies have succeeded", () => {
+  const plan = makePlan();
+  plan.steps = [
+    { step_id: "step-0", description: "Prerequisite", step_type: "reason",
+      depends_on: [], required_capabilities: [],
+      verification_criteria: ["Prerequisite verified"], status: "running" },
+    { step_id: "step-1", description: "Generate text", step_type: "execute",
+      depends_on: ["step-0"], required_capabilities: ["text.generate"],
+      verification_criteria: ["Valid response"], status: "ready" }
+  ];
+  const result = prepareExecution(plan, [makeCandidate()], task, now);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "NOT_READY");
+  assert.ok(result.reasonCodes.includes("EXPECTED_EXACTLY_ONE_DEPENDENCY_READY_STEP"));
+});
+
+test("does not prepare a draft or awaiting-approval plan", () => {
+  const plan = makePlan();
+  plan.status = "awaiting_owner_approval";
+  const result = prepareExecution(plan, [makeCandidate()], task, now);
+  assert.equal(result.ok, false);
+  assert.ok(result.reasonCodes.includes("PLAN_NOT_APPROVED_FOR_EXECUTION"));
+});
