@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/environment-scene.schema.json",
+  "title": "Environment Scene",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scene_id", "owner_principal_ref", "name", "revision", "operations", "enabled", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "scene_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "owner_principal_ref": {"type": "string", "minLength": 1, "maxLength": 200},
+    "name": {"type": "string", "minLength": 1, "maxLength": 100},
+    "description": {"type": "string", "maxLength": 500},
+    "revision": {"type": "integer", "minimum": 1},
+    "operations": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "object", "additionalProperties": false, "required": ["device_id", "capability_id", "operation", "parameters", "risk_class"], "properties": {"device_id": {"type": "string", "minLength": 1, "maxLength": 200}, "capability_id": {"type": "string", "minLength": 1, "maxLength": 160}, "operation": {"type": "string", "minLength": 1, "maxLength": 120}, "parameters": {"type": "object", "maxProperties": 50, "additionalProperties": {"type": ["string", "number", "integer", "boolean", "null"]}}, "risk_class": {"enum": ["R0", "R1", "R2", "R3"]}, "required_precondition": {"type": "string", "maxLength": 200}}}},
+    "preconditions": {"type": "array", "items": {"type": "string", "maxLength": 200}, "maxItems": 30},
+    "failure_policy": {"enum": ["stop_and_report", "continue_independent_operations", "require_user_decision"]},
+    "enabled": {"type": "boolean"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "routine_trigger_refs": {"type": "array", "items": {"type": "string", "maxLength": 200}, "maxItems": 20}
+  }
+}
