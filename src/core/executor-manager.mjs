@@ -16,7 +16,7 @@ export function assessExecutorCandidate(candidate, task, now = new Date()) {
     return { eligible: false, reasonCodes: ["INVALID_OR_UNSUPPORTED_TASK_POLICY"] };
   }
 
-  const { registry, trust, health, provider } = candidate;
+  const { registry, trust, health, provider, manifest } = candidate;
   if (!registry || registry.lifecycle_state !== "ACTIVE") reasons.push("MODULE_NOT_ACTIVE");
   if (!registry || !DIGEST_RE.test(registry.artifact_digest ?? "")) reasons.push("INVALID_ARTIFACT_DIGEST");
   if (!trust || trust.verdict !== "TRUSTED_WITH_SCOPE") reasons.push("TRUST_NOT_APPROVED");
@@ -42,8 +42,13 @@ export function assessExecutorCandidate(candidate, task, now = new Date()) {
       health?.module_version !== registry?.module_version) {
     reasons.push("HEALTH_MODULE_MISMATCH");
   }
-  if (!Array.isArray(registry?.compatible_platforms) ||
-      !registry.compatible_platforms.includes(task.platform)) {
+  const manifestCapabilities = Array.isArray(manifest?.capabilities)
+    ? manifest.capabilities.map(item => item?.capability_id) : [];
+  if (!manifestCapabilities.includes(task.capabilityId)) {
+    reasons.push("CAPABILITY_NOT_IN_MANIFEST");
+  }
+  if (!Array.isArray(manifest?.compatibility?.platforms) ||
+      !manifest.compatibility.platforms.includes(task.platform)) {
     reasons.push("PLATFORM_INCOMPATIBLE");
   }
 
