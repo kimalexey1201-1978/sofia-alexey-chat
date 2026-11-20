@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/module-installation-record.schema.json",
+  "title": "Sofia AI Module Installation Record v1",
+  "description": "Immutable-per-artifact installation evidence and current lifecycle state for one module installation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "installation_id",
+    "module_id",
+    "module_version",
+    "artifact_digest",
+    "provenance",
+    "lifecycle_state",
+    "contract_version",
+    "created_at",
+    "updated_at",
+    "validation",
+    "permissions",
+    "runtime_profile"
+  ],
+  "properties": {
+    "installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "module_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "artifact_digest": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+:[A-Fa-f0-9]{32,}$"
+    },
+    "manifest_digest": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+:[A-Fa-f0-9]{32,}$"
+    },
+    "contract_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_type", "source_uri", "publisher_id", "acquired_at", "signature_status"],
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["official_registry", "approved_repository", "owner_supplied", "built_in", "other"]
+        },
+        "source_uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "publisher_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "acquired_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "signature_status": {
+          "type": "string",
+          "enum": ["verified", "unsigned", "invalid", "unsupported", "not_checked"]
+        },
+        "signing_key_id": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "provenance_attestation": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      }
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "quarantined",
+        "validating",
+        "testing",
+        "staged",
+        "active",
+        "rejected",
+        "suspended",
+        "disabled",
+        "revoked",
+        "failed"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "activated_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "previous_installation_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "rollback_target_installation_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_valid", "integrity_verified", "dependency_check", "compatibility_check", "security_scan", "test_status", "evidence_refs"],
+      "properties": {
+        "manifest_valid": {
+          "type": "boolean"
+        },
+        "integrity_verified": {
+          "type": "boolean"
+        },
+        "dependency_check": {
+          "type": "string",
+          "enum": ["passed", "failed", "not_run", "not_available"]
+        },
+        "compatibility_check": {
+          "type": "string",
+          "enum": ["passed", "failed", "not_run", "not_available"]
+        },
+        "security_scan": {
+          "type": "string",
+          "enum": ["passed", "blocked", "findings", "not_run", "not_available"]
+        },
+        "test_status": {
+          "type": "string",
+          "enum": ["passed", "failed", "pending", "not_run"]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "maxItems": 256
+        },
+        "validated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "validator_version": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested", "approved_grant_ids"],
+      "properties": {
+        "requested": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "uniqueItems": true,
+          "maxItems": 256
+        },
+        "approved_grant_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "uniqueItems": true,
+          "maxItems": 256
+        },
+        "owner_approval_id": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "runtime_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sandbox_profile_id", "resource_budget_id"],
+      "properties": {
+        "sandbox_profile_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "resource_budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "platform_targets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "dependency_lock_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "sbom_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "last_health_check_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "health_status": {
+      "type": "string",
+      "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+    },
+    "failure_reason_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "state_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "audit_event_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      },
+      "uniqueItems": true,
+      "maxItems": 2048
+    }
+  }
+}
