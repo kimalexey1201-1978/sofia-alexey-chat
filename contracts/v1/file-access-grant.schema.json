@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/file-access-grant.schema.json",
+  "title": "Sofia File Access Grant",
+  "description": "Scoped authorization for a principal to perform permitted operations on a file or source.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["grant_id", "principal_id", "resource_ref", "operations", "purpose", "issued_at", "expires_at", "status"],
+  "properties": {
+    "grant_id": { "type": "string", "format": "uuid" },
+    "principal_id": { "type": "string", "maxLength": 128 },
+    "resource_ref": { "type": "string", "maxLength": 2048 },
+    "file_id": { "type": "string", "format": "uuid" },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["read", "write", "inspect", "extract", "transform", "export", "share", "delete"] }
+    },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["active", "revoked", "expired"] },
+    "consent_ref": { "type": "string", "maxLength": 256 },
+    "revoked_at": { "type": "string", "format": "date-time" }
+  }
+}
