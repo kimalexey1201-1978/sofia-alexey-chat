@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/contract-migration.schema.json",
+  "title": "Sofia AI Contract Migration Plan",
+  "description": "Controlled, reversible migration record between legacy and target contract versions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "migration_id", "contract_id", "source_version", "target_version", "strategy", "steps", "rollback_plan", "status"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "migration_id": { "type": "string", "minLength": 1, "maxLength": 180 },
+    "contract_id": { "type": "string", "minLength": 1, "maxLength": 180 },
+    "source_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "target_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "strategy": { "type": "string", "enum": ["adapter", "expand_migrate_contract", "parallel_versioned_endpoint", "major_cutover"] },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step_id", "description", "verification_required"],
+        "properties": {
+          "step_id": { "type": "string", "maxLength": 120 },
+          "description": { "type": "string", "maxLength": 2000 },
+          "verification_required": { "type": "boolean" },
+          "evidence_ref": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    },
+    "rollback_plan": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "data_loss_risk": { "type": "string", "enum": ["none_expected", "bounded_and_approved", "unknown_blocking"] },
+    "status": { "type": "string", "enum": ["draft", "review", "approved", "in_progress", "verified", "rolled_back", "blocked"] },
+    "owner": { "type": "string", "maxLength": 200 },
+    "approved_by": { "type": "string", "maxLength": 200 },
+    "approved_at": { "type": "string", "format": "date-time" }
+  }
+}
