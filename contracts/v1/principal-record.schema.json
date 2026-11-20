@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/principal-record.schema.json",
+  "title": "Sofia AI Principal Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "principal_id",
+    "principal_type",
+    "status",
+    "created_at",
+    "identity_version"
+  ],
+  "properties": {
+    "principal_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256
+    },
+    "principal_type": {
+      "enum": [
+        "owner",
+        "device",
+        "module",
+        "service",
+        "external_actor"
+      ]
+    },
+    "display_label": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "active",
+        "suspended",
+        "revoked"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "identity_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "device_public_key_fingerprint": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "module_id": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "module_version": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "provenance_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "last_authenticated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revoked_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Non-sensitive, policy-approved metadata only.",
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "device_class": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}
