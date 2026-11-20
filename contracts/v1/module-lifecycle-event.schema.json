@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/module-lifecycle-event.schema.json",
+  "title": "Sofia AI Module Lifecycle Event v1",
+  "description": "Auditable event describing a module installation lifecycle transition or operation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "installation_id",
+    "module_id",
+    "occurred_at",
+    "actor",
+    "result",
+    "operation_id"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "quarantined",
+        "validation_started",
+        "validation_passed",
+        "validation_failed",
+        "testing_started",
+        "testing_passed",
+        "testing_failed",
+        "staged",
+        "activation_requested",
+        "activated",
+        "update_started",
+        "updated",
+        "rollback_started",
+        "rolled_back",
+        "suspended",
+        "disabled",
+        "revoked",
+        "uninstall_started",
+        "uninstalled",
+        "recovery_started",
+        "recovered",
+        "operation_failed"
+      ]
+    },
+    "installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "module_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "artifact_digest": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+:[A-Fa-f0-9]{32,}$"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principal_id", "principal_type"],
+      "properties": {
+        "principal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "principal_type": {
+          "type": "string",
+          "enum": ["owner", "administrator", "system", "policy_engine", "module_publisher"]
+        }
+      }
+    },
+    "previous_state": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "quarantined",
+        "validating",
+        "testing",
+        "staged",
+        "active",
+        "rejected",
+        "suspended",
+        "disabled",
+        "revoked",
+        "failed"
+      ]
+    },
+    "new_state": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "quarantined",
+        "validating",
+        "testing",
+        "staged",
+        "active",
+        "rejected",
+        "suspended",
+        "disabled",
+        "revoked",
+        "failed"
+      ]
+    },
+    "result": {
+      "type": "string",
+      "enum": ["success", "denied", "failure", "pending"]
+    },
+    "reason_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "policy_decision_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "approval_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "operation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Non-sensitive event metadata only.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "enum": ["activated", "updated", "rolled_back"]
+          }
+        },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["new_state", "artifact_digest", "module_version"]
+      }
+    }
+  ]
+}
