@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/notification-request.schema.json",
+  "title": "Sofia Notification Request",
+  "description": "Validated request to create a user-facing notification. A notification never grants authority to execute its subject action.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "notification_id",
+    "recipient_principal_id",
+    "category",
+    "priority",
+    "title",
+    "created_at",
+    "data_classification",
+    "delivery_policy_ref"
+  ],
+  "properties": {
+    "notification_id": { "type": "string", "format": "uuid" },
+    "recipient_principal_id": { "type": "string", "maxLength": 128 },
+    "source_module_id": { "type": "string", "maxLength": 160 },
+    "category": {
+      "type": "string",
+      "enum": ["reminder", "workflow", "approval", "security", "device", "proactive", "system"]
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "normal", "high", "critical"]
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "body": { "type": "string", "maxLength": 4096 },
+    "generic_preview": { "type": "string", "maxLength": 160 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "delivery_policy_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "schedule_id": { "type": "string", "format": "uuid" },
+    "workflow_instance_id": { "type": "string", "format": "uuid" },
+    "correlation_id": { "type": "string", "format": "uuid" },
+    "deep_link_ref": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque route reference; destination must independently authenticate and authorize."
+    },
+    "requires_user_action": { "type": "boolean", "default": false }
+  }
+}
