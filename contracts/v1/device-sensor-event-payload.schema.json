@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-sensor-event-payload.schema.json",
+  "title": "Sofia Device Sensor Event Payload",
+  "description": "Device/sensor-specific payload carried inside the generic Event Bus event envelope. Producer identity and ingestion time are resolved by trusted runtime.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "device_ref",
+    "sensor_ref",
+    "observation_type",
+    "observed_at",
+    "time_quality",
+    "data_kind",
+    "quality"
+  ],
+  "properties": {
+    "device_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sensor_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "capture_session_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "source_event_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "observed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "adapter_received_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "time_quality": {
+      "type": "string",
+      "enum": [
+        "trusted",
+        "estimated",
+        "uncertain",
+        "unknown"
+      ]
+    },
+    "clock_uncertainty_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observation_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*){1,7}$",
+      "maxLength": 160
+    },
+    "data_kind": {
+      "type": "string",
+      "enum": [
+        "raw_measurement",
+        "aggregated_measurement",
+        "derived_feature",
+        "state_transition"
+      ]
+    },
+    "value": {
+      "type": [
+        "number",
+        "integer",
+        "boolean",
+        "string",
+        "object",
+        "array",
+        "null"
+      ]
+    },
+    "unit": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "valid",
+            "degraded",
+            "invalid",
+            "unknown"
+          ]
+        },
+        "flags": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "calibration_ref": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "freshness_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sequence_gap_before": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "source_lineage_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "transformation_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "aggregation_window_ms": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "purpose_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "payload_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "integrity_sha256"
+      ],
+      "properties": {
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "integrity_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "data_kind": {
+            "const": "raw_measurement"
+          }
+        },
+        "required": [
+          "data_kind"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "payload_reference"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "data_kind": {
+            "const": "derived_feature"
+          }
+        },
+        "required": [
+          "data_kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "source_lineage_ref"
+        ]
+      }
+    }
+  ]
+}
