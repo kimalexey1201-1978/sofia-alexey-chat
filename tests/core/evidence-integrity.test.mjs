@@ -66,6 +66,18 @@ test("rejects envelope reuse across task or request bindings", async () => {
   }), false);
 });
 
+test("rejects envelope substitution across request IDs", async () => {
+  const secret = await key();
+  const item = record();
+  const envelope = await createEvidenceIntegrityEnvelope(item, {
+    key: secret, keyId: "key-request-binding", acceptedAt
+  });
+  const moved = { ...item, request_id: "request-0002" };
+  assert.equal(await verifyEvidenceIntegrityEnvelope(moved, envelope, {
+    key: secret, keyId: "key-request-binding"
+  }), false);
+});
+
 test("rejects a modified envelope and an unknown key identifier", async () => {
   const secret = await key();
   const item = record();
