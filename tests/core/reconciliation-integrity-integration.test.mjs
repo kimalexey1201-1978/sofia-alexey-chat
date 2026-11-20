@@ -348,6 +348,46 @@ test("failed atomic commit leaves evidence, decision, outbox and task unchanged"
     now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
   });
   assert.ok(lease, "failed transaction must not strand the lease");
+  assert.equal(lease.fencing_token, 2);
+  assert.equal(await durable.releaseLease({
+    taskId, owner: "worker-failure", fencingToken: 1
+  }), false, "stale worker must not release a newer lease");
+  assert.equal(await durable.releaseLease({
+    taskId, owner: "worker-after-failure",
+    fencingToken: lease.fencing_token
+  }), true);
+});
+
+test("rejected atomic commit response releases lease without changing task or audit", async () => {
+  const { durable, adapter, coordinator } = await setup();
+  durable.commitDecision = async () => ({
+    committed: false, reasonCode: "ATOMIC_COMMIT_REJECTED"
+  });
+
+  const result = await coordinator.reconcile({
+    taskId, owner: "worker-rejected-commit"
+  });
+
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "ATOMIC_COMMIT_REJECTED");
+  assert.equal(result.taskState, "outcome_uncertain");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal((await durable.getTask(taskId)).version, 1);
+  assert.equal((await durable.getTask(taskId)).state, "outcome_uncertain");
+  assert.equal((await durable.listEvidenceEntries(taskId)).length, 0);
+  assert.equal(durable.decisions.length, 0);
+  assert.equal(durable.outbox.length, 0);
+
+  const lease = await durable.acquireLease({
+    taskId, owner: "worker-after-rejection",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(lease);
+  assert.equal(lease.fencing_token, 2);
+  assert.equal(await durable.releaseLease({
+    taskId, owner: "worker-after-rejection",
+    fencingToken: lease.fencing_token
+  }), true);
 });
 
 
