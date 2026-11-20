@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/context-snapshot.schema.json",
+  "title": "Sofia Context Snapshot",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "snapshot_id",
+    "task_ref",
+    "principal_ref",
+    "purpose",
+    "created_at",
+    "expires_at",
+    "items",
+    "source_status",
+    "policy_decision_refs",
+    "completeness"
+  ],
+  "properties": {
+    "snapshot_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "task_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "plan_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "context-item.schema.json"
+      }
+    },
+    "source_status": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_ref",
+          "status"
+        ],
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "partial",
+              "stale",
+              "denied",
+              "unavailable",
+              "not_requested",
+              "conflicting"
+            ]
+          },
+          "last_observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason_code": {
+            "type": "string",
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "policy_decision_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "conflict_refs": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "omissions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "completeness": {
+      "type": "string",
+      "enum": [
+        "complete_for_scope",
+        "partial",
+        "insufficient",
+        "unknown"
+      ]
+    },
+    "retention_class": {
+      "type": "string",
+      "maxLength": 128
+    }
+  }
+}
