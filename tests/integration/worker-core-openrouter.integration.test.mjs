@@ -88,3 +88,49 @@ test("uses the server-side FREE_ONLY default model and rejects client model sele
   assert.equal(JSON.stringify(await response.json()).includes("test-secret"), false);
 });
 
+test("propagates caller abort from Worker Request through Core to OpenRouter fetch", async () => {
+  const caller = new AbortController();
+  let upstreamSignal;
+  let markStarted;
+  const started = new Promise(resolve => { markStarted = resolve; });
+
+  const fetchImpl = async (_url, init) => {
+    upstreamSignal = init.signal;
+    markStarted();
+    return new Promise((_resolve, reject) => {
+      if (init.signal.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+      init.signal.addEventListener("abort", () => {
+        reject(new DOMException("Aborted", "AbortError"));
+      }, { once: true });
+    });
+  };
+
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Отмени этот запрос." }]
+    }),
+    signal: caller.signal
+  });
+
+  const responsePromise = handleChatRequest(request, {
+    OPENROUTER_API_KEY: "test-secret"
+  }, { fetchImpl });
+
+  await started;
+  assert.ok(upstreamSignal);
+  assert.equal(upstreamSignal.aborted, false);
+
+  caller.abort(new Error("Client disconnected"));
+  const response = await responsePromise;
+
+  assert.equal(upstreamSignal.aborted, true);
+  assert.equal(response.status, 499);
+  assert.deepEqual(await response.json(), {
+    error: { code: "REQUEST_CANCELLED", message: "Request was cancelled" }
+  });
+});
