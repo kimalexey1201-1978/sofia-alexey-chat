@@ -1,4 +1,4 @@
-import { createInferencePlan } from "./task-planner.mjs";
+import { createInferencePlan, completeInferencePlan } from "./task-planner.mjs";
 import {
   assertAIProvider,
   validateProviderResult
@@ -167,10 +167,15 @@ export async function runSofiaCore(provider, request, config = {}) {
       return failure("VERIFIER_REJECTED", "Provider response exceeds the allowed size");
     }
 
+    const completedPlan = completeInferencePlan(taskPlan, result.text);
+    if (!completedPlan.ok) {
+      return failure("VERIFIER_REJECTED", "Task completion failed validation");
+    }
+
     return {
       ok: true,
       requestId: providerRequest.requestId,
-      taskPlan,
+      taskPlan: completedPlan.plan,
       answer: {
         text: result.text,
         providerId: result.providerId,
