@@ -31,6 +31,12 @@ export function evaluateReconciliation(input, now = new Date()) {
   if (!task || !priorRequest || !evidence) return unknown("RECONCILIATION_EVIDENCE_MISSING");
   if (evidence.schema_version !== "1.0.0") return unknown("EVIDENCE_SCHEMA_VERSION_UNSUPPORTED");
   if (task.state !== "outcome_uncertain") return unknown("TASK_NOT_OUTCOME_UNCERTAIN");
+  if (typeof task.task_id !== "string" || !task.task_id ||
+      typeof task.current_request_id !== "string" || !task.current_request_id ||
+      typeof priorRequest.request_id !== "string" ||
+      priorRequest.request_id !== task.current_request_id) {
+    return unknown("CURRENT_REQUEST_BINDING_MISMATCH");
+  }
   if (!CONCLUSIONS.has(evidence.conclusion)) return unknown("INVALID_PROVIDER_CONCLUSION");
   if (evidence.verification?.status !== "VERIFIED" ||
       !evidence.verification?.verifier_ref ||
