@@ -393,6 +393,40 @@ test("appends sequential STILL_UNKNOWN evidence and hashes the complete history"
   assert.equal((await store.getTask("task-0001")).version, 1);
 });
 
+test("accepted historical evidence does not expire while new evidence is freshness-checked", async () => {
+  let current = new Date("2026-11-20T15:00:00.000Z");
+  let queryCount = 0;
+  const first = evidence("STILL_UNKNOWN");
+  first.evidence_digest = "5".repeat(64);
+  const second = evidence("STILL_UNKNOWN");
+  second.evidence_digest = "6".repeat(64);
+  second.observed_at = "2026-11-20T15:09:30.000Z";
+  second.verification.verified_at = "2026-11-20T15:09:40.000Z";
+  const adapter = {
+    providerId: "provider-x",
+    async queryOperationStatus() {
+      queryCount++;
+      return {
+        provider_id: "provider-x",
+        provider_operation_ref: priorRequest.provider_operation_ref,
+        evidence_records: [queryCount === 1 ? first : second]
+      };
+    }
+  };
+  const { store, coordinator } = await setup({
+    adapterOverride: adapter,
+    clock: () => current
+  });
+  const firstResult = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  current = new Date("2026-11-20T15:10:00.000Z");
+  const secondResult = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(firstResult.reconciled, true);
+  assert.equal(secondResult.reconciled, true);
+  assert.equal(secondResult.reasonCode, undefined);
+  assert.equal((await store.listEvidence("task-0001")).length, 2);
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+});
+
 test("retains contradictory authenticated evidence but never resolves the task", async () => {
   const unknownRecord = evidence("STILL_UNKNOWN");
   unknownRecord.evidence_digest = "3".repeat(64);
