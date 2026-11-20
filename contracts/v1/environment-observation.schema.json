@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/environment-observation.schema.json",
+  "title": "Sofia AI Environment Observation v1",
+  "description": "Time-bounded, provenance-aware observations for privacy decisions. Observations are signals, not proof that a space is private.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["observation_id", "observed_at", "expires_at", "source", "environment_state", "confidence", "permission_state"],
+  "properties": {
+    "observation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "source": {
+      "type": "string",
+      "enum": ["microphone_analysis", "camera_analysis", "os_audio_route", "os_display_state", "wearable", "owner_input", "unknown"]
+    },
+    "environment_state": {
+      "type": "string",
+      "enum": ["owner_only_likely", "other_speakers_detected", "multiple_people_detected", "shared_display_detected", "private_route_likely", "public_route_likely", "unknown"]
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "permission_state": {"type": "string", "enum": ["granted", "denied", "not_requested", "unavailable", "revoked"]},
+    "device_ref": {"type": "string", "maxLength": 256},
+    "route_ref": {"type": "string", "maxLength": 256},
+    "quality_flags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": ["noise", "overlapping_speech", "stale_signal", "low_light", "occlusion", "screen_casting", "route_changed", "sensor_error"]}
+    },
+    "derived_from_raw_media": {"type": "boolean", "default": false},
+    "raw_media_retained": {"type": "boolean", "default": false},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
