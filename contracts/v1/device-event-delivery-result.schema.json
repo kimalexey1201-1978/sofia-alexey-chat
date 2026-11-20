@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-event-delivery-result.schema.json",
+  "title": "Sofia Device Event Delivery Result",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "delivery_id",
+    "event_id",
+    "subscription_id",
+    "attempt",
+    "status",
+    "attempted_at",
+    "consumer_ref"
+  ],
+  "properties": {
+    "delivery_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "subscription_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "consumer_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "queued",
+        "started",
+        "succeeded",
+        "retrying",
+        "throttled",
+        "dead_lettered",
+        "cancelled",
+        "expired",
+        "denied",
+        "outcome_unknown",
+        "dropped_with_gap"
+      ]
+    },
+    "attempted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "retry_after_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sequence_gap_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duplicate_of_delivery_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "consumer_commit_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "reconciliation_required": {
+      "type": "boolean"
+    },
+    "policy_decision_ref": {
+      "type": "string",
+      "maxLength": 256
+    }
+  }
+}
