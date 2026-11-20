@@ -84,3 +84,46 @@ test("maps provider deadline to a stable timeout code", async () => {
   await assert.rejects(provider.generate({ ...providerRequest, timeoutMs: 5 }),
     error => error.code === "SOFIA_PROVIDER_TIMEOUT");
 });
+
+test("does not invoke upstream fetch when Core cancellation is already signaled", async () => {
+  const coreController = new AbortController();
+  coreController.abort(new Error("request already cancelled"));
+  let fetchCalled = false;
+  const provider = createOpenRouterProvider({
+    apiKey: "test-secret",
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return jsonResponse({ choices: [{ message: { content: "must not happen" } }] });
+    }
+  });
+
+  await assert.rejects(
+    provider.generate({ ...providerRequest, signal: coreController.signal }),
+    /OpenRouter provider unavailable/
+  );
+  assert.equal(fetchCalled, false);
+});
+
+test("does not leak cancellation reason or credentials through adapter errors", async () => {
+  const secret = "sensitive-upstream-token";
+  const coreController = new AbortController();
+  let upstreamSignal;
+  const provider = createOpenRouterProvider({
+    apiKey: secret,
+    fetchImpl: (_url, options) => {
+      upstreamSignal = options.signal;
+      return new Promise((_, reject) => options.signal.addEventListener("abort", () => {
+        reject(new Error(secret + " private cancellation detail"));
+      }, { once: true }));
+    }
+  });
+  const pending = provider.generate({ ...providerRequest, signal: coreController.signal });
+  await Promise.resolve();
+  coreController.abort(new Error(secret + " owner cancellation reason"));
+  await assert.rejects(pending, error =>
+    error.message === "OpenRouter provider unavailable" &&
+    !error.message.includes(secret)
+  );
+  assert.equal(upstreamSignal.aborted, true);
+});
+
