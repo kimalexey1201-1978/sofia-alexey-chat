@@ -70,3 +70,18 @@ test("does not treat an applied result as retryable", () => {
   const result = evaluateReconciliation(fixture(), now);
   assert.equal(result.retryMayBeConsidered, false);
 });
+
+
+test("rejects verification timestamps that precede the provider observation", () => {
+  const input = fixture();
+  input.evidence.verification.verified_at = "2026-11-20T14:59:00.000Z";
+  assert.equal(evaluateReconciliation(input, now).reasonCode,
+    "PROVIDER_EVIDENCE_STALE_OR_INVALID");
+});
+
+test("rejects evidence whose verification timestamp is outside the freshness window", () => {
+  const input = fixture();
+  input.evidence.verification.verified_at = "2026-11-20T14:54:00.000Z";
+  assert.equal(evaluateReconciliation(input, now).reasonCode,
+    "PROVIDER_EVIDENCE_STALE_OR_INVALID");
+});

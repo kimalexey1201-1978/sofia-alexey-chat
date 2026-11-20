@@ -35,7 +35,8 @@ export function evaluateReconciliation(input, now = new Date()) {
   const age = now.getTime() - observedAt;
   if (!Number.isFinite(observedAt) || !Number.isFinite(verifiedAt) ||
       observedAt > now.getTime() || verifiedAt > now.getTime() ||
-      age > freshnessWindowMs) {
+      verifiedAt < observedAt || age > freshnessWindowMs ||
+      now.getTime() - verifiedAt > freshnessWindowMs) {
     return unknown("PROVIDER_EVIDENCE_STALE_OR_INVALID");
   }
 
