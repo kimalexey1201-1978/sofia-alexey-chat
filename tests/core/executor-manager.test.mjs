@@ -10,7 +10,10 @@ const candidate = () => ({
     artifact_digest: "a".repeat(64),
     lifecycle_state: "ACTIVE",
     capability_ids: ["text.generate"],
-    compatible_platforms: ["server"]
+  },
+  manifest: {
+    compatibility: { platforms: ["cloud"] },
+    capabilities: [{ capability_id: "text.generate" }]
   },
   trust: {
     verdict: "TRUSTED_WITH_SCOPE",
@@ -35,7 +38,7 @@ const candidate = () => ({
 });
 const task = {
   capabilityId: "text.generate",
-  platform: "server",
+  platform: "cloud",
   resourcePolicy: "FREE_ONLY",
   currency: "USD"
 };
