@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/reminder-schedule.schema.json",
+  "title": "Sofia Reminder Schedule",
+  "description": "One-time or recurring reminder schedule with explicit timezone and bounded recurrence.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schedule_id",
+    "owner_principal_id",
+    "title",
+    "recurrence",
+    "timezone",
+    "status",
+    "created_at"
+  ],
+  "properties": {
+    "schedule_id": { "type": "string", "format": "uuid" },
+    "owner_principal_id": { "type": "string", "maxLength": 128 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "description": { "type": "string", "maxLength": 2048 },
+    "recurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["once", "interval", "calendar"] },
+        "run_at": { "type": "string", "format": "date-time" },
+        "interval_seconds": { "type": "integer", "minimum": 60, "maximum": 31536000 },
+        "calendar_rule": { "type": "string", "maxLength": 512 },
+        "start_at": { "type": "string", "format": "date-time" },
+        "end_at": { "type": "string", "format": "date-time" },
+        "max_occurrences": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "dst_gap_policy": { "type": "string", "enum": ["skip", "shift_forward", "require_confirmation"] },
+        "dst_overlap_policy": { "type": "string", "enum": ["first_occurrence", "second_occurrence", "both", "require_confirmation"] }
+      }
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "IANA timezone identifier, e.g. Asia/Seoul."
+    },
+    "next_fire_at": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": ["active", "paused", "cancelled", "completed", "expired"]
+    },
+    "quiet_hours_policy_ref": { "type": "string", "maxLength": 256 },
+    "delivery_policy_ref": { "type": "string", "maxLength": 256 },
+    "snooze_count": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "cancelled_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "recurrence": { "properties": { "kind": { "const": "once" } }, "required": ["kind"] } }, "required": ["recurrence"] },
+      "then": { "properties": { "recurrence": { "required": ["run_at"] } } }
+    },
+    {
+      "if": { "properties": { "recurrence": { "properties": { "kind": { "const": "interval" } }, "required": ["kind"] } }, "required": ["recurrence"] },
+      "then": { "properties": { "recurrence": { "required": ["interval_seconds"] } } }
+    },
+    {
+      "if": { "properties": { "recurrence": { "properties": { "kind": { "const": "calendar" } }, "required": ["kind"] } }, "required": ["recurrence"] },
+      "then": { "properties": { "recurrence": { "required": ["calendar_rule"] } } }
+    }
+  ]
+}
