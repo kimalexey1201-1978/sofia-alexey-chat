@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/integration-webhook-event.schema.json",
+  "title": "Sofia AI Integration Webhook Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "provider_id",
+    "connector_id",
+    "connection_id",
+    "event_type",
+    "provider_event_ref",
+    "received_at",
+    "verified_at",
+    "signature_status",
+    "replay_status",
+    "payload_ref",
+    "data_classification",
+    "processing_status"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "connector_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "connection_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180
+    },
+    "provider_event_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signature_status": {
+      "enum": [
+        "VALID",
+        "INVALID",
+        "MISSING",
+        "NOT_SUPPORTED",
+        "UNKNOWN"
+      ]
+    },
+    "replay_status": {
+      "enum": [
+        "NEW",
+        "DUPLICATE",
+        "REPLAY_SUSPECTED",
+        "UNKNOWN"
+      ]
+    },
+    "payload_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "payload_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "data_classification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "processing_status": {
+      "enum": [
+        "RECEIVED",
+        "QUARANTINED",
+        "ACCEPTED",
+        "REJECTED",
+        "PROCESSED",
+        "FAILED"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 96
+      }
+    }
+  }
+}
