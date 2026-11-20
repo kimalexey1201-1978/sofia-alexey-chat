@@ -51,7 +51,10 @@ Commands that directly control steering, braking, throttle/acceleration, gear se
 
 Any remote access-control or safety-relevant command requires fresh confirmation bound to the exact vehicle, operation, parameters and expiry, plus invocation-time policy enforcement. The vehicle must be in a verified safe state when required by the OEM interface. If state is stale or uncertain, deny or request user verification. A provider acknowledgement is not proof of physical completion.
 
-## 6. Cruise-control voice interaction\n\nThe driver may issue concise commands such as “Sofia, enable cruise control”, “set cruise speed to 90 km/h”, “resume cruise control”, or “cancel cruise control”. The voice layer must bind the request to the authenticated driver session, distinguish it from bystander speech where supported, and parse speed with an explicit unit. If the requested speed is ambiguous, outside the OEM-reported permitted range, or the vehicle state is stale/unknown, Sofia must not send the command and must ask for clarification or report unavailability.\n\nThe vehicle's native cruise-control system remains solely responsible for sensing, speed regulation, braking/acceleration behavior, following distance, and all safety interlocks. Sofia is only a request interface. The vehicle must confirm whether the request was accepted; Sofia must report “requested”, “accepted”, “active”, “rejected”, or “unverified” accurately and must not equate command transmission with activation. The driver must continue to supervise the road and remain ready to take over. Driver attention, hands-on requirements, road/weather limitations, and legal restrictions follow the vehicle manual and applicable law. Adaptive cruise control is not autonomous driving.\n\n
+## 6. Cruise-control voice interaction
+
+The driver may issue concise commands such as “Sofia, enable cruise control”, “set cruise speed to 90 km/h”, “resume cruise control”, or “cancel cruise control”. The voice layer must bind the request to the authenticated driver session, distinguish it from bystander speech where supported, and parse speed with an explicit unit. If the requested speed is ambiguous, outside the OEM-reported permitted range, or the vehicle state is stale/unknown, Sofia must not send the command and must ask for clarification or report unavailability.\n\nThe vehicle's native cruise-control system remains solely responsible for sensing, speed regulation, braking/acceleration behavior, following distance, and all safety interlocks. Sofia is only a request interface. The vehicle must confirm whether the request was accepted; Sofia must report “requested”, “accepted”, “active”, “rejected”, or “unverified” accurately and must not equate command transmission with activation. The driver must continue to supervise the road and remain ready to take over. Driver attention, hands-on requirements, road/weather limitations, and legal restrictions follow the vehicle manual and applicable law. Adaptive cruise control is not autonomous driving.
+
 ## 7. Temporary rental-vehicle sessions
 
 When Sofia encounters a vehicle that is not already bound to a confirmed profile, it must ask the user whether the vehicle is personally owned, rented, borrowed, or otherwise temporarily used before creating or connecting a profile. Proximity, Bluetooth discovery, a rental booking, or another person's device must never be treated as proof of ownership or authorization. The user may also state the vehicle type explicitly before connection.
@@ -93,9 +96,11 @@ Every side-effecting operation carries an idempotency key, deadline, exact targe
 
 ## 12. Required contracts
 
-- `vehicle-rental-session.schema.json`: temporary rental/borrowed vehicle session with bounded lifetime, consent, principal and capability grants.\n- `vehicle-profile.schema.json`: minimal user-managed vehicle reference and supported capability references.
+- `vehicle-rental-session.schema.json`: temporary rental/borrowed vehicle session with bounded lifetime, consent, principal and capability grants.
+- `vehicle-profile.schema.json`: minimal user-managed vehicle reference and supported capability references.
 - `vehicle-observation.schema.json`: sourced, timestamped vehicle telemetry with freshness and uncertainty.
-- `vehicle-command-intent.schema.json`: exact command proposal with risk, authority and confirmation references.\n- `vehicle-cruise-control-request.schema.json`: voice-originated cruise-control request, explicit speed units, OEM capability and vehicle-state preconditions.
+- `vehicle-command-intent.schema.json`: exact command proposal with risk, authority and confirmation references.
+- `vehicle-cruise-control-request.schema.json`: voice-originated cruise-control request, explicit speed units, OEM capability and vehicle-state preconditions.
 - `vehicle-maintenance-record.schema.json`: service, inspection, repair and recall records with provenance.
 
 ## 13. Runtime readiness criteria
