@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/user-locale-preferences.schema.json",
+  "title": "Sofia User Locale Preferences",
+  "description": "User-selected language, timezone, regional format, and measurement defaults.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "preferred_language": { "type": "string", "minLength": 2, "maxLength": 35 },
+    "additional_languages": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 2, "maxLength": 35 }
+    },
+    "timezone": { "type": "string", "maxLength": 64 },
+    "locale_tag": { "type": "string", "maxLength": 35 },
+    "date_format": { "type": "string", "maxLength": 32 },
+    "time_format": { "type": "string", "enum": ["12h", "24h"] },
+    "measurement_system": { "type": "string", "enum": ["metric", "imperial", "us_customary"] },
+    "currency_code": { "type": "string", "pattern": "^[A-Z]{3}$" }
+  }
+}
