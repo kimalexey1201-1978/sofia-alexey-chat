@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/memory-item.schema.json",
+  "title": "Sofia AI Memory Item v1",
+  "description": "Provenance-bearing, purpose-scoped memory record. Secrets must never be stored in this record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["memory_id", "schema_version", "domain", "item_type", "content", "source", "observed_at", "created_at", "status", "sensitivity", "purpose", "retention"],
+  "properties": {
+    "memory_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "schema_version": {"type": "string", "const": "1"},
+    "domain": {"type": "string", "enum": ["preference", "user_fact", "project", "procedure", "knowledge_reference", "ephemeral"]},
+    "item_type": {"type": "string", "minLength": 1, "maxLength": 128},
+    "content": {"type": "string", "minLength": 1, "maxLength": 12000},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_type", "source_id", "assertion_kind"],
+      "properties": {
+        "source_type": {"type": "string", "enum": ["user_message", "user_approval", "project_artifact", "connected_source", "assistant_inference", "system_event"]},
+        "source_id": {"type": "string", "minLength": 1, "maxLength": 512},
+        "assertion_kind": {"type": "string", "enum": ["user_stated", "user_confirmed", "externally_verified", "assistant_inferred", "observed"]},
+        "asserted_by": {"type": "string", "maxLength": 128},
+        "verified_by": {"type": "string", "maxLength": 128}
+      }
+    },
+    "observed_at": {"type": "string", "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "last_confirmed_at": {"type": "string", "format": "date-time"},
+    "valid_from": {"type": "string", "format": "date-time"},
+    "valid_until": {"type": "string", "format": "date-time"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "status": {"type": "string", "enum": ["candidate", "pending_approval", "active", "stale", "superseded", "restricted", "deletion_pending", "deleted", "expired"]},
+    "sensitivity": {"type": "string", "enum": ["public", "personal", "sensitive", "highly_sensitive", "secret_prohibited"]},
+    "purpose": {"type": "string", "minLength": 1, "maxLength": 512},
+    "allowed_scopes": {"type": "array", "items": {"type": "string", "maxLength": 256}, "uniqueItems": true, "maxItems": 128},
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention_class"],
+      "properties": {
+        "retention_class": {"type": "string", "enum": ["ephemeral", "session", "project_lifecycle", "user_controlled", "policy_limited"]},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "review_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "supersedes_memory_ids": {"type": "array", "items": {"type": "string", "maxLength": 128}, "uniqueItems": true},
+    "conflicts_with_memory_ids": {"type": "array", "items": {"type": "string", "maxLength": 128}, "uniqueItems": true},
+    "approval_id": {"type": "string", "maxLength": 128},
+    "canonical_record_version": {"type": "integer", "minimum": 1},
+    "index_refs": {"type": "array", "items": {"type": "string", "maxLength": 512}, "maxItems": 256}
+  }
+}
