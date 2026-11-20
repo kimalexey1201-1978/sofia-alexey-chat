@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-host-capability-report.schema.json",
+  "title": "Sofia AI Device Host Capability Report v1",
+  "description": "Evidence-based report of host and OS features available to Sofia. Availability is not permission or authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["host_id", "platform", "platform_version", "capabilities", "observed_at", "expires_at"],
+  "properties": {
+    "host_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "platform": {"type": "string", "enum": ["android", "ios", "windows", "linux", "macos", "embedded"]},
+    "platform_version": {"type": "string", "minLength": 1, "maxLength": 80},
+    "target_sdk_version": {"type": "string", "maxLength": 40},
+    "device_model_ref": {"type": "string", "maxLength": 256},
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature_id", "availability", "evidence_kind"],
+        "properties": {
+          "feature_id": {"type": "string", "minLength": 1, "maxLength": 180},
+          "availability": {"type": "string", "enum": ["available", "restricted", "unavailable", "permission_required", "unknown"]},
+          "evidence_kind": {"type": "string", "enum": ["platform_api", "runtime_probe", "os_permission_state", "vendor_documentation", "owner_configuration", "unsupported"]},
+          "permission_id": {"type": "string", "maxLength": 180},
+          "background_supported": {"type": "boolean"},
+          "requires_foreground_service": {"type": "boolean"},
+          "limitations": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 500}},
+          "evidence_ref": {"type": "string", "maxLength": 256},
+          "observed_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "isolation_features": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+    "secure_storage_available": {"type": "string", "enum": ["hardware_backed", "os_protected", "software_only", "unavailable", "unknown"]},
+    "attestation_support": {"type": "string", "enum": ["supported", "limited", "not_supported", "unknown"]},
+    "resource_observation_ref": {"type": "string", "maxLength": 256},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
