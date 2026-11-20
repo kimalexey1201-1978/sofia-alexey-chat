@@ -1,0 +1,25 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sofia.ai/contracts/v1/social-platform-capability.schema.json",
+  "title":"Sofia Social Platform Capability",
+  "description":"Verified feature support and restrictions for a platform adapter and API version.",
+  "schema_version":"1.0.0",
+  "contract_version":"1.0.0",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["platform_id","adapter_version","api_version","supported_operations","required_scopes","verification_status","checked_at"],
+  "properties":{
+    "platform_id":{"type":"string","maxLength":160},
+    "adapter_version":{"type":"string","maxLength":64},
+    "api_version":{"type":"string","maxLength":64},
+    "supported_operations":{"type":"array","minItems":1,"maxItems":32,"uniqueItems":true,"items":{"type":"string","enum":["prepare","handoff","create_draft","schedule","publish","delete_post","read_comments","reply_comment","read_analytics"]}},
+    "required_scopes":{"type":"array","maxItems":128,"uniqueItems":true,"items":{"type":"string","maxLength":256}},
+    "account_eligibility":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"type":"string","maxLength":128}},
+    "region_constraints":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"type":"string","maxLength":128}},
+    "media_constraints_ref":{"type":"string","maxLength":256},
+    "rate_limit_policy_ref":{"type":"string","maxLength":256},
+    "official_documentation_uri":{"type":"string","maxLength":2048},
+    "verification_status":{"type":"string","enum":["unverified","verified","restricted","unavailable","deprecated"]},
+    "checked_at":{"type":"string","format":"date-time"}
+  }
+}
