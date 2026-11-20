@@ -1,4 +1,5 @@
 import { createIntegrityVerifiedEvidenceReader } from "./integrity-evidence-reader.mjs";
+import { verifyEvidenceIntegrityBatch } from "./evidence-integrity.mjs";
 
 /**
  * Adapts a durable reconciliation store to the coordinator API.
@@ -62,6 +63,14 @@ export function createIntegrityProtectedReconciliationStore({
 
       if (evidenceEntries.some(entry => !entry.envelope ||
           entry.envelope.binding?.task_id !== input.taskId)) {
+        return { committed: false, reasonCode: "EVIDENCE_INTEGRITY_SEAL_FAILED" };
+      }
+
+      // Verify the complete sealed batch at this boundary too. A faulty or
+      // substituted sealer must never be able to pass unauthenticated entries
+      // to the durable transaction adapter.
+      const verification = await verifyEvidenceIntegrityBatch(evidenceEntries, { resolveKey });
+      if (!verification.verified) {
         return { committed: false, reasonCode: "EVIDENCE_INTEGRITY_SEAL_FAILED" };
       }
 
