@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/event-delivery-record.schema.json",
+  "title": "Sofia Event Delivery Record",
+  "description": "Auditable delivery attempt state for a single event and subscription.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "delivery_id",
+    "event_id",
+    "subscription_id",
+    "consumer_module_id",
+    "status",
+    "attempt",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "delivery_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "subscription_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "consumer_module_id": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "queued",
+        "started",
+        "succeeded",
+        "retrying",
+        "dead_lettered",
+        "cancelled",
+        "expired"
+      ]
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "next_attempt_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "error_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "error_summary": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "dead_letter_reason": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "replay_operation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "trace_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}
