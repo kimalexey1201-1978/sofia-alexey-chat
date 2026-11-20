@@ -229,6 +229,20 @@ The coordinator now reads and verifies persisted history immediately after acqui
 
 This adapter is a contract prototype tested with a fake transactional adapter. It is not connected to the current in-memory test double or production runtime. The fake test proves the wrapper's call contract, not database transaction semantics. A real durable adapter still needs transaction/rollback tests against its actual database engine, key lifecycle controls, and the reusable storage contract suite.
 
+
+### Integrity-boundary fault tests (Block 3)
+
+The integration suite additionally exercises the fail-closed behavior around the integrity boundary:
+
+- a forged or unverifiable envelope is rejected before the durable commit adapter is called;
+- envelope substitution across different request IDs is rejected by request binding;
+- tampered persisted history is rejected before a provider status query;
+- an unavailable integrity key blocks history verification and prevents a provider query or new decision;
+- a storage read outage prevents provider lookup and commit, and the coordinator releases its lease so a later worker can acquire a higher fencing generation;
+- the protected store never uses the durable adapter's raw evidence-read bypass.
+
+The CI run for commit `0c98017f365e46a94bcb5a7504782885c4f35a2d` passed all 93 tests (0 failures). These results validate the test fixture and adapter contracts only. They do not establish durable database semantics, production key management, or production runtime integration.
+
 ## 10. Storage-port contract
 
 The reconciliation manager and future execution supervisor must depend on a storage-port contract rather than a specific database:
