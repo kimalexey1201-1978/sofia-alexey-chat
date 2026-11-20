@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handleChatRequest } from "../../src/worker/chat-route.mjs";
+import { runSofiaCore } from "../../src/core/sofia-core.mjs";
 
 test("runs the complete Worker route -> Core -> OpenRouter adapter -> legacy response cycle", async () => {
   let upstreamRequest;
@@ -132,5 +133,46 @@ test("propagates caller abort from Worker Request through Core to OpenRouter fet
   assert.equal(response.status, 499);
   assert.deepEqual(await response.json(), {
     error: { code: "REQUEST_CANCELLED", message: "Request was cancelled" }
+  });
+});
+
+test("enforces the Core deadline across Worker and OpenRouter and returns a safe timeout", async () => {
+  let upstreamSignal;
+  const fetchImpl = (_url, init) => {
+    upstreamSignal = init.signal;
+    return new Promise((_resolve, reject) => {
+      if (init.signal.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+      init.signal.addEventListener("abort", () => {
+        reject(new DOMException("Aborted", "AbortError"));
+      }, { once: true });
+    });
+  };
+
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Проверь ограничение времени." }]
+    })
+  });
+
+  const response = await handleChatRequest(request, {
+    OPENROUTER_API_KEY: "test-secret"
+  }, {
+    fetchImpl,
+    runCore: (provider, input, config) =>
+      runSofiaCore(provider, input, { ...config, timeoutMs: 10 })
+  });
+
+  assert.equal(upstreamSignal.aborted, true);
+  assert.equal(response.status, 504);
+  assert.deepEqual(await response.json(), {
+    error: {
+      code: "PROVIDER_TIMEOUT",
+      message: "The AI provider did not respond in time"
+    }
   });
 });
