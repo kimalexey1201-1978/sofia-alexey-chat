@@ -1,3 +1,4 @@
+import { createInferencePlan } from "./task-planner.mjs";
 import {
   assertAIProvider,
   validateProviderResult
@@ -169,6 +170,7 @@ export async function runSofiaCore(provider, request, config = {}) {
     return {
       ok: true,
       requestId: providerRequest.requestId,
+      taskPlan,
       answer: {
         text: result.text,
         providerId: result.providerId,
