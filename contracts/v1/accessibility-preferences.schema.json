@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/accessibility-preferences.schema.json",
+  "title": "Sofia Accessibility Preferences",
+  "description": "User-configured presentation and interaction accessibility settings. Does not encode diagnoses or infer disability.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "text_scale": { "type": "string", "enum": ["default", "large", "extra_large"] },
+    "high_contrast": { "type": "boolean" },
+    "reduced_motion": { "type": "boolean" },
+    "screen_reader_optimized": { "type": "boolean" },
+    "captions_enabled": { "type": "boolean" },
+    "speech_rate": { "type": "number", "minimum": 0.5, "maximum": 2.0 },
+    "voice_output_enabled": { "type": "boolean" },
+    "haptic_feedback_enabled": { "type": "boolean" },
+    "simplified_layout": { "type": "boolean" }
+  }
+}
