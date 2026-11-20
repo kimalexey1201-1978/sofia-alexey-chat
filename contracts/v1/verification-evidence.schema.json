@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/verification-evidence.schema.json",
+  "title": "Sofia AI Verification Evidence",
+  "description": "A traceable, integrity-addressable evidence item supporting a verification claim.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "claim",
+    "source_commit",
+    "method",
+    "result",
+    "created_at",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "evidence_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "claim": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "audit_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^A-(0[1-9]|1[01])$" }
+    },
+    "source_commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "method": {
+      "type": "string",
+      "enum": ["automated_test", "manual_review", "security_assessment", "device_test", "build_attestation", "configuration_inspection"]
+    },
+    "result": { "type": "string", "enum": ["supports", "contradicts", "inconclusive"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "reviewed_by": { "type": "string", "maxLength": 300 },
+    "test_run_id": { "type": "string", "maxLength": 160 },
+    "artifact_reference": { "type": "string", "maxLength": 1000 },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": { "const": "SHA-256" },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "signature_reference": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "redaction_applied": { "type": "boolean" },
+    "limitations": { "type": "string", "maxLength": 4000 }
+  }
+}
