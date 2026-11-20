@@ -92,3 +92,36 @@ test("coordinator-facing store rejects invalid evidence before durable commit", 
   });
   assert.equal(commitCalls, 0);
 });
+
+
+test("coordinator-facing store rejects forged envelopes before durable commit", async () => {
+  let commitCalls = 0;
+  const durable = {
+    getTask: async () => null, acquireLease: async () => null,
+    releaseLease: async () => true, listEvidenceEntries: async () => [],
+    commitDecision: async () => { commitCalls++; return { committed: true }; }
+  };
+  const store = createIntegrityProtectedReconciliationStore({
+    store: durable,
+    sealEvidence: async item => ({
+      version: "1.0.0", algorithm: "HMAC-SHA-256", key_id: "unknown-key",
+      accepted_at: acceptedAt, record_digest: "0".repeat(64),
+      binding: {
+        task_id: item.task_id, request_id: item.request_id,
+        provider_id: item.provider_id, schema_version: item.schema_version,
+        evidence_digest: item.evidence_digest
+      },
+      mac: "0".repeat(64)
+    }),
+    resolveKey: async () => null
+  });
+  const result = await store.commitDecision({
+    taskId, evidenceRecords: [record],
+    decision: { decision_id: "decision-forged" },
+    auditEvent: { event_id: "event-forged" }
+  });
+  assert.deepEqual(result, {
+    committed: false, reasonCode: "EVIDENCE_INTEGRITY_SEAL_FAILED"
+  });
+  assert.equal(commitCalls, 0);
+});
