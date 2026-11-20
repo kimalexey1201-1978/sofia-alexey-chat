@@ -1,5 +1,6 @@
 import test, { describe } from "node:test";
 import assert from "node:assert/strict";
+import { computeEvidenceSetDigest } from "../../src/core/reconciliation-storage.mjs";
 
 /**
  * Reusable behavioral contract for any reconciliation storage adapter.
@@ -44,7 +45,7 @@ export function defineReconciliationStorageContract({
       }
     }
 
-    function makeCommit(lease, overrides = {}) {
+    async function makeCommit(lease, overrides = {}) {
       const evidence = {
         task_id: "task-contract",
         request_id: "request-contract",
@@ -52,6 +53,8 @@ export function defineReconciliationStorageContract({
         evidence_ref: "provider:evidence:contract",
         conclusion: "CONFIRMED_APPLIED"
       };
+      const evidenceRecords = overrides.evidenceRecords ?? [evidence];
+      const evidenceSetDigest = await computeEvidenceSetDigest(evidenceRecords);
       const decision = {
         decision_id: "decision-contract",
         task_id: "task-contract",
@@ -60,7 +63,7 @@ export function defineReconciliationStorageContract({
         task_version_after: 2,
         conclusion: "CONFIRMED_APPLIED",
         reason_code: "CONFIRMED_APPLIED",
-        evidence_set_digest: "b".repeat(64),
+        evidence_set_digest: evidenceSetDigest,
         policy_version: "1.0.0",
         decided_at: "2026-11-20T15:00:00.000Z",
         reconciler_ref: "contract-suite"
@@ -73,7 +76,7 @@ export function defineReconciliationStorageContract({
         payload: {
           conclusion: "CONFIRMED_APPLIED",
           reason_code: "CONFIRMED_APPLIED",
-          evidence_set_digest: "b".repeat(64)
+          evidence_set_digest: evidenceSetDigest
         },
         created_at: "2026-11-20T15:00:00.000Z",
         delivery_state: "pending",
@@ -85,7 +88,7 @@ export function defineReconciliationStorageContract({
         leaseOwner: lease.lease_owner,
         fencingToken: lease.fencing_token,
         now: "2026-11-20T15:00:00.000Z",
-        evidenceRecords: [evidence],
+        evidenceRecords,
         decision,
         auditEvent,
         ...overrides
@@ -99,7 +102,7 @@ export function defineReconciliationStorageContract({
           now: "2026-11-20T15:00:00.000Z", ttlMs: 30000
         });
         assert.ok(lease);
-        const result = await store.commitDecision(makeCommit(lease));
+        const result = await store.commitDecision(await makeCommit(lease));
         assert.equal(result.committed, true);
         assert.equal(result.task.state, "completed");
         assert.equal(result.task.version, 2);
@@ -115,7 +118,7 @@ export function defineReconciliationStorageContract({
           taskId: "task-contract", owner: "worker-a",
           now: "2026-11-20T15:00:00.000Z", ttlMs: 30000
         });
-        const first = makeCommit(lease);
+        const first = await makeCommit(lease);
         const second = makeCommit(lease, {
           decision: { ...first.decision, decision_id: "decision-second" },
           auditEvent: { ...first.auditEvent, event_id: "event-second" }
@@ -140,7 +143,7 @@ export function defineReconciliationStorageContract({
           now: "2026-11-20T15:00:31.000Z", ttlMs: 30000
         });
         assert.ok(second.fencing_token > first.fencing_token);
-        const result = await store.commitDecision(makeCommit(first, {
+        const result = await store.commitDecision(await makeCommit(first, {
           now: "2026-11-20T15:00:31.000Z"
         }));
         assert.equal(result.committed, false);
@@ -155,7 +158,7 @@ export function defineReconciliationStorageContract({
           taskId: "task-contract", owner: "worker-a",
           now: "2026-11-20T15:00:00.000Z", ttlMs: 30000
         });
-        const input = makeCommit(lease);
+        const input = await makeCommit(lease);
         input.evidenceRecords = [input.evidenceRecords[0], { ...input.evidenceRecords[0] }];
         const result = await store.commitDecision(input);
         assert.equal(result.committed, true);
@@ -166,7 +169,7 @@ export function defineReconciliationStorageContract({
           taskId: "task-contract", owner: "worker-a",
           now: "2026-11-20T15:00:00.000Z", ttlMs: 30000
         });
-        const input = makeCommit(lease);
+        const input = await makeCommit(lease);
         input.evidenceRecords.push({
           ...input.evidenceRecords[0], conclusion: "CONFIRMED_NOT_APPLIED"
         });
@@ -185,8 +188,9 @@ export function defineReconciliationStorageContract({
           taskId: "task-contract", owner: "worker-a",
           now: "2026-11-20T15:00:00.000Z", ttlMs: 30000
         });
-        const input = makeCommit(lease);
+        const input = await makeCommit(lease);
         input.evidenceRecords[0].conclusion = "STILL_UNKNOWN";
+        input.decision.evidence_set_digest = await computeEvidenceSetDigest(input.evidenceRecords);
         input.decision = {
           ...input.decision,
           decision_id: "decision-unknown",
@@ -202,7 +206,7 @@ export function defineReconciliationStorageContract({
           payload: {
             conclusion: "STILL_UNKNOWN",
             reason_code: "PROVIDER_STATE_STILL_UNKNOWN",
-            evidence_set_digest: "b".repeat(64)
+            evidence_set_digest: input.decision.evidence_set_digest
           }
         };
         const result = await store.commitDecision(input);
@@ -271,6 +275,7 @@ export function defineReconciliationStorageContract({
             evidence_ref: "provider:evidence:ledger-restart",
             conclusion: "CONFIRMED_APPLIED"
           };
+          const evidenceSetDigest = await computeEvidenceSetDigest([evidence]);
           const decision = {
             decision_id: "decision-ledger-restart",
             task_id: "task-ledger-restart",
@@ -279,7 +284,7 @@ export function defineReconciliationStorageContract({
             task_version_after: 2,
             conclusion: "CONFIRMED_APPLIED",
             reason_code: "CONFIRMED_APPLIED",
-            evidence_set_digest: "d".repeat(64),
+            evidence_set_digest: evidenceSetDigest,
             policy_version: "1.0.0",
             decided_at: "2026-11-20T15:00:00.000Z",
             reconciler_ref: "contract-suite"
@@ -292,7 +297,7 @@ export function defineReconciliationStorageContract({
             payload: {
               conclusion: "CONFIRMED_APPLIED",
               reason_code: "CONFIRMED_APPLIED",
-              evidence_set_digest: "d".repeat(64)
+              evidence_set_digest: evidenceSetDigest
             },
             created_at: "2026-11-20T15:00:00.000Z",
             delivery_state: "pending",
@@ -324,3 +329,17 @@ export function defineReconciliationStorageContract({
     }
   });
 }
+
+
+    test("does not resolve a task from multiple distinct evidence records", async () => {
+      await withStore(async ({ store }) => {
+        const lease = await store.acquireLease({ taskId: "task-contract", owner: "worker-a", now: "2026-11-20T15:00:00.000Z", ttlMs: 30000 });
+        const first = { task_id: "task-contract", request_id: "request-contract", evidence_digest: "a".repeat(64), evidence_ref: "provider:evidence:1", conclusion: "CONFIRMED_APPLIED" };
+        const second = { ...first, evidence_digest: "c".repeat(64), evidence_ref: "provider:evidence:2" };
+        const input = await makeCommit(lease, { evidenceRecords: [first, second] });
+        const result = await store.commitDecision(input);
+        assert.equal(result.committed, false);
+        assert.equal(result.reasonCode, "MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
+        assert.equal((await store.getTask("task-contract")).state, "outcome_uncertain");
+      });
+    });
