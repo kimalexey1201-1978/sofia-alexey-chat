@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/integration-operation.schema.json",
+  "title": "Sofia AI Integration Operation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operation_id",
+    "task_id",
+    "connector_id",
+    "connector_version",
+    "capability_id",
+    "operation",
+    "account_ref",
+    "target_ref",
+    "purpose_id",
+    "data_classification",
+    "input_ref",
+    "created_at",
+    "deadline_at",
+    "idempotency_key",
+    "contract_version"
+  ],
+  "properties": {
+    "operation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "connector_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "connector_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "capability_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "account_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "target_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "purpose_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "data_classification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "input_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "authority_envelope_ref": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "capability_grant_ref": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "consent_ref": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "security_decision_ref": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "resource_reservation_ref": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "approval_ref": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    }
+  }
+}
