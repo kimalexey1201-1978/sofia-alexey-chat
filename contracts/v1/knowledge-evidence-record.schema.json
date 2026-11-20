@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/knowledge-evidence-record.schema.json",
+  "title": "Sofia Knowledge Evidence Record",
+  "description": "Traceable source passage or record locator supporting a claim, with provenance and freshness metadata.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "document_id", "source_id", "retrieved_at", "locator", "support_type"],
+  "properties": {
+    "evidence_id": { "type": "string", "format": "uuid" },
+    "document_id": { "type": "string", "format": "uuid" },
+    "source_id": { "type": "string", "maxLength": 160 },
+    "canonical_uri": { "type": "string", "maxLength": 2048 },
+    "title": { "type": "string", "maxLength": 1024 },
+    "published_at": { "type": "string", "format": "date-time" },
+    "updated_at_source": { "type": "string", "format": "date-time" },
+    "retrieved_at": { "type": "string", "format": "date-time" },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator_type", "value"],
+      "properties": {
+        "locator_type": { "type": "string", "enum": ["page", "line", "section", "timestamp", "record_key", "paragraph", "url_fragment"] },
+        "value": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "excerpt": { "type": "string", "maxLength": 2000 },
+    "content_hash_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "support_type": {
+      "type": "string",
+      "enum": ["direct_support", "context", "contradiction", "background"]
+    },
+    "source_assessment_ref": { "type": "string", "maxLength": 256 },
+    "claim_refs": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 256 }
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    }
+  }
+}
