@@ -51,30 +51,54 @@ Commands that directly control steering, braking, throttle/acceleration, gear se
 
 Any remote access-control or safety-relevant command requires fresh confirmation bound to the exact vehicle, operation, parameters and expiry, plus invocation-time policy enforcement. The vehicle must be in a verified safe state when required by the OEM interface. If state is stale or uncertain, deny or request user verification. A provider acknowledgement is not proof of physical completion.
 
-## 6. Cruise-control voice interaction\n\nThe driver may issue concise commands such as “Sofia, enable cruise control”, “set cruise speed to 90 km/h”, “resume cruise control”, or “cancel cruise control”. The voice layer must bind the request to the authenticated driver session, distinguish it from bystander speech where supported, and parse speed with an explicit unit. If the requested speed is ambiguous, outside the OEM-reported permitted range, or the vehicle state is stale/unknown, Sofia must not send the command and must ask for clarification or report unavailability.\n\nThe vehicle's native cruise-control system remains solely responsible for sensing, speed regulation, braking/acceleration behavior, following distance, and all safety interlocks. Sofia is only a request interface. The vehicle must confirm whether the request was accepted; Sofia must report “requested”, “accepted”, “active”, “rejected”, or “unverified” accurately and must not equate command transmission with activation. The driver must continue to supervise the road and remain ready to take over. Driver attention, hands-on requirements, road/weather limitations, and legal restrictions follow the vehicle manual and applicable law. Adaptive cruise control is not autonomous driving.\n\n## 7. Driver safety and legal boundaries
+## 6. Cruise-control voice interaction\n\nThe driver may issue concise commands such as “Sofia, enable cruise control”, “set cruise speed to 90 km/h”, “resume cruise control”, or “cancel cruise control”. The voice layer must bind the request to the authenticated driver session, distinguish it from bystander speech where supported, and parse speed with an explicit unit. If the requested speed is ambiguous, outside the OEM-reported permitted range, or the vehicle state is stale/unknown, Sofia must not send the command and must ask for clarification or report unavailability.\n\nThe vehicle's native cruise-control system remains solely responsible for sensing, speed regulation, braking/acceleration behavior, following distance, and all safety interlocks. Sofia is only a request interface. The vehicle must confirm whether the request was accepted; Sofia must report “requested”, “accepted”, “active”, “rejected”, or “unverified” accurately and must not equate command transmission with activation. The driver must continue to supervise the road and remain ready to take over. Driver attention, hands-on requirements, road/weather limitations, and legal restrictions follow the vehicle manual and applicable law. Adaptive cruise control is not autonomous driving.\n\n
+## 7. Temporary rental-vehicle sessions
+
+When Sofia encounters a vehicle that is not already bound to a confirmed profile, it must ask the user whether the vehicle is personally owned, rented, borrowed, or otherwise temporarily used before creating or connecting a profile. Proximity, Bluetooth discovery, a rental booking, or another person's device must never be treated as proof of ownership or authorization. The user may also state the vehicle type explicitly before connection.
+
+A rental session is a temporary, purpose-limited association between the authenticated user, one vehicle profile, and one declared rental period. It must:
+- be explicitly started by the user and bound to the selected vehicle, authenticated principal, consent record, and declared start/end time;
+- discover capabilities separately for the actual vehicle, model year, market, adapter, account entitlement, OS permission, and connection method;
+- use only user-approved, documented connection paths: Bluetooth pairing, supported Android Auto projection/OS hand-off, or an official OEM/rental-provider API with valid delegated authorization;
+- distinguish projection/media/navigation from read-only telemetry and command capabilities. Bluetooth or Android Auto pairing alone never implies access to telemetry or vehicle controls;
+- request only the minimum capability grants required for the current task. Unsupported capabilities remain unavailable; Sofia must not bypass rental-provider access controls, use another person's account, request the user's rental password, emulate hidden UI controls, or inject vehicle-bus messages;
+- require setup and permission changes while safely parked. While moving, limit interaction to legally permitted, low-distraction assistance; defer pairing, profile changes, and complex configuration;
+- keep rental tokens in protected secret storage by reference only, never in logs, prompts, ordinary profile fields, or repository files;
+- apply the same OEM-only restrictions and exact invocation-time authorization to any vehicle command. Cruise-control requests are available only where the exact vehicle exposes a documented OEM capability; native vehicle safety systems remain authoritative;
+- expire automatically at the declared end time and support explicit early termination. On termination, revoke delegated tokens where supported, close the device session, purge ephemeral session data and temporary credentials, and prompt the user to remove the phone from the rental infotainment's paired-device list when safe;
+- never erase the vehicle's complete infotainment history or data belonging to another renter. Any optional cleanup of the user's own call history or recent destinations must be a separately explained, user-confirmed action through a supported interface;
+- retain no rental location history, routes, or observations beyond the declared purpose and retention period. Any personal trip note retained beyond session expiry requires separate user choice and consent.
+
+If the vehicle is unknown, Sofia asks: “Is this your vehicle, or is it rented/borrowed?” It does not initiate pairing or request credentials until the user answers and the required authorization checks pass. If the answer is uncertain, the session remains unconnected.
+
+Session states are `proposed`, `awaiting_user_classification`, `awaiting_consent`, `ready_to_connect`, `active`, `ending`, `ended`, `expired`, and `failed`. State transitions are audited. A lost connection does not silently extend the rental period. Reconnection requires a still-valid session, fresh capability discovery, and current authorization.
+
+Required contract: `vehicle-rental-session.schema.json`, defining temporary ownership/use classification, bounded session lifetime, connection method, consent and principal references, capability grants, and protected secret references. This is an architecture contract only; it does not implement pairing, OEM connectivity, or rental-provider integration.
+
+## 8. Driver safety and legal boundaries
 
 The driver remains responsible for observing road conditions, traffic laws, vehicle warnings and manufacturer instructions. The interface must not encourage interaction while driving. When motion is detected or reasonably suspected, restrict interaction to legally permitted, low-distraction voice or passenger workflows; defer complex tasks and require the vehicle to be safely parked. Do not bypass built-in driver-distraction protections.
 
-## 8. Maintenance assistance
+## 9. Maintenance assistance
 
 VMM may organize service schedules, user-entered symptoms, OEM-reported diagnostics, recalls and repair history. It may explain documentation and suggest checking an official dealer or qualified mechanic. It must not claim a definitive diagnosis from incomplete telemetry, clear fault codes, or recommend continued driving when a safety-critical warning is present. Safety warnings should direct the user to stop safely and follow the vehicle manual or qualified assistance.
 
-## 9. Android-first and cross-platform support
+## 10. Android-first and cross-platform support
 
 Android is the primary companion platform. Vehicle integrations may use documented OEM APIs, supported Android Auto capabilities, approved Bluetooth profiles, or authorized OS hand-offs. Android Auto availability does not imply unrestricted access to vehicle controls or telemetry. Desktop and other mobile platforms use separate adapters and permission models.
 
-## 10. Failure, reconciliation and audit
+## 11. Failure, reconciliation and audit
 
 Every side-effecting operation carries an idempotency key, deadline, exact target and parameters, authority reference, policy-decision reference, and correlation context. On timeout or lost connectivity, completion is unknown until reconciled with authoritative provider state. Never blindly retry a command that may have changed vehicle security or state. Audit logs redact VIN, precise location, credentials and personal travel patterns.
 
-## 11. Required contracts
+## 12. Required contracts
 
-- `vehicle-profile.schema.json`: minimal user-managed vehicle reference and supported capability references.
+- `vehicle-rental-session.schema.json`: temporary rental/borrowed vehicle session with bounded lifetime, consent, principal and capability grants.\n- `vehicle-profile.schema.json`: minimal user-managed vehicle reference and supported capability references.
 - `vehicle-observation.schema.json`: sourced, timestamped vehicle telemetry with freshness and uncertainty.
 - `vehicle-command-intent.schema.json`: exact command proposal with risk, authority and confirmation references.\n- `vehicle-cruise-control-request.schema.json`: voice-originated cruise-control request, explicit speed units, OEM capability and vehicle-state preconditions.
 - `vehicle-maintenance-record.schema.json`: service, inspection, repair and recall records with provenance.
 
-## 12. Runtime readiness criteria
+## 13. Runtime readiness criteria
 
 1. Official adapter/API support and terms are verified per manufacturer, vehicle, region and account.
 2. Vehicle identity and user authorization are verified without exposing secrets.
@@ -85,6 +109,6 @@ Every side-effecting operation carries an idempotency key, deadline, exact targe
 8. Sensitive identifiers and location are protected in storage, transmission, logs and provider disclosure.
 9. Independent verification distinguishes command acceptance from confirmed vehicle state.
 
-## 13. Non-goals and current limitations
+## 14. Non-goals and current limitations
 
 This document does not connect an OEM account, read vehicle telemetry, discover a vehicle, access Android Auto internals, execute remote commands, diagnose a vehicle, or provide roadside dispatch. It does not guarantee support for any make, model, year, country, protocol or subscription.
