@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/audit-event.schema.json",
+  "title": "Sofia AI Audit Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "recorded_at",
+    "schema_version",
+    "source_component",
+    "correlation_id",
+    "outcome",
+    "data_classification"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "source_component": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "causation_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "actor_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "device_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "module_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "module_version": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "action": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "capability": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "resource_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "policy_decision": {
+      "enum": [
+        "allow",
+        "deny",
+        "require_approval",
+        "step_up_auth"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "maxLength": 96
+    },
+    "grant_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "approval_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "outcome": {
+      "enum": [
+        "success",
+        "failure",
+        "denied",
+        "pending",
+        "cancelled",
+        "unknown"
+      ]
+    },
+    "error_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "data_classification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "redactions_applied": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "previous_digest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "event_digest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "signature_ref": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "key_id": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Allowlisted, non-secret structured attributes only.",
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provider_id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "device_class": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "risk_tier": {
+          "enum": [
+            "R0",
+            "R1",
+            "R2",
+            "R3"
+          ]
+        }
+      }
+    }
+  }
+}
