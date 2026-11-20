@@ -240,6 +240,42 @@ test("storage read failure stops before provider query and releases the lease", 
   }), true);
 });
 
+test("lease release outage leaves only an expiring lease and preserves fencing", async () => {
+  const { durable, adapter, coordinator } = await setup();
+  const originalRelease = durable.releaseLease.bind(durable);
+  durable.releaseLease = async () => {
+    throw new Error("simulated lease release outage");
+  };
+
+  const result = await coordinator.reconcile({
+    taskId, owner: "worker-release-outage"
+  });
+  assert.equal(result.reconciled, true);
+  assert.equal(result.taskState, "completed");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal(durable.decisions.length, 1);
+  assert.equal(durable.outbox.length, 1);
+
+  const beforeExpiry = await durable.acquireLease({
+    taskId, owner: "worker-too-early",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.equal(beforeExpiry, null, "unreleased lease remains exclusive until expiry");
+
+  const afterExpiry = await durable.acquireLease({
+    taskId, owner: "worker-after-expiry",
+    now: "2026-11-20T15:00:31.000Z", ttlMs: 30000
+  });
+  assert.ok(afterExpiry);
+  assert.equal(afterExpiry.fencing_token, 2,
+    "lease recovery advances the fencing generation");
+  durable.releaseLease = originalRelease;
+  assert.equal(await durable.releaseLease({
+    taskId, owner: "worker-after-expiry",
+    fencingToken: afterExpiry.fencing_token
+  }), true);
+});
+
 test("repeated reconciliation after terminal resolution is idempotently refused", async () => {
   const { durable, adapter, coordinator } = await setup();
   const first = await coordinator.reconcile({ taskId, owner: "worker-first" });
