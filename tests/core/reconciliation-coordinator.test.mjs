@@ -286,3 +286,23 @@ test("a verifier exception fails closed and releases the lease", async () => {
   });
   assert.ok(nextLease);
 });
+
+
+test("provider response arriving after lease expiry cannot be committed", async () => {
+  let clockCalls = 0;
+  const later = new Date("2026-11-20T15:00:31.000Z");
+  const clock = () => (++clockCalls === 1 ? now : later);
+  const { store, coordinator, adapter } = await setup({ clock });
+  const result = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "LEASE_FENCING_REJECTED");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+  assert.equal((await store.listDecisions("task-0001")).length, 0);
+  assert.equal((await store.listOutbox()).length, 0);
+  const replacement = await store.acquireLease({
+    taskId: "task-0001", owner: "worker-b",
+    now: later.toISOString(), ttlMs: 30000
+  });
+  assert.ok(replacement);
+});
