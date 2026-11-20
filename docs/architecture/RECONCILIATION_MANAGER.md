@@ -123,3 +123,7 @@ G — controlled non-production activation; production execution requires separa
 ## 12. Current v0.1 boundary
 
 The repository contains a pure reconciliation decision helper and tests only. It does not yet contain provider adapters, cryptographic evidence verification, durable reconciliation leases, persistent evidence storage, atomic state transitions, live RBM settlement or retry orchestration. No real executor is invoked.
+
+## 13. Mock adapter boundary
+
+The test-only `createMockReconciliationAdapter` exposes a read-only `queryOperationStatus` contract over preloaded evidence fixtures. It is deterministic, performs no network I/O, does not authenticate or normalize evidence, does not persist state, and cannot invoke external operations. It returns a defensive copy of all configured records for the exact provider operation so higher-level tests can exercise duplicates and contradictory observations without implying that the adapter itself establishes trust. Provider identity mismatch and malformed requests fail closed. This fixture must not be registered for production execution.
