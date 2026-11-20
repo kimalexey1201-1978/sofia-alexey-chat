@@ -36,3 +36,23 @@ export function applyAssistantResult(chat, result, date = new Date().toISOString
     message
   };
 }
+
+export function buildChatRequestMessages(systemMessage, chat, limit = 30) {
+  if (!systemMessage || typeof systemMessage !== "object" || Array.isArray(systemMessage)) {
+    throw new TypeError("systemMessage must be an object");
+  }
+  if (!Array.isArray(chat)) {
+    throw new TypeError("chat must be an array");
+  }
+  if (!Number.isSafeInteger(limit) || limit <= 0) {
+    throw new TypeError("limit must be a positive safe integer");
+  }
+
+  return [
+    { role: "system", content: String(systemMessage.content ?? "") },
+    ...chat.slice(-limit).map(message => ({
+      role: message.who === "me" ? "user" : "assistant",
+      content: message.text
+    }))
+  ];
+}
