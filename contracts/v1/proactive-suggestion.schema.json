@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/proactive-suggestion.schema.json",
+  "title": "Sofia AI Proactive Suggestion v1",
+  "description": "User-facing proactive suggestion and lifecycle record. Acceptance is not execution authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "suggestion_id",
+    "schema_version",
+    "created_at",
+    "expires_at",
+    "status",
+    "domain",
+    "title",
+    "message",
+    "trigger_refs",
+    "reason",
+    "confidence_band",
+    "delivery_policy",
+    "available_actions",
+    "authority_effect"
+  ],
+  "properties": {
+    "suggestion_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "created",
+        "queued",
+        "delivered",
+        "accepted",
+        "dismissed",
+        "snoozed",
+        "expired",
+        "withdrawn",
+        "delivery_failed"
+      ]
+    },
+    "domain": {
+      "enum": [
+        "reminders",
+        "calendar",
+        "tasks",
+        "communications",
+        "devices",
+        "projects",
+        "travel",
+        "home",
+        "work",
+        "wellbeing",
+        "other"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1200
+    },
+    "trigger_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "trigger_class",
+        "evidence_refs"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "trigger_class": {
+          "enum": [
+            "deterministic",
+            "inferred",
+            "mixed"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "uncertainty_note": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "confidence_band": {
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "not_applicable"
+      ]
+    },
+    "delivery_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channel",
+        "quiet_hours_checked",
+        "frequency_cap_checked",
+        "cooldown_checked"
+      ],
+      "properties": {
+        "channel": {
+          "enum": [
+            "in_app",
+            "push_notification",
+            "voice",
+            "wearable",
+            "email",
+            "other_approved"
+          ]
+        },
+        "quiet_hours_checked": {
+          "const": true
+        },
+        "frequency_cap_checked": {
+          "const": true
+        },
+        "cooldown_checked": {
+          "const": true
+        },
+        "delivery_after": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "available_actions": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "view",
+          "prepare_draft",
+          "open_task",
+          "snooze",
+          "dismiss",
+          "review_plan"
+        ]
+      }
+    },
+    "authority_effect": {
+      "const": "none"
+    },
+    "accepted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "dismissed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "snoozed_until": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_revoked": {
+      "type": "boolean",
+      "default": false
+    },
+    "deduplication_key": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256
+    },
+    "audit_correlation_id": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "user_feedback": {
+      "enum": [
+        "useful",
+        "not_useful",
+        "too_frequent",
+        "incorrect",
+        "not_provided"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "accepted_at"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "dismissed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "dismissed_at"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "snoozed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "snoozed_until"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "reason": {
+            "properties": {
+              "trigger_class": {
+                "const": "inferred"
+              }
+            },
+            "required": [
+              "trigger_class"
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "then": {
+        "required": [
+          "confidence",
+          "confidence_band"
+        ],
+        "properties": {
+          "confidence_band": {
+            "not": {
+              "const": "not_applicable"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
