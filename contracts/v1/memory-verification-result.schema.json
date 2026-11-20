@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/memory-verification-result.schema.json",
+  "title": "Sofia AI Memory Verification Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "verification_id",
+    "memory_id",
+    "memory_version",
+    "verified_at",
+    "verifier_id",
+    "verifier_version",
+    "verdict",
+    "checks",
+    "policy_version"
+  ],
+  "properties": {
+    "verification_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "memory_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "memory_version": { "type": "integer", "minimum": 1 },
+    "verified_at": { "type": "string", "format": "date-time" },
+    "verifier_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "verifier_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "verdict": {
+      "enum": ["VERIFIED", "SUPPORTED_WITH_LIMITATIONS", "UNVERIFIED", "CONTRADICTED", "TAMPERED", "REJECTED"]
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "outcome"],
+        "properties": {
+          "check_id": { "type": "string", "minLength": 1, "maxLength": 96 },
+          "outcome": { "enum": ["PASS", "FAIL", "INCONCLUSIVE", "NOT_APPLICABLE"] },
+          "reason_code": { "type": "string", "maxLength": 96 },
+          "evidence_refs": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "maxLength": 512 }
+          }
+        }
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 512 }
+    },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 1000 }
+    },
+    "conflict_memory_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 128 }
+    },
+    "policy_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "valid_until": { "type": "string", "format": "date-time" },
+    "quarantine_required": { "type": "boolean" },
+    "audit_event_ref": { "type": "string", "maxLength": 256 }
+  }
+}
