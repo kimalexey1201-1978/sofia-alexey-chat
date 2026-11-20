@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/voice-session.schema.json",
+  "title": "Sofia AI Voice Session v1",
+  "description": "Bounded voice interaction session with explicit capture state, consent, and processing provenance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "schema_version",
+    "device_id",
+    "state",
+    "activation_method",
+    "capture_started_at",
+    "capture_indicator_active",
+    "microphone_permission_ref",
+    "processing_mode",
+    "retention_mode"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "state": {
+      "enum": [
+        "standby",
+        "wake_detected",
+        "capture_active",
+        "processing",
+        "awaiting_clarification",
+        "response_ready",
+        "responding",
+        "closed",
+        "cancelled",
+        "timed_out",
+        "permission_denied",
+        "audio_unavailable",
+        "verification_inconclusive"
+      ]
+    },
+    "activation_method": {
+      "enum": [
+        "wake_word",
+        "push_to_talk",
+        "headset_button",
+        "quick_setting",
+        "in_app_button",
+        "other_supported"
+      ]
+    },
+    "wake_phrase": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "capture_started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "capture_ended_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "capture_indicator_active": {
+      "type": "boolean"
+    },
+    "microphone_permission_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "owner_verification_state": {
+      "enum": [
+        "not_attempted",
+        "verified",
+        "inconclusive",
+        "not_verified",
+        "failed"
+      ]
+    },
+    "owner_verification_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "processing_mode": {
+      "enum": [
+        "on_device",
+        "approved_remote",
+        "hybrid"
+      ]
+    },
+    "audio_provider_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "speech_provider_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "retention_mode": {
+      "enum": [
+        "transient_only",
+        "user_saved_with_consent",
+        "diagnostic_consent"
+      ]
+    },
+    "maximum_duration_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "inactivity_timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 600
+    },
+    "consent_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "correlation_id": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "close_reason": {
+      "type": "string",
+      "maxLength": 200
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "capture_active"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capture_indicator_active": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "closed",
+              "cancelled",
+              "timed_out",
+              "permission_denied",
+              "audio_unavailable"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capture_indicator_active": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
+}
