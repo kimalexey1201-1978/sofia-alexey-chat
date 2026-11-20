@@ -355,3 +355,108 @@ test("storage version conflict fails closed without repeating provider lookup", 
   });
   assert.ok(nextLease);
 });
+
+
+test("appends sequential STILL_UNKNOWN evidence and hashes the complete history", async () => {
+  const first = evidence("STILL_UNKNOWN");
+  first.evidence_digest = "1".repeat(64);
+  first.evidence_ref = "provider-evidence:first";
+  const second = evidence("STILL_UNKNOWN");
+  second.evidence_digest = "2".repeat(64);
+  second.evidence_ref = "provider-evidence:second";
+  let queryCount = 0;
+  const adapter = {
+    providerId: "provider-x",
+    async queryOperationStatus() {
+      queryCount++;
+      return {
+        provider_id: "provider-x",
+        provider_operation_ref: priorRequest.provider_operation_ref,
+        evidence_records: [queryCount === 1 ? first : second]
+      };
+    }
+  };
+  const { store, coordinator } = await setup({ adapterOverride: adapter });
+  const firstResult = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  const secondResult = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  const history = await store.listEvidence("task-0001");
+  assert.equal(firstResult.reconciled, true);
+  assert.equal(secondResult.reconciled, true);
+  assert.equal(history.length, 2);
+  assert.deepEqual(history.map(item => item.evidence_digest).sort(),
+    ["1".repeat(64), "2".repeat(64)]);
+  const decisions = await store.listDecisions("task-0001");
+  assert.equal(decisions.length, 2);
+  const { computeEvidenceSetDigest } = await import("../../src/core/reconciliation-storage.mjs");
+  assert.equal(decisions[1].evidence_set_digest, await computeEvidenceSetDigest(history));
+  assert.equal((await store.getTask("task-0001")).state, "outcome_uncertain");
+  assert.equal((await store.getTask("task-0001")).version, 1);
+});
+
+test("retains contradictory authenticated evidence but never resolves the task", async () => {
+  const unknownRecord = evidence("STILL_UNKNOWN");
+  unknownRecord.evidence_digest = "3".repeat(64);
+  const appliedRecord = evidence("CONFIRMED_APPLIED");
+  appliedRecord.evidence_digest = "4".repeat(64);
+  let queryCount = 0;
+  const adapter = {
+    providerId: "provider-x",
+    async queryOperationStatus() {
+      queryCount++;
+      return {
+        provider_id: "provider-x",
+        provider_operation_ref: priorRequest.provider_operation_ref,
+        evidence_records: [queryCount === 1 ? unknownRecord : appliedRecord]
+      };
+    }
+  };
+  const { store, coordinator } = await setup({ adapterOverride: adapter });
+  const first = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  const second = await coordinator.reconcile({ taskId: "task-0001", owner: "worker-a" });
+  assert.equal(first.reconciled, true);
+  assert.equal(second.reconciled, true);
+  assert.equal(second.conclusion, "STILL_UNKNOWN");
+  assert.equal(second.taskState, "outcome_uncertain");
+  const history = await store.listEvidence("task-0001");
+  assert.equal(history.length, 2);
+  assert.deepEqual(history.map(item => item.conclusion).sort(),
+    ["CONFIRMED_APPLIED", "STILL_UNKNOWN"]);
+  assert.equal((await store.getTask("task-0001")).version, 1);
+  assert.equal((await store.listDecisions("task-0001")).length, 2);
+});
+
+test("rejects stale current-request binding before querying provider", async () => {
+  const { store } = await setup();
+  const task = await store.getTask("task-0001");
+  // Mutate only the test fixture through a fresh store setup contract.
+  const staleCoordinator = createReconciliationCoordinator({
+    store,
+    getPriorRequest: async () => structuredClone(priorRequest),
+    adapterRegistry: { get: async () => ({
+      providerId: "provider-x",
+      async queryOperationStatus() {
+        throw new Error("must not query for stale request");
+      }
+    }) },
+    verifier: { async verifyProviderResponse() {
+      throw new Error("must not verify stale request");
+    } },
+    clock: () => now,
+    createId: prefix => prefix + "-stale"
+  });
+  // The coordinator's authoritative task snapshot still binds request-0001;
+  // a stale lookup response is rejected by exact prior-request identity.
+  const stale = structuredClone(priorRequest);
+  stale.request_id = "request-old";
+  const coordinator = createReconciliationCoordinator({
+    store,
+    getPriorRequest: async () => stale,
+    adapterRegistry: { get: async () => null },
+    verifier: { async verifyProviderResponse() { return { authenticated: false }; } },
+    clock: () => now,
+    createId: prefix => prefix + "-stale"
+  });
+  assert.equal((await coordinator.reconcile({ taskId: task.task_id, owner: "worker-a" })).reasonCode,
+    "ORIGINAL_REQUEST_NOT_FOUND");
+  assert.equal((await store.listEvidence("task-0001")).length, 0);
+});
