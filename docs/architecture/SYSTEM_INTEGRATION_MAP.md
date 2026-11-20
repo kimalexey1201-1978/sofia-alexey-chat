@@ -148,6 +148,10 @@ Financial & Expense Manager owns normalized transaction records, budgets, expens
 
 Shopping & Procurement Manager owns normalized product and offer comparisons, shopping lists, purchase-intent preparation, order tracking, and return/refund workflow metadata. Knowledge & Search Manager provides sourced discovery; Automation & Integration Manager supplies approved retailer and courier adapters; Financial & Expense Manager may provide explicitly authorized read-only budget context. Checkout and order placement are separate high-impact side effects requiring fresh confirmation bound to exact items, variants, seller, total, currency, address, delivery option, and payment reference. Price and stock data must be refreshed before purchase. Credentials remain in protected vaults; payment details are never stored in model prompts or ordinary logs. No retailer connection, cart mutation, order placement, delivery tracking, or refund execution is implemented by this architecture update.
 
-## 15. Current status
+## 15. Travel and trip boundary
+
+Travel & Trip Manager owns trip profiles, itinerary dependencies, travel-option comparison, booking-intent preparation, and trip status aggregation. Knowledge & Search Manager supplies sourced destination and advisory information; Automation & Integration Manager supplies approved travel-provider adapters; Location & Navigation Manager owns routing and location context; Calendar & Scheduling Manager owns calendar synchronization; Financial & Expense Manager governs financial context and payment authorization; File & Document Manager controls sensitive travel documents. Ticketing, reservations, changes, cancellations, and payments are separate external side effects requiring fresh exact-parameter authorization and provider reconciliation. Entry requirements must be sourced from applicable official authorities and never guessed. No live travel search, provider connection, booking, ticketing, or travel-document validation is implemented by this architecture update.
+
+## 16. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
