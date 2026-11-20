@@ -82,6 +82,14 @@ export function createReconciliationCoordinator({
         });
         if (!lease) return { reconciled: false, reasonCode: "LEASE_NOT_ACQUIRED" };
 
+        // Verify persisted history before contacting the provider. A tampered
+        // historical batch must stop reconciliation before any external query.
+        const priorEvidence = await store.listEvidence(taskId);
+        if (!Array.isArray(priorEvidence)) {
+          return { reconciled: false, reasonCode: "PERSISTED_EVIDENCE_UNAVAILABLE",
+            taskState: "outcome_uncertain" };
+        }
+
         const adapter = await adapterRegistry.get(priorRequest.provider_id);
         if (!adapter || adapter.providerId !== priorRequest.provider_id ||
             typeof adapter.queryOperationStatus !== "function") {
@@ -120,14 +128,8 @@ export function createReconciliationCoordinator({
           return { reconciled: false, reasonCode: "RECONCILIATION_TIME_INVALID" };
         }
 
-        // The evaluator and digest must operate on the complete persisted
-        // history plus this authenticated provider response, never only the
-        // latest response batch.
-        const priorEvidence = await store.listEvidence(taskId);
-        if (!Array.isArray(priorEvidence)) {
-          return { reconciled: false, reasonCode: "PERSISTED_EVIDENCE_UNAVAILABLE",
-            taskState: "outcome_uncertain" };
-        }
+        // The evaluator and digest operate on the verified persisted history
+        // plus this authenticated provider response, never only the latest batch.
         const evidenceRecords = [...priorEvidence, ...verified.evidenceRecords];
         const evaluation = evaluateReconciliationEvidenceBatch({
           task,
