@@ -25,12 +25,14 @@
       "minimum": 1
     },
     "acquiredAt": {
-      "type": "string",
-      "format": "date-time"
+      "type": "number",
+      "minimum": 0,
+      "description": "Epoch milliseconds from the injected store clock"
     },
     "expiresAt": {
-      "type": "string",
-      "format": "date-time"
+      "type": "number",
+      "minimum": 0,
+      "description": "Epoch milliseconds from the injected store clock"
     }
   }
 }
