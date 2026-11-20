@@ -246,6 +246,81 @@ export function defineReconciliationStorageContract({
           if (typeof cleanup === "function") await cleanup({ testId });
         }
       });
+
+      test("retains committed evidence, decision and outbox after store reopen", async () => {
+        const testId = `${name.replace(/[^a-z0-9]+/gi, "-")}-ledger-restart-${++sequence}`;
+        let store = await createStore({ testId });
+        try {
+          await store.seedTask({
+            task_id: "task-ledger-restart",
+            state: "outcome_uncertain",
+            version: 1,
+            current_request_id: "request-ledger-restart",
+            created_at: "2026-11-20T15:00:00.000Z",
+            updated_at: "2026-11-20T15:00:00.000Z"
+          });
+          const lease = await store.acquireLease({
+            taskId: "task-ledger-restart", owner: "worker-ledger",
+            now: "2026-11-20T15:00:00.000Z", ttlMs: 30000
+          });
+          assert.ok(lease);
+          const evidence = {
+            task_id: "task-ledger-restart",
+            request_id: "request-ledger-restart",
+            evidence_digest: "c".repeat(64),
+            evidence_ref: "provider:evidence:ledger-restart",
+            conclusion: "CONFIRMED_APPLIED"
+          };
+          const decision = {
+            decision_id: "decision-ledger-restart",
+            task_id: "task-ledger-restart",
+            request_id: "request-ledger-restart",
+            task_version_before: 1,
+            task_version_after: 2,
+            conclusion: "CONFIRMED_APPLIED",
+            reason_code: "CONFIRMED_APPLIED",
+            evidence_set_digest: "d".repeat(64),
+            policy_version: "1.0.0",
+            decided_at: "2026-11-20T15:00:00.000Z",
+            reconciler_ref: "contract-suite"
+          };
+          const auditEvent = {
+            event_id: "event-ledger-restart",
+            aggregate_id: "task-ledger-restart",
+            aggregate_version: 2,
+            event_type: "reconciliation.confirmed_applied",
+            payload: {
+              conclusion: "CONFIRMED_APPLIED",
+              reason_code: "CONFIRMED_APPLIED",
+              evidence_set_digest: "d".repeat(64)
+            },
+            created_at: "2026-11-20T15:00:00.000Z",
+            delivery_state: "pending",
+            attempt_count: 0
+          };
+          const committed = await store.commitDecision({
+            taskId: "task-ledger-restart",
+            expectedVersion: 1,
+            leaseOwner: lease.lease_owner,
+            fencingToken: lease.fencing_token,
+            now: "2026-11-20T15:00:00.000Z",
+            evidenceRecords: [evidence], decision, auditEvent
+          });
+          assert.equal(committed.committed, true);
+          store = null; // discard the original adapter instance before reopening
+          const reopened = await reopenStore({ testId });
+          const task = await reopened.getTask("task-ledger-restart");
+          assert.equal(task.state, "completed");
+          assert.equal(task.version, 2);
+          assert.equal((await reopened.listEvidence("task-ledger-restart")).length, 1);
+          assert.equal((await reopened.listDecisions("task-ledger-restart")).length, 1);
+          const outbox = await reopened.listOutbox();
+          assert.equal(outbox.length, 1);
+          assert.equal(outbox[0].event_id, "event-ledger-restart");
+        } finally {
+          if (typeof cleanup === "function") await cleanup({ testId });
+        }
+      });
     }
   });
 }
