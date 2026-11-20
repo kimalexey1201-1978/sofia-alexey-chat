@@ -1,4 +1,4 @@
-import { createEvidenceIntegrityEnvelope } from "./evidence-integrity.mjs";
+import { createEvidenceIntegrityEnvelope, verifyEvidenceIntegrityBatch } from "./evidence-integrity.mjs";
 import { createIntegrityVerifiedEvidenceReader } from "./integrity-evidence-reader.mjs";
 
 /**
@@ -40,6 +40,13 @@ export function createIntegrityProtectedEvidencePort({
 
       if (entries.some(entry => !entry.envelope ||
           entry.envelope.binding?.task_id !== taskId)) {
+        return { appended: false, reasonCode: "EVIDENCE_INTEGRITY_SEAL_FAILED" };
+      }
+
+      // Treat the injected sealer as an untrusted boundary: authenticate the
+      // complete batch before allowing any entry to reach persistent storage.
+      const verification = await verifyEvidenceIntegrityBatch(entries, { resolveKey });
+      if (!verification.verified) {
         return { appended: false, reasonCode: "EVIDENCE_INTEGRITY_SEAL_FAILED" };
       }
 
