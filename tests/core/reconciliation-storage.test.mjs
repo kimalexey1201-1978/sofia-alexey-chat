@@ -91,6 +91,7 @@ test("unknown decision appends audit evidence but preserves state and version", 
   input.decision={...input.decision,decision_id:"decision-unknown",
     conclusion:"STILL_UNKNOWN",reason_code:"PROVIDER_STATE_STILL_UNKNOWN",
     task_version_after:1};
+  input.evidenceRecords=[{...evidence(),conclusion:"STILL_UNKNOWN"}];
   input.auditEvent={...input.auditEvent,event_id:"event-unknown",
     event_type:"reconciliation.still_unknown",aggregate_version:1,
     payload:{conclusion:"STILL_UNKNOWN",reason_code:"PROVIDER_STATE_STILL_UNKNOWN",
@@ -141,6 +142,7 @@ test("rejects duplicate decision and outbox identifiers without partial mutation
   const first=commitInput(lease);
   first.decision={...first.decision,conclusion:"STILL_UNKNOWN",
     reason_code:"PROVIDER_STATE_STILL_UNKNOWN",task_version_after:1};
+  first.evidenceRecords=[{...evidence(),conclusion:"STILL_UNKNOWN"}];
   first.auditEvent={...first.auditEvent,event_type:"reconciliation.still_unknown",
     aggregate_version:1,payload:{conclusion:"STILL_UNKNOWN",
       reason_code:"PROVIDER_STATE_STILL_UNKNOWN",evidence_set_digest:"b".repeat(64)}};
