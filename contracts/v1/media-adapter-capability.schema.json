@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/media-adapter-capability.schema.json",
+  "title": "Sofia Media Adapter Capability",
+  "description": "Discoverable, versioned media operation and platform capability declaration.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["adapter_id", "adapter_version", "platforms", "operations", "enabled"],
+  "properties": {
+    "adapter_id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*){1,7}$", "maxLength": 160 },
+    "adapter_version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$", "maxLength": 64 },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["android", "windows", "linux", "macos", "web"] }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 128 }
+    },
+    "input_media_types": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 128 }
+    },
+    "output_media_types": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 128 }
+    },
+    "hardware_acceleration": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "type": "string", "enum": ["cpu", "gpu", "npu", "media_codec"] } },
+    "minimum_os_version": { "type": "string", "maxLength": 64 },
+    "requires_network": { "type": "boolean", "default": false },
+    "requires_user_permission": { "type": "array", "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "maxLength": 128 } },
+    "quality_evidence_ref": { "type": "string", "maxLength": 256 },
+    "enabled": { "type": "boolean" }
+  }
+}
