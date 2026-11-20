@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/executor-health-record.schema.json",
+  "title": "Sofia AI Executor Health Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "health_record_id",
+    "module_id",
+    "module_version",
+    "observed_at",
+    "fresh_until",
+    "availability",
+    "circuit_breaker",
+    "sample_count",
+    "source",
+    "policy_version"
+  ],
+  "properties": {
+    "health_record_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "module_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "capability_id": {
+      "type": "string",
+      "maxLength": 180
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fresh_until": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "availability": {
+      "enum": [
+        "HEALTHY",
+        "DEGRADED",
+        "UNAVAILABLE",
+        "UNKNOWN"
+      ]
+    },
+    "circuit_breaker": {
+      "enum": [
+        "CLOSED",
+        "OPEN",
+        "HALF_OPEN"
+      ]
+    },
+    "sample_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "success_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failure_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timeout_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "p50_latency_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "p95_latency_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resource_usage_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "incident_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  }
+}
