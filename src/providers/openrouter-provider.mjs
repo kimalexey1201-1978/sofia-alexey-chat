@@ -1,0 +1,111 @@
+const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+
+/**
+ * Creates an OpenRouter adapter behind the provider-independent AIProvider contract.
+ * All credentials and model defaults are supplied by trusted server configuration.
+ *
+ * @param {{apiKey:string, model?:string, siteUrl?:string, appName?:string,
+ *   fetchImpl?:typeof fetch}} config
+ */
+export function createOpenRouterProvider(config = {}) {
+  const apiKey = config.apiKey;
+  const model = config.model || "openrouter/free";
+  const fetchImpl = config.fetchImpl || globalThis.fetch;
+
+  if (typeof apiKey !== "string" || !apiKey.trim()) {
+    throw new TypeError("OpenRouter server configuration is missing");
+  }
+  if (typeof fetchImpl !== "function") {
+    throw new TypeError("Fetch implementation is unavailable");
+  }
+
+  return {
+    async generate(request) {
+      if (!request || typeof request !== "object" ||
+          !Array.isArray(request.messages) ||
+          typeof request.systemInstruction !== "string") {
+        throw new TypeError("Invalid provider request");
+      }
+
+      const timeoutMs = Number.isInteger(request.timeoutMs) && request.timeoutMs > 0
+        ? request.timeoutMs : 20000;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      const messages = [
+        { role: "system", content: request.systemInstruction },
+        ...request.messages.map(message => ({
+          role: message.role,
+          content: message.content
+        }))
+      ];
+
+      const headers = {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-Title": config.appName || "Sofia AI"
+      };
+      if (typeof config.siteUrl === "string" && config.siteUrl) {
+        headers["HTTP-Referer"] = config.siteUrl;
+      }
+
+      try {
+        const response = await fetchImpl(OPENROUTER_ENDPOINT, {
+          method: "POST",
+          headers,
+          signal: controller.signal,
+          body: JSON.stringify({
+            model,
+            messages,
+            max_tokens: request.maxOutputTokens,
+            temperature: 0.7
+          })
+        });
+
+        if (!response || !response.ok) {
+          throw new Error("OpenRouter request failed");
+        }
+
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          throw new TypeError("OpenRouter returned invalid JSON");
+        }
+
+        const text = data?.choices?.[0]?.message?.content;
+        const modelId = typeof data?.model === "string" && data.model
+          ? data.model : model;
+        if (typeof text !== "string" || !text.trim()) {
+          throw new TypeError("OpenRouter returned an invalid completion");
+        }
+
+        const usage = {};
+        if (Number.isFinite(data?.usage?.prompt_tokens) && data.usage.prompt_tokens >= 0) {
+          usage.inputTokens = data.usage.prompt_tokens;
+        }
+        if (Number.isFinite(data?.usage?.completion_tokens) && data.usage.completion_tokens >= 0) {
+          usage.outputTokens = data.usage.completion_tokens;
+        }
+
+        return {
+          text,
+          providerId: "openrouter",
+          modelId,
+          ...(Object.keys(usage).length ? { usage } : {})
+        };
+      } catch (error) {
+        if (controller.signal.aborted) {
+          const timeoutError = new Error("Provider deadline exceeded");
+          timeoutError.code = "SOFIA_PROVIDER_TIMEOUT";
+          throw timeoutError;
+        }
+        // Do not propagate upstream body, headers, credentials, or raw error details.
+        if (error?.code === "SOFIA_PROVIDER_TIMEOUT") throw error;
+        throw new Error("OpenRouter provider unavailable");
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+}
