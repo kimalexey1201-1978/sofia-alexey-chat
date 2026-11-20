@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/data-lifecycle-event.schema.json",
+  "title": "Sofia AI Data Lifecycle Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "occurred_at",
+    "data_id",
+    "event_type",
+    "lifecycle_state",
+    "actor_ref",
+    "purpose_id",
+    "policy_ref",
+    "outcome"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "data_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "event_type": {
+      "enum": ["collected", "classified", "accessed", "transformed", "exported", "shared", "disclosed", "consent_granted", "consent_revoked", "retention_changed", "deletion_requested", "deletion_started", "deletion_completed", "deletion_failed", "processor_deletion_requested", "processor_deletion_confirmed", "archived", "legal_hold_applied", "legal_hold_released"]
+    },
+    "lifecycle_state": {
+      "enum": ["collected", "active", "restricted", "retention_due", "deletion_pending", "deleted", "deletion_failed", "legal_hold", "archived"]
+    },
+    "actor_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "module_ref": { "type": "string", "maxLength": 256 },
+    "processor_ref": { "type": "string", "maxLength": 256 },
+    "purpose_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "policy_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "consent_ref": { "type": "string", "maxLength": 256 },
+    "retention_policy_ref": { "type": "string", "maxLength": 256 },
+    "related_data_ids": {
+      "type": "array", "uniqueItems": true, "maxItems": 256,
+      "items": { "type": "string", "maxLength": 200 }
+    },
+    "destination_region": { "type": "string", "maxLength": 80 },
+    "data_classification": { "enum": ["public", "internal", "confidential", "restricted"] },
+    "outcome": { "enum": ["success", "denied", "pending", "failed", "unknown", "not_applicable"] },
+    "reason_code": { "type": "string", "maxLength": 96 },
+    "verification_ref": { "type": "string", "maxLength": 256 },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bytes_affected": { "type": "integer", "minimum": 0 },
+        "processor_count": { "type": "integer", "minimum": 0 },
+        "backup_copies_pending": { "type": "integer", "minimum": 0 },
+        "retention_seconds_remaining": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
