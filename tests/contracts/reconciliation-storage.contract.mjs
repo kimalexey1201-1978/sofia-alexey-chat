@@ -217,6 +217,21 @@ export function defineReconciliationStorageContract({
       });
     });
 
+
+
+    test("does not resolve a task from multiple distinct evidence records", async () => {
+      await withStore(async ({ store }) => {
+        const lease = await store.acquireLease({ taskId: "task-contract", owner: "worker-a", now: "2026-11-20T15:00:00.000Z", ttlMs: 30000 });
+        const first = { task_id: "task-contract", request_id: "request-contract", evidence_digest: "a".repeat(64), evidence_ref: "provider:evidence:1", conclusion: "CONFIRMED_APPLIED" };
+        const second = { ...first, evidence_digest: "c".repeat(64), evidence_ref: "provider:evidence:2" };
+        const input = await makeCommit(lease, { evidenceRecords: [first, second] });
+        const result = await store.commitDecision(input);
+        assert.equal(result.committed, false);
+        assert.equal(result.reasonCode, "MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
+        assert.equal((await store.getTask("task-contract")).state, "outcome_uncertain");
+      });
+    });
+
     if (typeof reopenStore === "function") {
       test("retains committed task and ledger records after store reopen", async () => {
         const testId = `${name.replace(/[^a-z0-9]+/gi, "-")}-restart-${++sequence}`;
@@ -329,17 +344,3 @@ export function defineReconciliationStorageContract({
     }
   });
 }
-
-
-    test("does not resolve a task from multiple distinct evidence records", async () => {
-      await withStore(async ({ store }) => {
-        const lease = await store.acquireLease({ taskId: "task-contract", owner: "worker-a", now: "2026-11-20T15:00:00.000Z", ttlMs: 30000 });
-        const first = { task_id: "task-contract", request_id: "request-contract", evidence_digest: "a".repeat(64), evidence_ref: "provider:evidence:1", conclusion: "CONFIRMED_APPLIED" };
-        const second = { ...first, evidence_digest: "c".repeat(64), evidence_ref: "provider:evidence:2" };
-        const input = await makeCommit(lease, { evidenceRecords: [first, second] });
-        const result = await store.commitDecision(input);
-        assert.equal(result.committed, false);
-        assert.equal(result.reasonCode, "MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
-        assert.equal((await store.getTask("task-contract")).state, "outcome_uncertain");
-      });
-    });
