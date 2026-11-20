@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/proactive-intervention-decision.schema.json",
+  "title": "Sofia Proactive Intervention Decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision_id",
+    "opportunity_ref",
+    "principal_ref",
+    "decided_at",
+    "disposition",
+    "reason_codes",
+    "policy_refs",
+    "requires_owner_response",
+    "side_effect_authorized"
+  ],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "opportunity_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "disposition": {
+      "enum": [
+        "SILENT",
+        "PREPARE_ONLY",
+        "SUGGEST",
+        "ASK_CLARIFICATION",
+        "REQUEST_APPROVAL",
+        "BLOCK"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "policy_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "delivery_channel": {
+      "enum": [
+        "in_app",
+        "private_display",
+        "voice",
+        "notification",
+        "none"
+      ]
+    },
+    "requires_owner_response": {
+      "type": "boolean"
+    },
+    "approval_scope_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "task_handoff_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "side_effect_authorized": {
+      "const": false
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    }
+  }
+}
