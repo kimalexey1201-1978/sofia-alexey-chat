@@ -157,6 +157,16 @@ export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
         !/^[a-fA-F0-9]{64}$/.test(record.evidence_digest)) {
       return unknown("EVIDENCE_BATCH_INVALID");
     }
+    // Re-check freshness even when the provider repeats an already stored
+    // digest; a replayed old response must not pass merely because it exists
+    // in the historical set.
+    const evaluation = evaluateReconciliation({
+      task: input.task,
+      priorRequest: input.priorRequest,
+      evidence: record,
+      freshnessWindowMs: input.freshnessWindowMs
+    }, now);
+    evaluations.push(evaluation);
     const serialized = canonicalJson(record);
     const previous = byDigest.get(record.evidence_digest);
     if (previous !== undefined) {
@@ -164,12 +174,6 @@ export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
       continue;
     }
     byDigest.set(record.evidence_digest, serialized);
-    evaluations.push(evaluateReconciliation({
-      task: input.task,
-      priorRequest: input.priorRequest,
-      evidence: record,
-      freshnessWindowMs: input.freshnessWindowMs
-    }, now));
   }
 
   const invalid = evaluations.find(result =>
