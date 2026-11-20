@@ -163,3 +163,114 @@ test("end-to-end coordinator fails closed on tampered persisted history before p
   assert.equal(durable.decisions.length, 1);
   assert.equal(durable.outbox.length, 1);
 });
+
+
+test("repeated reconciliation after terminal resolution is idempotently refused", async () => {
+  const { durable, adapter, coordinator } = await setup();
+  const first = await coordinator.reconcile({ taskId, owner: "worker-first" });
+  assert.equal(first.reconciled, true);
+  assert.equal(first.taskState, "completed");
+  const second = await coordinator.reconcile({ taskId, owner: "worker-second" });
+  assert.equal(second.reconciled, false);
+  assert.equal(second.reasonCode, "TASK_NOT_OUTCOME_UNCERTAIN");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal(durable.atomicCommitCalls, 1);
+  assert.equal(durable.decisions.length, 1);
+  assert.equal(durable.outbox.length, 1);
+});
+
+test("sequential STILL_UNKNOWN evidence is retained and reverified across full cycles", async () => {
+  const firstRecord = evidence("STILL_UNKNOWN");
+  firstRecord.evidence_digest = "1".repeat(64);
+  firstRecord.evidence_ref = "provider-evidence:first";
+  const secondRecord = evidence("STILL_UNKNOWN");
+  secondRecord.evidence_digest = "2".repeat(64);
+  secondRecord.evidence_ref = "provider-evidence:second";
+  const { durable, protectedStore, adapter, coordinator } = await setup([firstRecord]);
+  let query = 0;
+  adapter.queryOperationStatus = async request => {
+    adapter.calls.push({ providerId: request.provider_id,
+      providerOperationRef: request.provider_operation_ref });
+    query++;
+    return {
+      provider_id: "provider-x",
+      provider_operation_ref: "operation-123",
+      evidence_records: [structuredClone(query === 1 ? firstRecord : secondRecord)]
+    };
+  };
+
+  const first = await coordinator.reconcile({ taskId, owner: "worker-first" });
+  assert.equal(first.reconciled, true);
+  assert.equal(first.taskState, "outcome_uncertain");
+  const second = await coordinator.reconcile({ taskId, owner: "worker-second" });
+  assert.equal(second.reconciled, true);
+  assert.equal(second.taskState, "outcome_uncertain");
+  assert.equal(adapter.calls.length, 2);
+  assert.equal(durable.atomicCommitCalls, 2);
+  assert.equal(durable.decisions.length, 2);
+  assert.equal(durable.outbox.length, 2);
+
+  const history = await protectedStore.listEvidence(taskId);
+  assert.deepEqual(history.map(item => item.evidence_digest).sort(),
+    ["1".repeat(64), "2".repeat(64)]);
+  assert.equal((await durable.listEvidenceEntries(taskId)).length, 2);
+});
+
+test("contradictory authenticated evidence remains unresolved and both records are retained", async () => {
+  const firstRecord = evidence("STILL_UNKNOWN");
+  firstRecord.evidence_digest = "3".repeat(64);
+  firstRecord.evidence_ref = "provider-evidence:unknown";
+  const conflictingRecord = evidence("CONFIRMED_APPLIED");
+  conflictingRecord.evidence_digest = "4".repeat(64);
+  conflictingRecord.evidence_ref = "provider-evidence:applied";
+  const { durable, protectedStore, adapter, coordinator } = await setup([firstRecord]);
+  let query = 0;
+  adapter.queryOperationStatus = async request => {
+    adapter.calls.push({ providerId: request.provider_id,
+      providerOperationRef: request.provider_operation_ref });
+    query++;
+    return {
+      provider_id: "provider-x",
+      provider_operation_ref: "operation-123",
+      evidence_records: [structuredClone(query === 1 ? firstRecord : conflictingRecord)]
+    };
+  };
+
+  const first = await coordinator.reconcile({ taskId, owner: "worker-first" });
+  assert.equal(first.reconciled, true);
+  const second = await coordinator.reconcile({ taskId, owner: "worker-second" });
+  assert.equal(second.reconciled, true);
+  assert.equal(second.conclusion, "STILL_UNKNOWN");
+  assert.equal(second.taskState, "outcome_uncertain");
+  const history = await protectedStore.listEvidence(taskId);
+  assert.equal(history.length, 2);
+  assert.deepEqual(new Set(history.map(item => item.conclusion)),
+    new Set(["STILL_UNKNOWN", "CONFIRMED_APPLIED"]));
+  assert.equal(durable.decisions.length, 2);
+  assert.equal(durable.outbox.length, 2);
+});
+
+test("failed atomic commit leaves evidence, decision, outbox and task unchanged", async () => {
+  const { durable, adapter, coordinator } = await setup();
+  const originalCommit = durable.commitDecision.bind(durable);
+  durable.commitDecision = async () => {
+    throw new Error("simulated transaction rollback");
+  };
+  const result = await coordinator.reconcile({ taskId, owner: "worker-failure" });
+  durable.commitDecision = originalCommit;
+
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "ATOMIC_INTEGRITY_COMMIT_FAILED");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal(durable.atomicCommitCalls, 0);
+  assert.equal((await durable.getTask(taskId)).state, "outcome_uncertain");
+  assert.equal((await durable.listEvidenceEntries(taskId)).length, 0);
+  assert.equal(durable.decisions.length, 0);
+  assert.equal(durable.outbox.length, 0);
+
+  const lease = await durable.acquireLease({
+    taskId, owner: "worker-after-failure",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(lease, "failed transaction must not strand the lease");
+});
