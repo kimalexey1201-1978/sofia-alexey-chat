@@ -155,3 +155,48 @@ test("fails closed when a historical envelope key cannot be resolved", async () 
   assert.equal(result.verified, false);
   assert.equal(result.reasonCode, "EVIDENCE_INTEGRITY_KEY_UNAVAILABLE");
 });
+
+
+test("rejects tampering with MAC, version, algorithm, record digest, and binding", async () => {
+  const secret = await key();
+  const item = record();
+  const envelope = await createEvidenceIntegrityEnvelope(item, {
+    key: secret, keyId: "key-hardening", acceptedAt
+  });
+  const mutations = [
+    { ...envelope, mac: "0".repeat(64) },
+    { ...envelope, version: "2.0.0" },
+    { ...envelope, algorithm: "SHA-256" },
+    { ...envelope, record_digest: "f".repeat(64) },
+    { ...envelope, binding: { ...envelope.binding, request_id: "request-other" } },
+    { ...envelope, key_id: "other-key-id" }
+  ];
+  for (const altered of mutations) {
+    assert.equal(await verifyEvidenceIntegrityEnvelope(item, altered, {
+      key: secret, keyId: "key-hardening"
+    }), false);
+  }
+});
+
+test("batch verifier fails closed when key resolution throws after a valid entry", async () => {
+  const secret = await key();
+  const first = record();
+  const second = { ...record(), evidence_digest: "b".repeat(64) };
+  const entries = [
+    { record: first, envelope: await createEvidenceIntegrityEnvelope(first, {
+      key: secret, keyId: "key-a", acceptedAt
+    }) },
+    { record: second, envelope: await createEvidenceIntegrityEnvelope(second, {
+      key: secret, keyId: "key-b", acceptedAt
+    }) }
+  ];
+  const result = await verifyEvidenceIntegrityBatch(entries, {
+    resolveKey: async id => {
+      if (id === "key-a") return secret;
+      throw new Error("key service unavailable");
+    }
+  });
+  assert.deepEqual(result, {
+    verified: false, reasonCode: "EVIDENCE_INTEGRITY_KEY_UNAVAILABLE"
+  });
+});
