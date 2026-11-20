@@ -87,12 +87,15 @@ export function evaluateExecutionAdmission(input, now = new Date()) {
     return { admitted: false, reasonCodes: ["REQUIRED_EVIDENCE_MISSING"] };
   }
 
+  const createdAt = Date.parse(request.created_at ?? "");
+  const deadlineAt = Date.parse(request.deadline_at ?? "");
   if (request.contract_version !== "1.0.0" ||
       !request.request_id || !request.task_id || !request.correlation_id ||
       !request.principal_ref || !request.module_id || !request.module_version ||
       !request.capability_id || !request.operation || !request.target_ref ||
-      !request.input_ref || !validTime(request.deadline_at, now) ||
-      !validTime(request.created_at, new Date(Date.parse(request.created_at) - 1))) {
+      !request.input_ref || !Number.isFinite(createdAt) ||
+      createdAt > now.getTime() || !Number.isFinite(deadlineAt) ||
+      deadlineAt <= now.getTime() || deadlineAt <= createdAt) {
     reasons.push("INVALID_OR_EXPIRED_EXECUTION_REQUEST");
   }
   if (resourcePolicy !== "FREE_ONLY") reasons.push("RESOURCE_POLICY_NOT_FREE_ONLY");

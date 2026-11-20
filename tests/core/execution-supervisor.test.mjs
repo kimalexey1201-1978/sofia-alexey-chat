@@ -129,3 +129,27 @@ test("allows retry only with known-safe outcome and identical operation binding"
   assert.equal(evaluateExecutionRetry({...base, retryIdempotencyKey:"different-key"}).reasonCode,
     "RETRY_BINDING_MISMATCH");
 });
+
+test("rejects execution requests created in the future", () => {
+  const input = validInput();
+  input.request.created_at = "2026-11-20T15:00:01.000Z";
+  const result = evaluateExecutionAdmission(input, now);
+  assert.equal(result.admitted, false);
+  assert.ok(result.reasonCodes.includes("INVALID_OR_EXPIRED_EXECUTION_REQUEST"));
+});
+
+test("rejects deadlines that do not follow creation time", () => {
+  const input = validInput();
+  input.request.deadline_at = input.request.created_at;
+  const result = evaluateExecutionAdmission(input, now);
+  assert.equal(result.admitted, false);
+  assert.ok(result.reasonCodes.includes("INVALID_OR_EXPIRED_EXECUTION_REQUEST"));
+});
+
+test("rejects deadlines that have already expired", () => {
+  const input = validInput();
+  input.request.deadline_at = "2026-11-20T14:59:59.000Z";
+  const result = evaluateExecutionAdmission(input, now);
+  assert.equal(result.admitted, false);
+  assert.ok(result.reasonCodes.includes("INVALID_OR_EXPIRED_EXECUTION_REQUEST"));
+});
