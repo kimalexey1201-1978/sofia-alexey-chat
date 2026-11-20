@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/api-response.schema.json",
+  "title": "Sofia AI API Response v1",
+  "description": "Normalized, versioned gateway response. Internal secrets and privileged policy details must never be returned.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "schema_version",
+    "status",
+    "server_time",
+    "correlation_id"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "accepted",
+        "invalid_request",
+        "unauthenticated",
+        "forbidden",
+        "rate_limited",
+        "quota_exceeded",
+        "unavailable",
+        "failed"
+      ]
+    },
+    "server_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "result": {
+      "type": "object",
+      "maxProperties": 50
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "retry_after_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_units": {
+          "type": "number",
+          "minimum": 0
+        },
+        "unit_name": {
+          "type": "string",
+          "maxLength": 32
+        }
+      }
+    },
+    "authority_effect": {
+      "const": "none"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "invalid_request",
+              "unauthenticated",
+              "forbidden",
+              "rate_limited",
+              "quota_exceeded",
+              "unavailable",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "error"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "ok",
+              "accepted"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      }
+    }
+  ]
+}
