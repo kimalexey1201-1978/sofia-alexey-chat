@@ -207,7 +207,7 @@ test("rejects missing or malformed coordinator inputs", async () => {
 
 
 test("a second coordinator cannot process a task while the first holds its lease", async () => {
-  const { store, coordinator: first } = await setup();
+  const { store } = await setup();
   let signalStarted;
   let releaseQuery;
   const started = new Promise(resolve => { signalStarted = resolve; });
@@ -224,7 +224,8 @@ test("a second coordinator cannot process a task while the first holds its lease
       };
     }
   };
-  const second = createReconciliationCoordinator({
+  let id = 0;
+  const makeCoordinator = owner => createReconciliationCoordinator({
     store,
     getPriorRequest: async () => structuredClone(priorRequest),
     adapterRegistry: { get: async () => slowAdapter },
@@ -234,9 +235,11 @@ test("a second coordinator cannot process a task while the first holds its lease
       }
     },
     clock: () => now,
-    createId: prefix => `${prefix}-second`,
+    createId: prefix => `${prefix}-${owner}-${++id}`,
     policy: { version: "test-1", leaseTtlMs: 30000 }
   });
+  const first = makeCoordinator("first");
+  const second = makeCoordinator("second");
   // The first coordinator holds the lease while its provider query is paused.
   const firstRun = first.reconcile({ taskId: "task-0001", owner: "worker-a" });
   await started;
