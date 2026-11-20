@@ -96,6 +96,21 @@ export async function handleChatRequest(request, env, dependencies = {}) {
   // Existing index.html sends one system message at position zero. Its content is untrusted.
   if (messages[0]?.role === "system") messages = messages.slice(1);
 
+  // Reject untrusted message structure and roles before constructing a provider.
+  // This keeps invalid requests away from provider configuration and network adapters.
+  if (messages.length === 0) {
+    return json({ error: { code: "INVALID_REQUEST", message: "At least one message is required" } }, 400);
+  }
+  for (const message of messages) {
+    if (!message || typeof message !== "object" || Array.isArray(message) ||
+        Object.keys(message).some(key => key !== "role" && key !== "content")) {
+      return json({ error: { code: "INVALID_REQUEST", message: "Message contains unsupported fields" } }, 400);
+    }
+    if (message.role !== "user" && message.role !== "assistant") {
+      return json({ error: { code: "UNSUPPORTED_ROLE", message: "Message role is not supported" } }, 400);
+    }
+  }
+
   const createProvider = dependencies.createProvider ?? createOpenRouterProvider;
   const runCore = dependencies.runCore ?? runSofiaCore;
   let provider;
