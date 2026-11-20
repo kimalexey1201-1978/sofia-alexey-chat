@@ -77,9 +77,9 @@ test("rejects stale fencing token after lease reacquisition", async () => {
 test("keeps task unchanged when evidence digest conflicts", async () => {
   const {store,lease}=await preparedStore();
   const conflicting={...evidence(),conclusion:"CONFIRMED_NOT_APPLIED"};
-  const result=await store.commitDecision(await commitInput(lease,{
-    evidenceRecords:[evidence(),conflicting]
-  }));
+  const input=await commitInput(lease);
+  input.evidenceRecords.push(conflicting);
+  const result=await store.commitDecision(input);
   assert.equal(result.committed,false);
   assert.equal(result.reasonCode,"EVIDENCE_DIGEST_CONFLICT");
   assert.equal((await store.getTask("task-0001")).state,"outcome_uncertain");
