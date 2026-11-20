@@ -16,6 +16,7 @@ on:
       - "src/core/reconciliation-storage.mjs"
       - "src/core/reconciliation-manager.mjs"
       - "tests/core/reconciliation-storage*.test.mjs"
+      - "tests/core/reconciliation-manager.test.mjs"
       - "tests/contracts/reconciliation-storage.contract.mjs"
       - ".github/workflows/reconciliation-storage-tests.yml"
 
