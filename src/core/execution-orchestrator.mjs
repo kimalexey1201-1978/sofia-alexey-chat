@@ -16,9 +16,16 @@ export function prepareExecution(plan, candidates, task, now = new Date()) {
     return { ok: false, status: "REJECTED", reasonCodes: ["INVALID_CANDIDATE_INPUT"], dispatchPerformed: false };
   }
 
-  const readySteps = plan.steps.filter(step => step.status === "ready" || step.status === "planned");
+  if (!["approved", "running"].includes(plan.status)) {
+    return { ok: false, status: "NOT_READY", reasonCodes: ["PLAN_NOT_APPROVED_FOR_EXECUTION"], dispatchPerformed: false };
+  }
+  const stepStates = new Map(plan.steps.map(step => [step.step_id, step.status]));
+  const readySteps = plan.steps.filter(step =>
+    (step.status === "ready" || step.status === "planned") &&
+    step.depends_on.every(dependency => stepStates.get(dependency) === "succeeded")
+  );
   if (readySteps.length !== 1) {
-    return { ok: false, status: "NOT_READY", reasonCodes: ["EXPECTED_EXACTLY_ONE_READY_STEP"], dispatchPerformed: false };
+    return { ok: false, status: "NOT_READY", reasonCodes: ["EXPECTED_EXACTLY_ONE_DEPENDENCY_READY_STEP"], dispatchPerformed: false };
   }
   const step = readySteps[0];
   if (step.required_capabilities.length !== 1 ||
