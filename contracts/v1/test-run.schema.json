@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/test-run.schema.json",
+  "title": "Sofia AI Test Run",
+  "description": "Provenance and outcome record for one versioned test execution. Does not itself prove correctness.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "repository",
+    "commit_sha",
+    "suite_id",
+    "suite_version",
+    "test_layer",
+    "started_at",
+    "finished_at",
+    "environment",
+    "summary",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "repository": { "type": "string", "minLength": 3, "maxLength": 300 },
+    "branch": { "type": "string", "maxLength": 200 },
+    "commit_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "working_tree_clean": { "type": "boolean" },
+    "suite_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "suite_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "test_layer": {
+      "type": "string",
+      "enum": ["static", "unit", "contract", "integration", "end_to_end", "security", "reliability", "platform", "voice_human_factors"]
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "os"],
+      "properties": {
+        "name": { "type": "string", "enum": ["local", "ci", "staging", "production_read_only", "device_lab"] },
+        "os": { "type": "string", "maxLength": 120 },
+        "runtime_version": { "type": "string", "maxLength": 120 },
+        "device_model": { "type": "string", "maxLength": 160 },
+        "android_api_level": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "toolchain_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "audit_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^A-(0[1-9]|1[01])$" }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "skipped", "blocked"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "status": { "type": "string", "enum": ["passed", "failed", "inconclusive", "blocked"] },
+    "failure_summary": { "type": "string", "maxLength": 12000 },
+    "artifact_digests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifact_type", "sha256"],
+        "properties": {
+          "artifact_type": { "type": "string", "maxLength": 100 },
+          "reference": { "type": "string", "maxLength": 1000 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "verified_at"],
+      "properties": {
+        "type": { "type": "string", "enum": ["automated_independent", "human_reviewer", "author_self_check"] },
+        "identity_ref": { "type": "string", "maxLength": 300 },
+        "verified_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
