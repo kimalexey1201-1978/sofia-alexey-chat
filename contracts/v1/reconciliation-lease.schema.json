@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/reconciliation-lease.schema.json",
+  "title": "Sofia AI Reconciliation Lease v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "lease_owner",
+    "lease_expires_at",
+    "fencing_token",
+    "acquired_at"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "lease_owner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "lease_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fencing_token": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "acquired_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "renewed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

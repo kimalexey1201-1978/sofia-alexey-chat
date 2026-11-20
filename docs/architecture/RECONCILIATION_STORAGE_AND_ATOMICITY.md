@@ -170,3 +170,7 @@ Before coding the storage adapter, decide and document:
 - access-control identities and key-management boundary.
 
 No database or Cloudflare resource is provisioned by this design. The next safe repository step is to define versioned storage record contracts and a storage-port interface with an in-memory transactional test double. A concrete Cloudflare binding and production storage implementation require a separate explicit platform decision and approval.
+
+## 10. Storage-port prototype boundary
+
+The repository now defines versioned JSON Schemas for the uncertain task snapshot, reconciliation decision, lease and audit outbox record. A narrow in-memory test double exercises the storage-port semantics: serialized critical sections, task-version compare-and-swap, lease fencing, evidence deduplication/conflict rejection, and all-or-nothing updates of task/evidence/decision/outbox collections. This is a process-local test fixture only: it is not durable, is not shared across Worker isolates, and provides no production concurrency guarantee. The concrete persistence adapter remains blocked on the platform and transaction decision in this document.

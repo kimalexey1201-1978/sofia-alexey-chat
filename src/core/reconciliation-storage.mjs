@@ -1,0 +1,154 @@
+const clone = value => structuredClone(value);
+const TERMINAL = new Set(["completed", "failed"]);
+const CONCLUSIONS = new Set([
+  "CONFIRMED_APPLIED", "CONFIRMED_NOT_APPLIED", "STILL_UNKNOWN"
+]);
+
+/**
+ * In-memory transactional test double for the future reconciliation storage port.
+ * Not durable, not shared across isolates, and not suitable for production.
+ */
+export function createInMemoryReconciliationStore() {
+  const tasks = new Map();
+  const leases = new Map();
+  const evidence = new Map();
+  const decisions = new Map();
+  const outbox = new Map();
+  const decisionIds = new Set();
+  let queue = Promise.resolve();
+
+  function serialize(operation) {
+    const result = queue.then(operation);
+    queue = result.catch(() => {});
+    return result;
+  }
+
+  return {
+    async seedTask(task) {
+      return serialize(() => {
+        if (!task || typeof task.task_id !== "string" || tasks.has(task.task_id)) {
+          throw new Error("TASK_INVALID_OR_ALREADY_EXISTS");
+        }
+        if (task.state !== "outcome_uncertain" || !Number.isSafeInteger(task.version) ||
+            task.version < 1 || typeof task.current_request_id !== "string") {
+          throw new Error("TASK_MUST_START_OUTCOME_UNCERTAIN");
+        }
+        tasks.set(task.task_id, clone(task));
+        evidence.set(task.task_id, []);
+        decisions.set(task.task_id, []);
+        return clone(task);
+      });
+    },
+
+    async getTask(taskId) {
+      return serialize(() => clone(tasks.get(taskId) ?? null));
+    },
+
+    async acquireLease({taskId, owner, now, ttlMs}) {
+      return serialize(() => {
+        const task = tasks.get(taskId);
+        const nowMs = Date.parse(now);
+        if (!task || task.state !== "outcome_uncertain") return null;
+        if (typeof owner !== "string" || !owner || !Number.isFinite(nowMs) ||
+            !Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
+          throw new Error("LEASE_INPUT_INVALID");
+        }
+        const current = leases.get(taskId);
+        if (current && Date.parse(current.lease_expires_at) > nowMs &&
+            current.lease_owner !== owner) return null;
+        const token = (current?.fencing_token ?? 0) + 1;
+        const lease = {
+          task_id: taskId, lease_owner: owner,
+          lease_expires_at: new Date(nowMs + ttlMs).toISOString(),
+          fencing_token: token, acquired_at: new Date(nowMs).toISOString()
+        };
+        leases.set(taskId, lease);
+        return clone(lease);
+      });
+    },
+
+    async commitDecision(input) {
+      return serialize(() => {
+        const {taskId, expectedVersion, leaseOwner, fencingToken, now,
+          evidenceRecords, decision, auditEvent} = input ?? {};
+        const task = tasks.get(taskId);
+        const lease = leases.get(taskId);
+        const nowMs = Date.parse(now ?? "");
+        if (!task) return {committed:false, reasonCode:"TASK_NOT_FOUND"};
+        if (task.state !== "outcome_uncertain" || task.version !== expectedVersion) {
+          return {committed:false, reasonCode:"TASK_VERSION_CONFLICT"};
+        }
+        if (!lease || lease.lease_owner !== leaseOwner ||
+            lease.fencing_token !== fencingToken ||
+            !Number.isFinite(nowMs) || Date.parse(lease.lease_expires_at) <= nowMs) {
+          return {committed:false, reasonCode:"LEASE_FENCING_REJECTED"};
+        }
+        if (!Array.isArray(evidenceRecords) || !evidenceRecords.length ||
+            !decision || !CONCLUSIONS.has(decision.conclusion) ||
+            !auditEvent || typeof auditEvent.event_id !== "string" ||
+            decision.task_id !== taskId ||
+            decision.task_version_before !== expectedVersion) {
+          return {committed:false, reasonCode:"COMMIT_INPUT_INVALID"};
+        }
+        if (decisionIds.has(decision.decision_id) || outbox.has(auditEvent.event_id)) {
+          return {committed:false, reasonCode:"DUPLICATE_COMMIT_ID"};
+        }
+
+        const priorEvidence = evidence.get(taskId) ?? [];
+        const merged = [...priorEvidence];
+        for (const record of evidenceRecords) {
+          if (!record || typeof record.evidence_digest !== "string") {
+            return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
+          }
+          const existing = merged.find(item => item.evidence_digest === record.evidence_digest);
+          if (existing && JSON.stringify(existing) !== JSON.stringify(record)) {
+            return {committed:false, reasonCode:"EVIDENCE_DIGEST_CONFLICT"};
+          }
+          if (!existing) merged.push(clone(record));
+        }
+
+        const nextState = decision.conclusion === "CONFIRMED_APPLIED" ? "completed" :
+          decision.conclusion === "CONFIRMED_NOT_APPLIED" ? "failed" : "outcome_uncertain";
+        const nextVersion = nextState === "outcome_uncertain" ? expectedVersion : expectedVersion + 1;
+        if (decision.task_version_after !== nextVersion ||
+            auditEvent.aggregate_id !== taskId ||
+            auditEvent.aggregate_version !== nextVersion) {
+          return {committed:false, reasonCode:"COMMIT_VERSION_BINDING_INVALID"};
+        }
+
+        // All mutations occur together within this serialized critical section.
+        evidence.set(taskId, merged);
+        decisions.set(taskId, [...(decisions.get(taskId) ?? []), clone(decision)]);
+        decisionIds.add(decision.decision_id);
+        outbox.set(auditEvent.event_id, clone(auditEvent));
+        tasks.set(taskId, {
+          ...task, state:nextState, version:nextVersion,
+          reconciliation_ref: decision.evidence_set_digest,
+          updated_at: now,
+          last_reason_code: decision.reason_code
+        });
+        return {committed:true, task:clone(tasks.get(taskId)),
+          evidenceCount:merged.length, decision:clone(decision)};
+      });
+    },
+
+    async listEvidence(taskId) {
+      return serialize(() => clone(evidence.get(taskId) ?? []));
+    },
+    async listDecisions(taskId) {
+      return serialize(() => clone(decisions.get(taskId) ?? []));
+    },
+    async listOutbox() {
+      return serialize(() => clone([...outbox.values()]));
+    },
+    async releaseLease({taskId, owner, fencingToken}) {
+      return serialize(() => {
+        const lease = leases.get(taskId);
+        if (!lease || lease.lease_owner !== owner ||
+            lease.fencing_token !== fencingToken) return false;
+        leases.delete(taskId);
+        return true;
+      });
+    }
+  };
+}

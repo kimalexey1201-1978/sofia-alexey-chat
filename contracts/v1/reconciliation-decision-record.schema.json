@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/reconciliation-decision-record.schema.json",
+  "title": "Sofia AI Reconciliation Decision Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision_id",
+    "task_id",
+    "request_id",
+    "task_version_before",
+    "task_version_after",
+    "conclusion",
+    "reason_code",
+    "evidence_set_digest",
+    "policy_version",
+    "decided_at",
+    "reconciler_ref"
+  ],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "task_version_before": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "task_version_after": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "conclusion": {
+      "enum": [
+        "CONFIRMED_APPLIED",
+        "CONFIRMED_NOT_APPLIED",
+        "STILL_UNKNOWN"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "evidence_set_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reconciler_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  }
+}

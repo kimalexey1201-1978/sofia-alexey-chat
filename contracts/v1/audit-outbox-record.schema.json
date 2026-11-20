@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/audit-outbox-record.schema.json",
+  "title": "Sofia AI Audit Outbox Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "aggregate_id",
+    "aggregate_version",
+    "event_type",
+    "payload",
+    "created_at",
+    "delivery_state",
+    "attempt_count"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "aggregate_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "aggregate_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conclusion": {
+          "enum": [
+            "CONFIRMED_APPLIED",
+            "CONFIRMED_NOT_APPLIED",
+            "STILL_UNKNOWN"
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "maxLength": 96
+        },
+        "evidence_set_digest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "delivery_state": {
+      "enum": [
+        "pending",
+        "delivered"
+      ]
+    },
+    "attempt_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "delivered_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

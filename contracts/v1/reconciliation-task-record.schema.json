@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/reconciliation-task-record.schema.json",
+  "title": "Sofia AI Reconciliation Task Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "state",
+    "version",
+    "current_request_id",
+    "correlation_id",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "state": {
+      "const": "outcome_uncertain"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "current_request_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "outcome_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "reconciliation_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "pending_reservation_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "last_reason_code": {
+      "type": "string",
+      "maxLength": 96
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
