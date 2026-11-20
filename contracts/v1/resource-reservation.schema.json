@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/resource-reservation.schema.json",
+  "title": "Sofia AI Resource Reservation v1",
+  "description": "Time-bounded reservation of resource ceilings for one task/invocation. This is not an authorization grant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reservation_id", "principal_ref", "task_id", "scope_type", "scope_ref", "resource_limits", "status", "created_at", "expires_at", "policy_version"],
+  "properties": {
+    "reservation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "principal_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "device_ref": {"type": "string", "maxLength": 256},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "invocation_id": {"type": "string", "maxLength": 128},
+    "scope_type": {"type": "string", "enum": ["owner", "device", "task", "module", "provider", "capability", "invocation"]},
+    "scope_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "resource_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_cost_minor_units": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "max_input_tokens": {"type": "integer", "minimum": 0},
+        "max_output_tokens": {"type": "integer", "minimum": 0},
+        "max_provider_calls": {"type": "integer", "minimum": 0},
+        "max_duration_ms": {"type": "integer", "minimum": 1},
+        "max_cpu_ms": {"type": "integer", "minimum": 0},
+        "max_memory_bytes": {"type": "integer", "minimum": 0},
+        "max_storage_bytes": {"type": "integer", "minimum": 0},
+        "max_network_bytes": {"type": "integer", "minimum": 0},
+        "max_concurrency": {"type": "integer", "minimum": 1},
+        "max_steps": {"type": "integer", "minimum": 1},
+        "max_retries": {"type": "integer", "minimum": 0}
+      },
+      "minProperties": 1
+    },
+    "reserved_cost_minor_units": {"type": "integer", "minimum": 0},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "estimate_source": {"type": "string", "maxLength": 256},
+    "estimate_confidence": {"type": "string", "enum": ["low", "medium", "high", "unknown"]},
+    "status": {"type": "string", "enum": ["reserved", "active", "settlement_pending", "settled", "released", "expired", "cancelled"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "settled_at": {"type": "string", "format": "date-time"},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
