@@ -20,7 +20,11 @@
       "maxLength": 128
     },
     "state": {
-      "const": "outcome_uncertain"
+      "enum": [
+        "outcome_uncertain",
+        "completed",
+        "failed"
+      ]
     },
     "version": {
       "type": "integer",
