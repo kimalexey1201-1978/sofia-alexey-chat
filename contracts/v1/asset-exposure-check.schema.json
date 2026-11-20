@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/asset-exposure-check.schema.json",
+  "title": "Sofia AI Asset Exposure Check",
+  "description": "Records an allow-list-based public asset exposure test without embedding private file contents.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "check_id",
+    "candidate_commit",
+    "environment",
+    "tested_at",
+    "allowlist_digest",
+    "results",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "check_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "candidate_commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "environment": { "type": "string", "enum": ["local_build", "ci", "staging", "production_read_only"] },
+    "tested_at": { "type": "string", "format": "date-time" },
+    "allowlist_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path_pattern", "expected", "observed", "passed"],
+        "properties": {
+          "path_pattern": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "expected": { "type": "string", "enum": ["public", "blocked", "not_found"] },
+          "observed": { "type": "string", "enum": ["public", "blocked", "not_found", "error", "not_tested"] },
+          "http_status": { "type": "integer", "minimum": 100, "maximum": 599 },
+          "passed": { "type": "boolean" },
+          "notes": { "type": "string", "maxLength": 2000 }
+        }
+      }
+    },
+    "status": { "type": "string", "enum": ["passed", "failed", "inconclusive", "blocked"] },
+    "evidence_id": { "type": "string", "maxLength": 160 }
+  }
+}
