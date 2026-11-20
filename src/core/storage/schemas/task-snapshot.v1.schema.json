@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/schemas/task-snapshot.v1.schema.json",
+  "title": "Sofia Task Snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "state",
+    "version",
+    "currentRequestId",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "outcome_uncertain",
+        "confirmed_applied",
+        "confirmed_not_applied"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "currentRequestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "outcomeRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reconciliationRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastReasonCode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
