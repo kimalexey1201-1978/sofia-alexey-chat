@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sofia.ai/contracts/v1/vehicle-command-intent.schema.json",
+  "title":"Vehicle Command Intent",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","intent_id","vehicle_id","capability_id","operation","parameters","risk_class","requested_by","deadline","idempotency_key","authority_envelope_ref","policy_decision_ref"],
+  "properties":{
+    "schema_version":{"const":"1.0.0"},
+    "intent_id":{"type":"string","minLength":1,"maxLength":200},
+    "vehicle_id":{"type":"string","minLength":1,"maxLength":200},
+    "capability_id":{"type":"string","minLength":1,"maxLength":160},
+    "operation":{"type":"string","minLength":1,"maxLength":120},
+    "parameters":{"type":"object","maxProperties":30,"additionalProperties":{"type":["string","number","integer","boolean","null"]}},
+    "risk_class":{"enum":["R0","R1","R2","R3"]},
+    "requested_by":{"type":"string","minLength":1,"maxLength":200},
+    "deadline":{"type":"string","format":"date-time"},
+    "idempotency_key":{"type":"string","minLength":16,"maxLength":200},
+    "authority_envelope_ref":{"type":"string","minLength":1,"maxLength":200},
+    "policy_decision_ref":{"type":"string","minLength":1,"maxLength":200},
+    "fresh_confirmation_ref":{"type":"string","maxLength":200},
+    "safe_state_observation_ref":{"type":"string","maxLength":200},
+    "correlation_id":{"type":"string","maxLength":200}
+  },
+  "allOf":[{"if":{"properties":{"risk_class":{"enum":["R2","R3"]}},"required":["risk_class"]},"then":{"required":["fresh_confirmation_ref"]}}]
+}
