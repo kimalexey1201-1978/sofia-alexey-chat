@@ -16,6 +16,16 @@ export function prepareExecution(plan, candidates, task, now = new Date()) {
     return { ok: false, status: "REJECTED", reasonCodes: ["INVALID_CANDIDATE_INPUT"], dispatchPerformed: false };
   }
 
+  // The Core A0 inference-provider call is not an external executor task.
+  // Keep it out of module selection and permissioned dispatch preparation.
+  if (plan.autonomy_level === "A0" &&
+      plan.steps.length === 1 &&
+      plan.steps[0].step_type === "reason" &&
+      plan.steps[0].required_capabilities.length === 0) {
+    return { ok: true, status: "NOT_REQUIRED",
+      reasonCodes: ["INTERNAL_INFERENCE_DOES_NOT_REQUIRE_EXECUTOR"],
+      selectedModuleRef: null, dispatchPerformed: false };
+  }
   if (!["approved", "running"].includes(plan.status)) {
     return { ok: false, status: "NOT_READY", reasonCodes: ["PLAN_NOT_APPROVED_FOR_EXECUTION"], dispatchPerformed: false };
   }
