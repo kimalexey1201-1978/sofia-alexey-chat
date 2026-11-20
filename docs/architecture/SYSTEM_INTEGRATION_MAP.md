@@ -136,6 +136,10 @@ Automation & Integration Manager owns adapter discovery, connection metadata, tr
 
 Location & Navigation Manager consumes only purpose-authorized observations from Device & Sensor Data Manager and records source, freshness, accuracy, and uncertainty. It owns route request/result normalization, geocoding and navigation hand-off policy, bounded geofence definitions, and explicit live-location sharing lifecycle. Automation & Integration Manager supplies approved map, transit, ride, and vehicle adapters; Device Integration Gateway owns device/vehicle command channels. Location triggers only initiate workflow evaluation and never grant downstream action authority. Precise or background location requires a declared purpose, OS permission, consent, and bounded duration. No continuous tracking, live routing, geofence execution, location sharing, or vehicle control is implemented by this architecture update.
 
-## 12. Current status
+## 12. Calendar and scheduling boundary
+
+Calendar & Scheduling Manager owns normalized event metadata, calendar selection, availability interpretation, scheduling proposals, and provider-specific calendar operations. Automation & Integration Manager supplies approved calendar adapters and connection metadata; credentials remain in the protected vault. Notification & Reminder Manager owns reminder scheduling and delivery, while Workflow & State Manager owns durable multi-step workflow state. Calendar reads and writes are separately scoped; availability is advisory and must be refreshed before writes. Invitations, cancellations, attendee changes, and disclosure of private event data require the applicable fresh authorization and confirmation. Timezones, all-day events, recurrence, daylight-saving transitions, concurrent edits, and uncertain provider completion must be handled explicitly. No calendar account connection, event synchronization, invitation, or live scheduling runtime is implemented by this architecture update.
+
+## 13. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
