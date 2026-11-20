@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/calendar-sync-state.schema.json",
+  "title": "Sofia Calendar Sync State",
+  "description": "Provider synchronization cursor and health state without credential material.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sync_id", "connection_ref", "calendar_ref", "status", "updated_at"],
+  "properties": {
+    "sync_id": { "type": "string", "format": "uuid" },
+    "connection_ref": { "type": "string", "maxLength": 256 },
+    "calendar_ref": { "type": "string", "maxLength": 256 },
+    "status": { "type": "string", "enum": ["not_started", "healthy", "syncing", "partial", "stale", "reauthorization_required", "error", "disabled"] },
+    "provider_cursor_ref": { "type": "string", "maxLength": 512 },
+    "last_success_at": { "type": "string", "format": "date-time" },
+    "last_attempt_at": { "type": "string", "format": "date-time" },
+    "next_sync_at": { "type": "string", "format": "date-time" },
+    "last_error_code": { "type": "string", "maxLength": 128 },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
