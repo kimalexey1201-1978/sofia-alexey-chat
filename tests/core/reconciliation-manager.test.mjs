@@ -12,6 +12,7 @@ function fixture() {
       operation_digest: "a".repeat(64), idempotency_key_digest: "b".repeat(64)
     },
     evidence: {
+      schema_version: "1.0.0",
       task_id: "task-0001", request_id: "request-0001",
       provider_id: "provider-x", provider_operation_ref: "operation-123",
       target_ref: "mailbox:user-1", operation_digest: "a".repeat(64),
@@ -84,4 +85,17 @@ test("rejects evidence whose verification timestamp is outside the freshness win
   input.evidence.verification.verified_at = "2026-11-20T14:54:00.000Z";
   assert.equal(evaluateReconciliation(input, now).reasonCode,
     "PROVIDER_EVIDENCE_STALE_OR_INVALID");
+});
+
+
+test("rejects evidence with an unsupported contract version", () => {
+  const input = fixture();
+  input.evidence.schema_version = "2.0.0";
+  assert.equal(evaluateReconciliation(input, now).reasonCode,
+    "EVIDENCE_SCHEMA_VERSION_UNSUPPORTED");
+});
+
+test("rejects an invalid reconciliation clock", () => {
+  assert.equal(evaluateReconciliation(fixture(), "not-a-date").reasonCode,
+    "RECONCILIATION_TIME_INVALID");
 });
