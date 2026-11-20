@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/proactive-trigger.schema.json",
+  "title": "Sofia AI Proactive Trigger v1",
+  "description": "Normalized, privacy-minimized event used by the Proactive Intelligence Manager. A trigger is evidence for evaluation, never an authorization to act.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trigger_id",
+    "schema_version",
+    "source_id",
+    "source_type",
+    "event_type",
+    "trigger_class",
+    "occurred_at",
+    "observed_at",
+    "expires_at",
+    "authorization_ref",
+    "provenance",
+    "deduplication_key"
+  ],
+  "properties": {
+    "trigger_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "source_type": {
+      "enum": [
+        "user_schedule",
+        "user_rule",
+        "os_notification",
+        "calendar_connector",
+        "task_connector",
+        "email_connector",
+        "messaging_connector",
+        "device_gateway",
+        "sofia_project",
+        "automation",
+        "memory_retrieval",
+        "other_authorized"
+      ]
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "trigger_class": {
+      "enum": [
+        "deterministic",
+        "inferred"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "authorization_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter_id",
+        "adapter_version",
+        "evidence_ref"
+      ],
+      "properties": {
+        "adapter_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "adapter_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "evidence_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "model_or_rule_id": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "model_or_rule_version": {
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+    "deduplication_key": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256
+    },
+    "correlation_group": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "confidence_band": {
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "not_applicable"
+      ]
+    },
+    "signal_categories": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "enum": [
+          "schedule",
+          "deadline",
+          "delivery_status",
+          "device_state",
+          "project_state",
+          "communication_metadata",
+          "user_rule",
+          "other"
+        ]
+      }
+    },
+    "data_sensitivity": {
+      "enum": [
+        "public",
+        "internal",
+        "personal",
+        "sensitive"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "locale": {
+      "type": "string",
+      "maxLength": 35
+    },
+    "metadata": {
+      "type": "object",
+      "maxProperties": 20,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "trigger_class": {
+            "const": "inferred"
+          }
+        },
+        "required": [
+          "trigger_class"
+        ]
+      },
+      "then": {
+        "required": [
+          "confidence",
+          "confidence_band",
+          "provenance"
+        ],
+        "properties": {
+          "confidence_band": {
+            "not": {
+              "const": "not_applicable"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger_class": {
+            "const": "deterministic"
+          }
+        },
+        "required": [
+          "trigger_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "confidence_band": {
+            "enum": [
+              "high",
+              "medium",
+              "not_applicable"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
