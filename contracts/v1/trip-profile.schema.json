@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/trip-profile.schema.json",
+  "title": "Sofia Trip Profile",
+  "description": "User-defined trip scope, dates, travelers, and constraints.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trip_id", "principal_id", "title", "status", "created_at"],
+  "properties": {
+    "trip_id": { "type": "string", "format": "uuid" },
+    "principal_id": { "type": "string", "maxLength": 128 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "origin_ref": { "type": "string", "maxLength": 512 },
+    "destination_refs": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "type": "string", "maxLength": 512 } },
+    "departure_date": { "type": "string", "format": "date" },
+    "return_date": { "type": "string", "format": "date" },
+    "party_size": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "budget_amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,8})?$", "maxLength": 40 },
+    "budget_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "requirements_ref": { "type": "string", "maxLength": 256 },
+    "status": { "type": "string", "enum": ["planning", "ready_for_review", "booked", "in_progress", "completed", "cancelled", "archived"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
