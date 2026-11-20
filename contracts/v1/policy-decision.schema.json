@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/policy-decision.schema.json",
+  "title": "Sofia AI Policy Decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision_id",
+    "decision",
+    "reason_code",
+    "principal_ref",
+    "capability",
+    "operation",
+    "policy_version",
+    "evaluated_at",
+    "correlation_id"
+  ],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "decision": {
+      "enum": [
+        "allow",
+        "deny",
+        "require_approval",
+        "step_up_auth"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{1,95}$"
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "module_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "capability": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "resource_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "purpose": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "grant_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "approval_challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "challenge_id",
+        "action_digest",
+        "expires_at"
+      ],
+      "properties": {
+        "challenge_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "action_digest": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 256
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "require_approval"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "required": [
+          "approval_challenge"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "allow"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "required": [
+          "expires_at"
+        ]
+      }
+    }
+  ]
+}
