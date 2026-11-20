@@ -94,7 +94,7 @@ export async function handleChatRequest(request, env, dependencies = {}) {
 
   let messages = body.messages;
   // Existing index.html sends one system message at position zero. Its content is untrusted.
-  if (messages[0]?.role === "system") messages = messages.slice(1);
+  if (messages.length > 1 && messages[0]?.role === "system") messages = messages.slice(1);
 
   // Reject untrusted message structure and roles before constructing a provider.
   // This keeps invalid requests away from provider configuration and network adapters.
