@@ -155,3 +155,8 @@ Travel & Trip Manager owns trip profiles, itinerary dependencies, travel-option 
 ## 16. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
+
+
+## 17. Smart environment boundary
+
+Smart Environment Manager owns normalized environment-specific device grouping, scenes, bounded command intents, and interpretation of state observations. Device Integration Gateway owns device sessions and transport-level command channels; Automation & Integration Manager owns vendor/provider adapters and connection metadata. Every command is resolved against the device's current capability manifest and exact contract version, then independently authorized by Security Manager at invocation time. Scenes and triggers are workflow inputs, not authority. Locks, gates, garage doors, alarms, cameras/microphones, heaters, cooking appliances, water valves, and other safety/security-sensitive operations require stricter policy and fresh action-specific confirmation where applicable. Stale state, uncertain identity, expired consent, lost connection, or unavailable verification fails closed for protected actions. Provider acknowledgement is not proof of physical completion; read-back verification is required where supported, otherwise the result remains unverified. Sensor and presence data are purpose-limited and privacy-restricted by default. No smart-home provider, device, local-network control, routine, or physical actuation runtime is implemented by this architecture update.
