@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/schemas/lease.v1.schema.json",
+  "title": "Sofia Reconciliation Lease v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "owner",
+    "fencingToken",
+    "acquiredAt",
+    "expiresAt"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fencingToken": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "acquiredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
