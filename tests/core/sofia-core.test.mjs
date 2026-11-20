@@ -18,15 +18,16 @@ test("completes a full Core -> mock provider -> verifier -> response cycle", asy
     usage: { inputTokens: 2, outputTokens: 3 }
   });
   const result = await runSofiaCore(provider, request, config);
-  assert.deepEqual(result, {
-    ok: true,
-    requestId: "test-request-001",
-    answer: {
-      text: "Здравствуйте!",
-      providerId: "mock",
-      modelId: "fixture-v1",
-      usage: { inputTokens: 2, outputTokens: 3 }
-    }
+  assert.equal(result.ok, true);
+  assert.equal(result.requestId, "test-request-001");
+  assert.equal(result.taskPlan.owner_goal, "Привет");
+  assert.equal(result.taskPlan.autonomy_level, "A0");
+  assert.equal(result.taskPlan.resource_policy, "FREE_ONLY");
+  assert.deepEqual(result.answer, {
+    text: "Здравствуйте!",
+    providerId: "mock",
+    modelId: "fixture-v1",
+    usage: { inputTokens: 2, outputTokens: 3 }
   });
 });
 
