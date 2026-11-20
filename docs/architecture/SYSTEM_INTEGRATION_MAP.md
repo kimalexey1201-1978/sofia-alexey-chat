@@ -79,6 +79,7 @@ Do not put raw credentials, private key material or unrestricted bearer tokens i
 | Voice capture and speaker handling | Voice Interaction Manager | Identity, Privacy, Android Runtime |
 | Communication delivery | Communication Manager | Identity, Security, Privacy, Audit |
 | Social platform publishing and analytics | Social Media Integration Manager | Media Processing, File & Document, Identity, Security, Privacy, Autonomy, Workflow, Audit |
+| Application/service/device automation | Automation & Integration Manager | Task Orchestrator, Workflow, Security, Identity, Privacy, Autonomy, Resource Runtime, Event Bus, Device Gateway, Audit |
 | Memory lifecycle | Knowledge & Memory Manager | Privacy, Identity, Audit |
 | Independent result checking | Verifier / AI Evaluation & Quality | Orchestrator, Audit |
 | Logs and evidence | Audit & Observability Manager | All modules |
@@ -127,6 +128,10 @@ A module is not integration-ready until:
 
 Social Media Integration Manager is a separate platform adapter layer. Media creation remains owned by Media Processing Manager; file custody remains with File & Document Manager. SMIM owns platform account connection metadata, capability discovery, content packaging, publication workflow, and platform result verification. OAuth secrets remain in a protected credential vault and never enter client storage, model prompts, logs, or repository files. API access, scopes, app review, account eligibility, and regional availability are checked per platform and API version. A prepared video is not a published video; upload acceptance, processing, scheduling, and publication are distinct states. No direct platform API calls or account connections are implemented by the architecture documents.
 
-## 10. Current status
+## 10. Automation and integration boundary
+
+Automation & Integration Manager owns adapter discovery, connection metadata, trigger/action catalogs, typed data mapping, and integration-specific invocation. Workflow & State Manager remains the owner of durable workflow state, checkpoints, and recovery. Security Manager authorizes every exact operation; an integration connection or trigger does not grant blanket authority. Credentials remain in a protected vault. Use documented APIs, approved connectors, supported OS intents, or explicitly authorized visible user-mediated UI automation only. High-impact external side effects require fresh action-specific confirmation. Webhooks require signature/replay validation; uncertain side-effect completion must be reconciled before retry. No connector, account, webhook, or automation runtime is implemented by this architecture update.
+
+## 11. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
