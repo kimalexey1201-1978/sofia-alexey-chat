@@ -34,6 +34,8 @@ async function attemptPending(){
   isSending=true;
   const requestSnapshot=pendingMessages;
   $('sendBtn').disabled=true;
+  $('input').disabled=true;
+  $('voiceBtn').disabled=true;
   setConnection('София печатает…');
   let result;
   try {
@@ -56,8 +58,10 @@ async function attemptPending(){
   chat=applied.chat;
   if(result.ok && pendingMessages===requestSnapshot) pendingMessages=null;
   setConnection(applied.message,applied.status==='error' && pendingMessages===requestSnapshot);
-  $('sendBtn').disabled=false;
   isSending=false;
+  $('sendBtn').disabled=false;
+  $('input').disabled=false;
+  $('voiceBtn').disabled=false;
   render();
 }
 async function send(v){
@@ -69,7 +73,7 @@ async function send(v){
 function retryPending(){
   if(pendingMessages) attemptPending();
 }
-$('form').onsubmit=e=>{e.preventDefault();let v=$('input').value.trim();if(v){$('input').value='';send(v)}};$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('form').requestSubmit()}};
+$('form').onsubmit=e=>{e.preventDefault();if(isSending)return;let v=$('input').value.trim();if(v){$('input').value='';send(v)}};$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!isSending)$('form').requestSubmit()}};
 $('menuBtn').onclick=()=>$('menu').classList.toggle('open');$('profileBtn').onclick=$('settingsBtn').onclick=()=>{$('menu').classList.remove('open');$('overlay').classList.add('open')};$('closeSheet').onclick=()=>$('overlay').classList.remove('open');
 function pick(w){let f=$(w+'File').files[0];if(!f)return;let rd=new FileReader();rd.onload=()=>{let im=new Image();im.onload=()=>{let c=document.createElement('canvas'),z=Math.min(1,500/Math.max(im.width,im.height));c.width=im.width*z;c.height=im.height*z;c.getContext('2d').drawImage(im,0,0,c.width,c.height);avatars[w]=c.toDataURL('image/jpeg',.82);localStorage.setItem(AVS,JSON.stringify(avatars));render()};im.src=rd.result};rd.readAsDataURL(f)}
 $('sofiaPick').onclick=()=>$('sofiaFile').click();$('alexeyPick').onclick=()=>$('alexeyFile').click();$('sofiaFile').onchange=()=>pick('sofia');$('alexeyFile').onchange=()=>pick('alexey');
