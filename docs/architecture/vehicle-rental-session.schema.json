@@ -227,7 +227,13 @@
       "then": {
         "required": [
           "ended_at"
-        ]
+        ],
+        "properties": {
+          "ended_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     {
@@ -244,7 +250,13 @@
       "then": {
         "required": [
           "ended_at"
-        ]
+        ],
+        "properties": {
+          "ended_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     }
   ]
