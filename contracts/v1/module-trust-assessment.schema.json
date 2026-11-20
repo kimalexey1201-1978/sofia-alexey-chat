@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/module-trust-assessment.schema.json",
+  "title": "Sofia AI Module Trust Assessment v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "assessment_id",
+    "module_id",
+    "module_version",
+    "artifact_digest",
+    "verdict",
+    "evidence_refs",
+    "assessed_at",
+    "expires_at",
+    "assessor",
+    "policy_version"
+  ],
+  "properties": {
+    "assessment_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "module_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "artifact_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "verdict": {
+      "enum": [
+        "UNVERIFIED",
+        "CONDITIONALLY_TRUSTED",
+        "TRUSTED_WITH_SCOPE",
+        "SUSPENDED",
+        "REVOKED"
+      ]
+    },
+    "publisher_identity_status": {
+      "enum": [
+        "VERIFIED",
+        "UNVERIFIED",
+        "REVOKED",
+        "UNKNOWN"
+      ]
+    },
+    "signature_status": {
+      "enum": [
+        "VALID",
+        "INVALID",
+        "MISSING",
+        "NOT_APPLICABLE",
+        "UNKNOWN"
+      ]
+    },
+    "supply_chain_status": {
+      "enum": [
+        "PASS",
+        "WARN",
+        "FAIL",
+        "UNKNOWN"
+      ]
+    },
+    "security_review_level": {
+      "enum": [
+        "NONE",
+        "BASIC",
+        "STANDARD",
+        "ENHANCED"
+      ]
+    },
+    "approved_capability_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 180
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "incident_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "assessed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "assessor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  }
+}
