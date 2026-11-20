@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/authority-envelope.schema.json",
+  "title": "Sofia AI Authority Envelope v1",
+  "description": "Task-scoped, expiring authority boundary for autonomous execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["envelope_id", "principal_id", "task_id", "goal", "autonomy_level", "allowed_capabilities", "risk_constraints", "limits", "approval_gates", "issued_at", "expires_at", "policy_version", "status"],
+  "properties": {
+    "envelope_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "principal_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "goal": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "autonomy_level": {"type": "string", "enum": ["A0", "A1", "A2", "A3", "A4", "A5"]},
+    "allowed_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true, "maxItems": 256},
+    "allowed_targets": {"type": "array", "items": {"type": "string", "maxLength": 256}, "uniqueItems": true, "maxItems": 256},
+    "data_scope": {"type": "array", "items": {"type": "string", "maxLength": 256}, "uniqueItems": true, "maxItems": 256},
+    "risk_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_risk_tier", "prohibited_actions"],
+      "properties": {
+        "maximum_risk_tier": {"type": "string", "enum": ["R0", "R1", "R2", "R3"]},
+        "prohibited_actions": {"type": "array", "items": {"type": "string", "maxLength": 256}, "maxItems": 256}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_steps", "max_duration_seconds", "max_retries"],
+      "properties": {
+        "max_steps": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "max_duration_seconds": {"type": "integer", "minimum": 1},
+        "max_retries": {"type": "integer", "minimum": 0, "maximum": 100},
+        "max_cost_minor_units": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "resource_budget_id": {"type": "string", "maxLength": 128},
+        "allowed_time_window": {"type": "string", "maxLength": 256}
+      }
+    },
+    "approval_gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate_id", "trigger", "required"],
+        "properties": {
+          "gate_id": {"type": "string", "maxLength": 128},
+          "trigger": {"type": "string", "maxLength": 512},
+          "required": {"type": "boolean"},
+          "approval_id": {"type": "string", "maxLength": 128},
+          "assurance_level": {"type": "string", "enum": ["standard", "elevated", "strong"]}
+        }
+      },
+      "maxItems": 256
+    },
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "status": {"type": "string", "enum": ["draft", "pending_approval", "active", "paused", "revoked", "expired", "completed"]},
+    "revocation_ref": {"type": "string", "maxLength": 128},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
