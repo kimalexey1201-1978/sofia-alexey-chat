@@ -132,7 +132,8 @@ export function createReconciliationCoordinator({
         const evaluation = evaluateReconciliationEvidenceBatch({
           task,
           priorRequest,
-          evidenceRecords,
+          evidenceRecords: verified.evidenceRecords,
+          historicalEvidenceRecords: priorEvidence,
           freshnessWindowMs
         }, now);
 
