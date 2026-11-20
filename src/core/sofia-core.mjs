@@ -16,6 +16,23 @@ function failure(code, message) {
   return { ok: false, error: { code, message } };
 }
 
+function resolveLimits(overrides) {
+  if (overrides === undefined) return { ...DEFAULTS };
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    return null;
+  }
+
+  const limits = { ...DEFAULTS };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (!Object.hasOwn(DEFAULTS, key) ||
+        !Number.isSafeInteger(value) || value <= 0) {
+      return null;
+    }
+    limits[key] = value;
+  }
+  return limits;
+}
+
 function validateChatRequest(request, limits) {
   if (!request || typeof request !== "object" || Array.isArray(request)) {
     return { error: failure("INVALID_REQUEST", "Request must be an object") };
@@ -87,7 +104,11 @@ export async function runSofiaCore(provider, request, config = {}) {
     return failure("INTERNAL_FAILURE", "Core configuration is invalid");
   }
 
-  const limits = { ...DEFAULTS, ...(config.limits ?? {}) };
+  const limits = resolveLimits(config.limits);
+  if (!limits) {
+    return failure("INTERNAL_FAILURE", "Core configuration is invalid");
+  }
+
   const checked = validateChatRequest(request, limits);
   if (checked.error) return checked.error;
 
