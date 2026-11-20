@@ -47,44 +47,44 @@ Stale, delayed, unavailable or conflicting telemetry must be labeled. A dashboar
 
 Vehicle commands are opt-in and capability-specific. Remote lock/unlock, climate preconditioning, horn/lights, charging controls, and similar functions may be supported only through documented official interfaces and applicable authorization.
 
-Commands that could affect motion, steering, braking, acceleration, gear selection, immobilization while moving, or safety systems are out of scope. No remote driving or autonomous vehicle operation is permitted.
+Commands that directly control steering, braking, throttle/acceleration, gear selection, immobilization while moving, or safety systems are out of scope. No remote driving or autonomous vehicle operation is permitted. A narrowly scoped exception is permitted for voice requests to the vehicle's own factory cruise-control or adaptive-cruise-control interface, but only when the manufacturer exposes a documented, authorized control capability for the exact vehicle and market. Sofia may request enable, cancel, resume, or set a target speed only within the vehicle's declared limits and only when the vehicle itself reports that the feature is available. Sofia must never emulate button presses, inject low-level vehicle-bus messages, override driver monitoring, bypass interlocks, or force activation when the vehicle rejects the request.
 
 Any remote access-control or safety-relevant command requires fresh confirmation bound to the exact vehicle, operation, parameters and expiry, plus invocation-time policy enforcement. The vehicle must be in a verified safe state when required by the OEM interface. If state is stale or uncertain, deny or request user verification. A provider acknowledgement is not proof of physical completion.
 
-## 6. Driver safety and legal boundaries
+## 6. Cruise-control voice interaction\n\nThe driver may issue concise commands such as “Sofia, enable cruise control”, “set cruise speed to 90 km/h”, “resume cruise control”, or “cancel cruise control”. The voice layer must bind the request to the authenticated driver session, distinguish it from bystander speech where supported, and parse speed with an explicit unit. If the requested speed is ambiguous, outside the OEM-reported permitted range, or the vehicle state is stale/unknown, Sofia must not send the command and must ask for clarification or report unavailability.\n\nThe vehicle's native cruise-control system remains solely responsible for sensing, speed regulation, braking/acceleration behavior, following distance, and all safety interlocks. Sofia is only a request interface. The vehicle must confirm whether the request was accepted; Sofia must report “requested”, “accepted”, “active”, “rejected”, or “unverified” accurately and must not equate command transmission with activation. The driver must continue to supervise the road and remain ready to take over. Driver attention, hands-on requirements, road/weather limitations, and legal restrictions follow the vehicle manual and applicable law. Adaptive cruise control is not autonomous driving.\n\n## 7. Driver safety and legal boundaries
 
 The driver remains responsible for observing road conditions, traffic laws, vehicle warnings and manufacturer instructions. The interface must not encourage interaction while driving. When motion is detected or reasonably suspected, restrict interaction to legally permitted, low-distraction voice or passenger workflows; defer complex tasks and require the vehicle to be safely parked. Do not bypass built-in driver-distraction protections.
 
-## 7. Maintenance assistance
+## 8. Maintenance assistance
 
 VMM may organize service schedules, user-entered symptoms, OEM-reported diagnostics, recalls and repair history. It may explain documentation and suggest checking an official dealer or qualified mechanic. It must not claim a definitive diagnosis from incomplete telemetry, clear fault codes, or recommend continued driving when a safety-critical warning is present. Safety warnings should direct the user to stop safely and follow the vehicle manual or qualified assistance.
 
-## 8. Android-first and cross-platform support
+## 9. Android-first and cross-platform support
 
 Android is the primary companion platform. Vehicle integrations may use documented OEM APIs, supported Android Auto capabilities, approved Bluetooth profiles, or authorized OS hand-offs. Android Auto availability does not imply unrestricted access to vehicle controls or telemetry. Desktop and other mobile platforms use separate adapters and permission models.
 
-## 9. Failure, reconciliation and audit
+## 10. Failure, reconciliation and audit
 
 Every side-effecting operation carries an idempotency key, deadline, exact target and parameters, authority reference, policy-decision reference, and correlation context. On timeout or lost connectivity, completion is unknown until reconciled with authoritative provider state. Never blindly retry a command that may have changed vehicle security or state. Audit logs redact VIN, precise location, credentials and personal travel patterns.
 
-## 10. Required contracts
+## 11. Required contracts
 
 - `vehicle-profile.schema.json`: minimal user-managed vehicle reference and supported capability references.
 - `vehicle-observation.schema.json`: sourced, timestamped vehicle telemetry with freshness and uncertainty.
-- `vehicle-command-intent.schema.json`: exact command proposal with risk, authority and confirmation references.
+- `vehicle-command-intent.schema.json`: exact command proposal with risk, authority and confirmation references.\n- `vehicle-cruise-control-request.schema.json`: voice-originated cruise-control request, explicit speed units, OEM capability and vehicle-state preconditions.
 - `vehicle-maintenance-record.schema.json`: service, inspection, repair and recall records with provenance.
 
-## 11. Runtime readiness criteria
+## 12. Runtime readiness criteria
 
 1. Official adapter/API support and terms are verified per manufacturer, vehicle, region and account.
 2. Vehicle identity and user authorization are verified without exposing secrets.
 3. Capability discovery is explicit and current; unsupported operations are unavailable.
-4. Security Manager authorizes every exact command at invocation time.
-5. Driver-distraction and motion-state restrictions are tested.
-6. Stale telemetry, timeout, replay, duplicate command and uncertain completion cases are tested.
-7. Sensitive identifiers and location are protected in storage, transmission, logs and provider disclosure.
-8. Independent verification distinguishes command acceptance from confirmed vehicle state.
+4. Security Manager authorizes every exact command at invocation time.\n5. Cruise-control commands are limited to the OEM's declared interface and permitted operating envelope; no low-level actuator control or interlock bypass is possible.
+6. Driver-distraction and motion-state restrictions are tested.
+7. Stale telemetry, timeout, replay, duplicate command and uncertain completion cases are tested.
+8. Sensitive identifiers and location are protected in storage, transmission, logs and provider disclosure.
+9. Independent verification distinguishes command acceptance from confirmed vehicle state.
 
-## 12. Non-goals and current limitations
+## 13. Non-goals and current limitations
 
 This document does not connect an OEM account, read vehicle telemetry, discover a vehicle, access Android Auto internals, execute remote commands, diagnose a vehicle, or provide roadside dispatch. It does not guarantee support for any make, model, year, country, protocol or subscription.
