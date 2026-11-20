@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/location-observation.schema.json",
+  "title": "Sofia Location Observation",
+  "description": "Purpose-bound location observation with source, timestamp, and uncertainty metadata.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["observation_id", "source_type", "captured_at", "latitude", "longitude", "purpose", "quality"],
+  "properties": {
+    "observation_id": { "type": "string", "format": "uuid" },
+    "source_type": { "type": "string", "enum": ["os_location", "gnss", "network", "user_selected", "provider", "vehicle", "wearable", "inferred"] },
+    "source_ref": { "type": "string", "maxLength": 256 },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+    "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+    "horizontal_accuracy_m": { "type": "number", "minimum": 0 },
+    "altitude_m": { "type": "number" },
+    "speed_mps": { "type": "number", "minimum": 0 },
+    "bearing_degrees": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "consent_ref": { "type": "string", "maxLength": 256 },
+    "quality": { "type": "string", "enum": ["high", "medium", "low", "unknown"] },
+    "is_mock_suspected": { "type": "boolean" },
+    "expires_at": { "type": "string", "format": "date-time" }
+  }
+}
