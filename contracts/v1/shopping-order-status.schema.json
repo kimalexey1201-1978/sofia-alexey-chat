@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/shopping-order-status.schema.json",
+  "title": "Sofia Shopping Order Status",
+  "description": "Provider-reconciled order, shipment, return, and refund lifecycle status.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["order_id", "provider_id", "status", "updated_at"],
+  "properties": {
+    "order_id": { "type": "string", "maxLength": 256 },
+    "provider_id": { "type": "string", "maxLength": 160 },
+    "provider_order_ref": { "type": "string", "maxLength": 256 },
+    "status": { "type": "string", "enum": ["draft", "submitted", "accepted", "processing", "shipped", "out_for_delivery", "delivered", "cancelled", "returned", "refunded", "failed", "completion_unknown"] },
+    "tracking_ref": { "type": "string", "maxLength": 256 },
+    "estimated_delivery_at": { "type": "string", "format": "date-time" },
+    "delivered_at": { "type": "string", "format": "date-time" },
+    "return_deadline": { "type": "string", "format": "date" },
+    "refund_amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,8})?$", "maxLength": 40 },
+    "refund_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "refund_status": { "type": "string", "enum": ["not_requested", "requested", "processing", "confirmed", "rejected", "unknown"] },
+    "last_verified_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
