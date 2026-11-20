@@ -174,3 +174,16 @@ No database or Cloudflare resource is provisioned by this design. The next safe 
 ## 10. Storage-port prototype boundary
 
 The repository now defines versioned JSON Schemas for the uncertain task snapshot, reconciliation decision, lease and audit outbox record. A narrow in-memory test double exercises the storage-port semantics: serialized critical sections, task-version compare-and-swap, lease fencing, evidence deduplication/conflict rejection, and all-or-nothing updates of task/evidence/decision/outbox collections. This is a process-local test fixture only: it is not durable, is not shared across Worker isolates, and provides no production concurrency guarantee. The concrete persistence adapter remains blocked on the platform and transaction decision in this document.
+
+
+## 11. Storage-port contract and test-double guarantees
+
+The reconciliation manager depends on a storage-port contract, not on a specific database:
+- `seedTask(task)` is a test-fixture operation only.
+- `getTask(taskId)` reads the current aggregate record.
+- `acquireLease({ taskId, owner, now, ttlMs })` returns a lease or `null`; each successful acquisition MUST advance a per-task fencing generation, including after explicit release.
+- `commitDecision(input)` is the atomic write boundary. It MUST compare the expected task version, validate the active lease owner/fencing token/expiry, bind decision and evidence to the task's current request, and atomically append evidence, decision and audit outbox while updating task state.
+- `listEvidence(taskId)`, `listDecisions(taskId)`, and `listOutbox()` are read/test inspection operations.
+- `releaseLease({ taskId, owner, fencingToken })` succeeds only for the currently held matching lease. Releasing a lease MUST NOT reset its fencing generation.
+
+The current in-memory implementation is a contract test double only. Its promise queue provides serialization inside one JavaScript process; it does not establish cross-isolate locking, durable commits, trusted server time, crash recovery, or production-grade atomicity. A future persistent adapter must satisfy the same behavioral contract using database transactions/conditional writes and durable fencing generations. No database binding or deployment configuration is introduced by this change.

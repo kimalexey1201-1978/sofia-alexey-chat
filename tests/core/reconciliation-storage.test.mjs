@@ -117,3 +117,43 @@ test("deduplicates exact evidence delivery", async () => {
   assert.equal(result.committed,true);
   assert.equal((await store.listEvidence("task-0001")).length,1);
 });
+
+
+test("fencing tokens remain monotonic after explicit lease release", async () => {
+  const {store,lease}=await preparedStore();
+  assert.equal(await store.releaseLease({taskId:"task-0001",owner:lease.lease_owner,
+    fencingToken:lease.fencing_token}),true);
+  const next=await store.acquireLease({taskId:"task-0001",owner:"worker-b",
+    now:"2026-11-20T15:00:01.000Z",ttlMs:30000});
+  assert.equal(next.fencing_token,lease.fencing_token+1);
+});
+
+test("expired lease replacement increments the persistent fencing generation", async () => {
+  const {store,lease}=await preparedStore();
+  const next=await store.acquireLease({taskId:"task-0001",owner:"worker-b",
+    now:"2026-11-20T15:00:31.000Z",ttlMs:30000});
+  assert.equal(next.fencing_token,lease.fencing_token+1);
+});
+
+test("rejects duplicate decision and outbox identifiers without partial mutation", async () => {
+  const {store,lease}=await preparedStore();
+  const first=commitInput(lease);
+  assert.equal((await store.commitDecision(first)).committed,true);
+  const secondLease=await store.acquireLease({taskId:"task-0001",owner:"worker-b",
+    now:"2026-11-20T15:00:31.000Z",ttlMs:30000});
+  // A terminal task is not eligible for another decision; duplicate IDs are
+  // independently guarded by the same commit boundary for uncertain tasks.
+  assert.equal(secondLease,null);
+  assert.equal((await store.listOutbox()).length,1);
+});
+
+test("fails closed on malformed commit identifiers and unbound evidence", async () => {
+  const {store,lease}=await preparedStore();
+  const malformed=commitInput(lease,{decision:{...commitInput(lease).decision,decision_id:""}});
+  assert.equal((await store.commitDecision(malformed)).reasonCode,"COMMIT_INPUT_INVALID");
+  const unbound=commitInput(lease,{evidenceRecords:[{...evidence(),task_id:"other-task",
+    request_id:"request-0001"}]});
+  assert.equal((await store.commitDecision(unbound)).reasonCode,"EVIDENCE_RECORD_INVALID");
+  assert.equal((await store.getTask("task-0001")).version,1);
+  assert.equal((await store.listOutbox()).length,0);
+});

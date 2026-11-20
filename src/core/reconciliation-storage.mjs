@@ -11,6 +11,8 @@ const CONCLUSIONS = new Set([
 export function createInMemoryReconciliationStore() {
   const tasks = new Map();
   const leases = new Map();
+  // Retain the generation after release so fencing tokens never reset.
+  const leaseGenerations = new Map();
   const evidence = new Map();
   const decisions = new Map();
   const outbox = new Map();
@@ -56,7 +58,8 @@ export function createInMemoryReconciliationStore() {
         const current = leases.get(taskId);
         if (current && Date.parse(current.lease_expires_at) > nowMs &&
             current.lease_owner !== owner) return null;
-        const token = (current?.fencing_token ?? 0) + 1;
+        const token = (leaseGenerations.get(taskId) ?? 0) + 1;
+        leaseGenerations.set(taskId, token);
         const lease = {
           task_id: taskId, lease_owner: owner,
           lease_expires_at: new Date(nowMs + ttlMs).toISOString(),
@@ -71,6 +74,12 @@ export function createInMemoryReconciliationStore() {
       return serialize(() => {
         const {taskId, expectedVersion, leaseOwner, fencingToken, now,
           evidenceRecords, decision, auditEvent} = input ?? {};
+        if (typeof taskId !== "string" || !taskId ||
+            !Number.isSafeInteger(expectedVersion) || expectedVersion < 1 ||
+            typeof leaseOwner !== "string" || !leaseOwner ||
+            !Number.isSafeInteger(fencingToken) || fencingToken < 1) {
+          return {committed:false, reasonCode:"COMMIT_INPUT_INVALID"};
+        }
         const task = tasks.get(taskId);
         const lease = leases.get(taskId);
         const nowMs = Date.parse(now ?? "");
@@ -84,9 +93,10 @@ export function createInMemoryReconciliationStore() {
           return {committed:false, reasonCode:"LEASE_FENCING_REJECTED"};
         }
         if (!Array.isArray(evidenceRecords) || !evidenceRecords.length ||
-            !decision || !CONCLUSIONS.has(decision.conclusion) ||
-            !auditEvent || typeof auditEvent.event_id !== "string" ||
-            decision.task_id !== taskId ||
+            !decision || typeof decision.decision_id !== "string" || !decision.decision_id ||
+            !CONCLUSIONS.has(decision.conclusion) ||
+            !auditEvent || typeof auditEvent.event_id !== "string" || !auditEvent.event_id ||
+            decision.task_id !== taskId || decision.request_id !== task.current_request_id ||
             decision.task_version_before !== expectedVersion) {
           return {committed:false, reasonCode:"COMMIT_INPUT_INVALID"};
         }
@@ -97,7 +107,9 @@ export function createInMemoryReconciliationStore() {
         const priorEvidence = evidence.get(taskId) ?? [];
         const merged = [...priorEvidence];
         for (const record of evidenceRecords) {
-          if (!record || typeof record.evidence_digest !== "string") {
+          if (!record || typeof record.evidence_digest !== "string" ||
+              !/^[a-f0-9]{64}$/i.test(record.evidence_digest) ||
+              record.task_id !== taskId || record.request_id !== task.current_request_id) {
             return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
           }
           const existing = merged.find(item => item.evidence_digest === record.evidence_digest);
