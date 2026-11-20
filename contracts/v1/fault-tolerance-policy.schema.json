@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/fault-tolerance-policy.schema.json",
+  "title": "Sofia AI Fault Tolerance Policy v1",
+  "description": "Bounded timeout, retry, circuit-breaker, and failure-classification policy for service and provider calls.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_id",
+    "schema_version",
+    "version",
+    "operation_class",
+    "deadline_ms",
+    "connect_timeout_ms",
+    "read_timeout_ms",
+    "max_retries",
+    "retryable_failure_classes",
+    "backoff",
+    "circuit_breaker",
+    "bulkhead",
+    "cancellation_supported",
+    "unknown_completion_behavior"
+  ],
+  "properties": {
+    "policy_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "operation_class": {
+      "enum": [
+        "read_only",
+        "provider_inference",
+        "memory_write",
+        "external_action",
+        "device_command",
+        "authentication",
+        "policy_decision"
+      ]
+    },
+    "deadline_ms": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 600000
+    },
+    "connect_timeout_ms": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 120000
+    },
+    "read_timeout_ms": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 300000
+    },
+    "max_retries": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "retryable_failure_classes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "connection_reset",
+          "temporary_unavailable",
+          "rate_limited_with_retry_after",
+          "gateway_timeout"
+        ]
+      }
+    },
+    "backoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "initial_delay_ms",
+        "max_delay_ms",
+        "jitter"
+      ],
+      "properties": {
+        "strategy": {
+          "const": "exponential"
+        },
+        "initial_delay_ms": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 30000
+        },
+        "max_delay_ms": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 120000
+        },
+        "jitter": {
+          "const": true
+        }
+      }
+    },
+    "circuit_breaker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "failure_threshold",
+        "open_duration_ms",
+        "half_open_probe_limit"
+      ],
+      "properties": {
+        "enabled": {
+          "const": true
+        },
+        "failure_threshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "open_duration_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 600000
+        },
+        "half_open_probe_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      }
+    },
+    "bulkhead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_concurrent",
+        "max_queue"
+      ],
+      "properties": {
+        "max_concurrent": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "max_queue": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        }
+      }
+    },
+    "cancellation_supported": {
+      "const": true
+    },
+    "unknown_completion_behavior": {
+      "enum": [
+        "do_not_report_success",
+        "query_idempotency_status",
+        "require_manual_reconciliation"
+      ]
+    },
+    "idempotency_required": {
+      "type": "boolean",
+      "default": false
+    },
+    "fallback_policy_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "failure_classification": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "invalid_request",
+          "unauthenticated",
+          "forbidden",
+          "rate_limited",
+          "quota_exceeded",
+          "policy_unavailable",
+          "provider_timeout",
+          "provider_unavailable",
+          "provider_rejected",
+          "invalid_provider_response",
+          "internal_error",
+          "cancelled"
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation_class": {
+            "const": "external_action"
+          }
+        },
+        "required": [
+          "operation_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "max_retries": {
+            "const": 0
+          },
+          "idempotency_required": {
+            "const": true
+          },
+          "unknown_completion_behavior": {
+            "enum": [
+              "query_idempotency_status",
+              "require_manual_reconciliation"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation_class": {
+            "const": "policy_decision"
+          }
+        },
+        "required": [
+          "operation_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unknown_completion_behavior": {
+            "const": "do_not_report_success"
+          }
+        }
+      }
+    }
+  ]
+}
