@@ -117,13 +117,13 @@ B — deterministic pure evaluator and adversarial tests: present in `src/core/r
 C — storage-port prototype with in-memory serialized transactions, task-version checks, lease fencing/renewal, evidence deduplication and atomic test commits: present in `src/core/reconciliation-storage.mjs`; this is not durable or shared across Worker isolates.  
 D — read-only mock provider adapter and integration tests for duplicates, contradictory evidence, outcome classification and retry gating: present under `src/providers/` and `tests/integration/`. Runtime transition-guard coverage is included in the integration suite.
 
-E — coordinator that safely acquires/releases leases, queries the adapter, evaluates evidence and commits through the storage port: not yet implemented.  
+E — test-isolated coordinator that acquires/releases leases, queries a read-only adapter, requires an injected independent verifier, evaluates evidence and commits through the storage port: implemented in `src/core/reconciliation-coordinator.mjs`, with tests in `tests/core/reconciliation-coordinator.test.mjs`. It is not registered or reachable from runtime routes.  
 F — trusted provider authentication/cryptographic verification, durable storage adapter, RBM pending-reservation/settlement integration and audit outbox delivery: not yet implemented.  
 G — controlled non-production activation and any real provider adapter: deferred until the preceding controls are implemented and reviewed. Production execution requires separate explicit owner approval.
 
 ## 12. Current v0.1 boundary
 
-The repository contains a pure reconciliation evaluator, provider-neutral contracts, a test-only read-only mock adapter, an in-memory storage-port test double, and tests covering evidence binding, lease fencing/renewal, atomic in-memory commits, retry gating and runtime transition guards. The storage implementation is process-local only; it is not durable and is not shared across Worker isolates. No coordinator currently connects the adapter, evaluator and storage port into a complete reconciliation workflow. Cryptographic/provider authentication, durable persistence, live RBM settlement, outbox delivery and retry orchestration are not implemented. No real executor is invoked.
+The repository contains a pure reconciliation evaluator, provider-neutral contracts, a test-only read-only mock adapter, an in-memory storage-port test double, and a test-isolated coordinator that joins these components behind a mandatory injected verifier boundary. Tests cover evidence binding, lease fencing/renewal, atomic in-memory commits, retry gating, runtime transition guards, coordinator failure paths and concurrent lease exclusion. The storage implementation is process-local only; it is not durable and is not shared across Worker isolates. The injected verifier used by tests is only a stub and does not provide production cryptographic/provider authentication. Durable persistence, live RBM settlement, outbox delivery and retry orchestration are not implemented. The coordinator is not connected to chat or runtime routes. No real executor is invoked.
 
 ## 13. Mock adapter boundary
 
