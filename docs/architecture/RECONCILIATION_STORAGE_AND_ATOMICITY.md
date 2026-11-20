@@ -225,6 +225,8 @@ A coordinator-facing adapter is prototyped in `src/core/integrity-protected-reco
 - The durable adapter must expose `listEvidenceEntries(taskId)` from a consistent snapshot. It must not provide a bypass that exposes raw persisted evidence to the coordinator.
 - Key resolution and sealing remain injected trust boundaries; no key material is stored in this module.
 
+The coordinator now reads and verifies persisted history immediately after acquiring its lease and before querying the provider. Thus tampered or unavailable history blocks the external status query, not merely the later commit. The end-to-end integration fixture exercises coordinator → protected store → fake durable adapter, verifies that only sealed entries reach the durable commit boundary, and confirms that a tampered historical record is rejected before provider lookup. The fixture is a contract-level integration test; it does not certify a real database transaction implementation.
+
 This adapter is a contract prototype tested with a fake transactional adapter. It is not connected to the current in-memory test double or production runtime. The fake test proves the wrapper's call contract, not database transaction semantics. A real durable adapter still needs transaction/rollback tests against its actual database engine, key lifecycle controls, and the reusable storage contract suite.
 
 ## 10. Storage-port contract
