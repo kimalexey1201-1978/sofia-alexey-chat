@@ -132,6 +132,10 @@ Social Media Integration Manager is a separate platform adapter layer. Media cre
 
 Automation & Integration Manager owns adapter discovery, connection metadata, trigger/action catalogs, typed data mapping, and integration-specific invocation. Workflow & State Manager remains the owner of durable workflow state, checkpoints, and recovery. Security Manager authorizes every exact operation; an integration connection or trigger does not grant blanket authority. Credentials remain in a protected vault. Use documented APIs, approved connectors, supported OS intents, or explicitly authorized visible user-mediated UI automation only. High-impact external side effects require fresh action-specific confirmation. Webhooks require signature/replay validation; uncertain side-effect completion must be reconciled before retry. No connector, account, webhook, or automation runtime is implemented by this architecture update.
 
-## 11. Current status
+## 11. Location and navigation boundary
+
+Location & Navigation Manager consumes only purpose-authorized observations from Device & Sensor Data Manager and records source, freshness, accuracy, and uncertainty. It owns route request/result normalization, geocoding and navigation hand-off policy, bounded geofence definitions, and explicit live-location sharing lifecycle. Automation & Integration Manager supplies approved map, transit, ride, and vehicle adapters; Device Integration Gateway owns device/vehicle command channels. Location triggers only initiate workflow evaluation and never grant downstream action authority. Precise or background location requires a declared purpose, OS permission, consent, and bounded duration. No continuous tracking, live routing, geofence execution, location sharing, or vehicle control is implemented by this architecture update.
+
+## 12. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
