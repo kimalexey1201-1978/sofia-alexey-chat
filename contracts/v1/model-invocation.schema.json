@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/model-invocation.schema.json",
+  "title": "Sofia AI Model Invocation v1",
+  "description": "Policy-bound request to an AI provider gateway. This request is not an authorization to execute tools or external actions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "invocation_id",
+    "schema_version",
+    "caller_id",
+    "task_type",
+    "purpose",
+    "data_classification",
+    "required_capabilities",
+    "input_ref",
+    "created_at",
+    "deadline_at",
+    "budget",
+    "policy_decision_ref",
+    "authority_effect"
+  ],
+  "properties": {
+    "invocation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "caller_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "task_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "data_classification": {
+      "enum": [
+        "public",
+        "internal",
+        "personal",
+        "sensitive"
+      ]
+    },
+    "required_capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "text_generation",
+          "structured_output",
+          "tool_call_proposals",
+          "vision",
+          "audio_input",
+          "audio_output",
+          "streaming",
+          "embeddings",
+          "translation",
+          "reasoning"
+        ]
+      }
+    },
+    "input_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Reference to minimized, access-controlled input; do not embed credentials or unrestricted memory dumps."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_input_tokens",
+        "max_output_tokens",
+        "max_cost_units",
+        "max_retries",
+        "timeout_ms"
+      ],
+      "properties": {
+        "max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000000
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200000
+        },
+        "max_cost_units": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency_or_unit": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 300000
+        }
+      }
+    },
+    "policy_decision_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "provider_allowlist": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      }
+    },
+    "provider_denylist": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      }
+    },
+    "minimum_quality_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "latency_target_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300000
+    },
+    "fallback_policy": {
+      "enum": [
+        "none",
+        "same_or_stricter_constraints",
+        "local_deterministic_only"
+      ]
+    },
+    "locale": {
+      "type": "string",
+      "maxLength": 35
+    },
+    "output_contract_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "cancellation_token_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "authority_effect": {
+      "const": "none"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "data_classification": {
+            "const": "sensitive"
+          }
+        },
+        "required": [
+          "data_classification"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fallback_policy": {
+            "enum": [
+              "none",
+              "local_deterministic_only"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
