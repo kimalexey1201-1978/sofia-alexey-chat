@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/purchase-order-intent.schema.json",
+  "title": "Sofia Purchase Order Intent",
+  "description": "Prepared order request bound to exact items, seller, address, delivery, and total; not itself authorization or execution.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["purchase_intent_id", "seller_ref", "items", "total_amount", "currency", "shipping_address_ref", "purpose", "status", "requested_at", "authority_envelope_ref", "policy_decision_ref"],
+  "properties": {
+    "purchase_intent_id": { "type": "string", "format": "uuid" },
+    "seller_ref": { "type": "string", "maxLength": 256 },
+    "items": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "type": "object", "additionalProperties": false, "required": ["product_id", "offer_id", "quantity"], "properties": {
+      "product_id": { "type": "string", "maxLength": 256 },
+      "offer_id": { "type": "string", "maxLength": 256 },
+      "variant_ref": { "type": "string", "maxLength": 256 },
+      "quantity": { "type": "integer", "minimum": 1, "maximum": 1000 }
+    }}},
+    "total_amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,8})?$", "maxLength": 40 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "shipping_address_ref": { "type": "string", "maxLength": 256 },
+    "delivery_option_ref": { "type": "string", "maxLength": 256 },
+    "payment_instrument_ref": { "type": "string", "maxLength": 256 },
+    "subscription": { "type": "boolean" },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "status": { "type": "string", "enum": ["draft", "awaiting_confirmation", "approved", "submitted", "accepted", "processing", "shipped", "delivered", "cancelled", "failed", "completion_unknown"] },
+    "authority_envelope_ref": { "type": "string", "maxLength": 256 },
+    "policy_decision_ref": { "type": "string", "maxLength": 256 },
+    "approval_ref": { "type": "string", "maxLength": 256 },
+    "parameter_digest": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "idempotency_key": { "type": "string", "maxLength": 256 },
+    "provider_order_ref": { "type": "string", "maxLength": 256 },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}
