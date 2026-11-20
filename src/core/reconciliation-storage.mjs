@@ -5,6 +5,38 @@ function canonicalJson(value) {
   return `{${Object.keys(value).sort().map(key =>
     `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
 }
+
+/**
+ * SHA-256 of the canonical, deduplicated evidence set.
+ * Records are sorted by evidence_digest, then canonical JSON as a stable
+ * tie-breaker. Callers must pass the complete persisted set for the task.
+ */
+export async function computeEvidenceSetDigest(records) {
+  if (!Array.isArray(records) || records.length === 0) {
+    throw new TypeError("EVIDENCE_SET_REQUIRED");
+  }
+  const unique = new Map();
+  for (const record of records) {
+    if (!record || typeof record.evidence_digest !== "string") {
+      throw new TypeError("EVIDENCE_RECORD_INVALID");
+    }
+    const serialized = canonicalJson(record);
+    const previous = unique.get(record.evidence_digest);
+    if (previous !== undefined && previous !== serialized) {
+      throw new TypeError("EVIDENCE_DIGEST_CONFLICT");
+    }
+    unique.set(record.evidence_digest, serialized);
+  }
+  const canonicalRecords = [...unique.entries()]
+    .sort(([digestA, jsonA], [digestB, jsonB]) =>
+      digestA.localeCompare(digestB) || jsonA.localeCompare(jsonB))
+    .map(([, serialized]) => serialized);
+  const payload = `[${canonicalRecords.join(",")}]`;
+  const bytes = new TextEncoder().encode(payload);
+  const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 const TERMINAL = new Set(["completed", "failed"]);
 const CONCLUSIONS = new Set([
   "CONFIRMED_APPLIED", "CONFIRMED_NOT_APPLIED", "STILL_UNKNOWN"
@@ -169,6 +201,22 @@ export function createInMemoryReconciliationStore() {
             return {committed:false, reasonCode:"EVIDENCE_RECORD_INVALID"};
           }
           if (!existing) merged.push(clone(record));
+        }
+
+        // A terminal resolution may use exactly one distinct authoritative
+        // evidence record. Multiple distinct records remain quarantined.
+        const distinctEvidence = new Set(merged.map(record => record.evidence_digest));
+        if (expectedState !== "outcome_uncertain" && distinctEvidence.size !== 1) {
+          return {committed:false, reasonCode:"MULTIPLE_DISTINCT_EVIDENCE_RECORDS"};
+        }
+        let computedEvidenceSetDigest;
+        try {
+          computedEvidenceSetDigest = await computeEvidenceSetDigest(merged);
+        } catch {
+          return {committed:false, reasonCode:"EVIDENCE_SET_INVALID"};
+        }
+        if (computedEvidenceSetDigest !== decision.evidence_set_digest.toLowerCase()) {
+          return {committed:false, reasonCode:"EVIDENCE_SET_DIGEST_MISMATCH"};
         }
 
         const nextState = expectedState;
