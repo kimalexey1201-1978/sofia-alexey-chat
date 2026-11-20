@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/execution-result.schema.json",
+  "title": "Sofia AI Execution Result v1",
+  "description": "Normalized result envelope returned by the Execution Supervisor to Sofia Core. A result is untrusted until schema and provenance validation succeeds.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "task_id", "correlation_id", "status", "module_id", "module_version", "started_at", "completed_at", "contract_version"],
+  "properties": {
+    "request_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "correlation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "status": {"type": "string", "enum": ["SUCCEEDED", "REJECTED", "FAILED", "TIMED_OUT", "CANCELLED", "OUTCOME_UNKNOWN"]},
+    "module_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "module_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "result_ref": {"type": "string", "maxLength": 512},
+    "result_digest": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "result_schema_ref": {"type": "string", "maxLength": 256},
+    "error_code": {"type": "string", "maxLength": 128},
+    "diagnostic_ref": {"type": "string", "maxLength": 256},
+    "resource_usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "cpu_ms": {"type": "integer", "minimum": 0},
+        "peak_memory_bytes": {"type": "integer", "minimum": 0},
+        "network_bytes": {"type": "integer", "minimum": 0},
+        "provider_cost_minor_units": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+      }
+    },
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "contract_version": {"type": "string", "const": "1.0.0"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "SUCCEEDED"}}, "required": ["status"]},
+      "then": {"required": ["result_ref", "result_digest", "result_schema_ref"]}
+    },
+    {
+      "if": {"properties": {"status": {"enum": ["FAILED", "REJECTED", "TIMED_OUT", "CANCELLED", "OUTCOME_UNKNOWN"]}}, "required": ["status"]},
+      "then": {"required": ["error_code"]}
+    }
+  ]
+}
