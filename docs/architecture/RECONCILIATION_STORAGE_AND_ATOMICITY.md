@@ -171,6 +171,8 @@ Before historical evidence can influence a later decision, a durable adapter mus
 5. Bind the authenticated envelope to the task ID, request ID, provider identity, evidence digest, and schema version to prevent moving a valid record between tasks or requests.
 6. Define key rotation, key identifier retention, backup/restore verification, and an explicit migration path for historical records created before envelope enforcement. Never silently upgrade an unverified legacy row into trusted history.
 
+A small, storage-agnostic HMAC envelope helper is now prototyped in `src/core/evidence-integrity.mjs`. It signs the canonical complete record digest plus an explicit binding to task ID, request ID, provider ID, schema version, evidence digest, key ID, and acceptance time. Verification requires the caller to resolve the expected non-extractable HMAC `CryptoKey` from an external trusted key-management boundary. The helper does not load, generate, persist, rotate, or manage production keys; it is not yet wired into the in-memory store or any durable adapter. Its tests cover record mutation, envelope mutation, wrong keys, key-ID mismatch, and cross-task binding.
+
 The manager's current historical checks validate record shape, timestamps, verifier metadata, conclusion, and immutable request binding. They do not independently verify a cryptographic storage envelope. That is an intentional limitation of this pure evaluator; the durable storage adapter is responsible for authenticating persisted history before returning it. Until that adapter exists and passes tamper/fault-injection tests, the prototype must not be treated as a production trust boundary.
 
 ## 8. Acceptance criteria before implementation
