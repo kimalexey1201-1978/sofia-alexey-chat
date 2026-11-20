@@ -157,7 +157,7 @@ test("end-to-end coordinator fails closed on tampered persisted history before p
   const second = await coordinator.reconcile({ taskId, owner: "worker-second" });
   assert.equal(second.reconciled, false);
   assert.equal(second.reasonCode, "RECONCILIATION_DEPENDENCY_ERROR");
-  assert.equal(adapter.calls.length, 2); // provider lookup precedes historical read in current coordinator flow
+  assert.equal(adapter.calls.length, 1); // tampered history is rejected before provider lookup
   assert.equal(durable.atomicCommitCalls, 1);
   assert.equal((await durable.getTask(taskId)).state, "outcome_uncertain");
   assert.equal(durable.decisions.length, 1);
