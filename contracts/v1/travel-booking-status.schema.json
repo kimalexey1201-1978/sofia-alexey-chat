@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/travel-booking-status.schema.json",
+  "title": "Sofia Travel Booking Status",
+  "description": "Provider-reconciled booking and ticket lifecycle status.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["booking_ref", "provider_id", "status", "updated_at"],
+  "properties": {
+    "booking_ref": { "type": "string", "maxLength": 256 },
+    "provider_id": { "type": "string", "maxLength": 160 },
+    "status": { "type": "string", "enum": ["draft", "submitted", "provider_accepted", "confirmed", "ticketed", "waitlisted", "rejected", "cancelled", "refund_pending", "refunded", "disrupted", "completion_unknown"] },
+    "ticket_or_reservation_refs": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 256 } },
+    "provider_updated_at": { "type": "string", "format": "date-time" },
+    "last_verified_at": { "type": "string", "format": "date-time" },
+    "refund_amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,8})?$", "maxLength": 40 },
+    "refund_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "safe_status_message": { "type": "string", "maxLength": 1024 },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
