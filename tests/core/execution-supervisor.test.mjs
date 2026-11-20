@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateExecutionAdmission } from "../../src/core/execution-supervisor.mjs";
+import {
+  evaluateExecutionAdmission,
+  evaluateRuntimeTaskTransition,
+  evaluateExecutionRetry
+} from "../../src/core/execution-supervisor.mjs";
 
 const now = new Date("2026-11-20T15:00:00.000Z");
 function validInput() {
@@ -93,4 +97,35 @@ test("rejects paid resource policy and non-ALLOW decisions", () => {
   assert.equal(result.admitted, false);
   assert.ok(result.reasonCodes.includes("RESOURCE_POLICY_NOT_FREE_ONLY"));
   assert.ok(result.reasonCodes.includes("SECURITY_DECISION_NOT_ALLOW_OR_NOT_BOUND"));
+});
+
+test("allows ordinary forward task transitions", () => {
+  assert.equal(evaluateRuntimeTaskTransition({from:"created",to:"admitted"}).allowed, true);
+  assert.equal(evaluateRuntimeTaskTransition({from:"running",to:"outcome_uncertain"}).allowed, true);
+  assert.equal(evaluateRuntimeTaskTransition({from:"completed",to:"running"}).allowed, false);
+});
+
+test("uncertain outcome can only leave through verified reconciliation", () => {
+  assert.equal(evaluateRuntimeTaskTransition({from:"outcome_uncertain",to:"completed"}).reasonCode,
+    "AUTHORITATIVE_RECONCILIATION_REQUIRED");
+  assert.equal(evaluateRuntimeTaskTransition({from:"outcome_uncertain",to:"running",reconciliationVerified:true}).allowed, false);
+  assert.equal(evaluateRuntimeTaskTransition({from:"outcome_uncertain",to:"completed",reconciliationVerified:true}).allowed, true);
+});
+
+test("blocks retry for unknown or already-applied provider outcomes", () => {
+  const base = { priorState:"outcome_uncertain", providerOutcome:"UNKNOWN",
+    idempotencyKey:"idem-key-0001", retryIdempotencyKey:"idem-key-0001",
+    sameCanonicalOperation:true, naturallyIdempotent:false };
+  assert.equal(evaluateExecutionRetry(base).reasonCode, "OUTCOME_RECONCILIATION_REQUIRED");
+  assert.equal(evaluateExecutionRetry({...base, priorState:"failed", providerOutcome:"CONFIRMED_APPLIED"}).reasonCode,
+    "PRIOR_SIDE_EFFECT_ALREADY_APPLIED");
+});
+
+test("allows retry only with known-safe outcome and identical operation binding", () => {
+  const base = { priorState:"failed", providerOutcome:"CONFIRMED_NOT_APPLIED",
+    idempotencyKey:"idem-key-0001", retryIdempotencyKey:"idem-key-0001",
+    sameCanonicalOperation:true, naturallyIdempotent:false };
+  assert.equal(evaluateExecutionRetry(base).allowed, true);
+  assert.equal(evaluateExecutionRetry({...base, retryIdempotencyKey:"different-key"}).reasonCode,
+    "RETRY_BINDING_MISMATCH");
 });

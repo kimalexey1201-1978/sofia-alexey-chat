@@ -1,8 +1,73 @@
 const RISK = Object.freeze({ R0: 0, R1: 1, R2: 2, R3: 3 });
 
+const TASK_TRANSITIONS = Object.freeze({
+  created: ["admitted", "failed", "cancelled", "expired"],
+  admitted: ["running", "failed", "cancelled", "expired"],
+  running: ["paused", "checkpointed", "completed", "failed", "cancelled", "expired", "outcome_uncertain"],
+  paused: ["resuming", "cancelled", "expired"],
+  checkpointed: ["resuming", "cancelled", "expired"],
+  resuming: ["running", "failed", "cancelled", "expired", "outcome_uncertain"],
+  outcome_uncertain: ["completed", "failed"],
+  completed: [],
+  failed: [],
+  cancelled: [],
+  expired: []
+});
+
 function validTime(value, now) {
   const timestamp = Date.parse(value ?? "");
   return Number.isFinite(timestamp) && timestamp > now.getTime();
+}
+
+/**
+ * Pure transition guard. Leaving outcome_uncertain requires verified,
+ * authoritative reconciliation; it never transitions directly back to execution.
+ */
+export function evaluateRuntimeTaskTransition(input) {
+  if (!input || typeof input !== "object") {
+    return { allowed: false, reasonCode: "INVALID_TRANSITION_INPUT" };
+  }
+  const { from, to, reconciliationVerified = false } = input;
+  if (!Object.hasOwn(TASK_TRANSITIONS, from) || !TASK_TRANSITIONS[from].includes(to)) {
+    return { allowed: false, reasonCode: "TRANSITION_NOT_ALLOWED" };
+  }
+  if (from === "outcome_uncertain" && reconciliationVerified !== true) {
+    return { allowed: false, reasonCode: "AUTHORITATIVE_RECONCILIATION_REQUIRED" };
+  }
+  return { allowed: true, reasonCode: null };
+}
+
+/**
+ * A retry is permitted only after the prior external outcome is known not
+ * to have been applied, or the capability contract explicitly declares the
+ * exact operation naturally idempotent. Unknown outcomes are never retried.
+ */
+export function evaluateExecutionRetry(input) {
+  if (!input || typeof input !== "object") {
+    return { allowed: false, reasonCode: "INVALID_RETRY_INPUT" };
+  }
+  const {
+    priorState, providerOutcome, idempotencyKey, retryIdempotencyKey,
+    sameCanonicalOperation, naturallyIdempotent
+  } = input;
+  if (priorState === "outcome_uncertain" || providerOutcome === "UNKNOWN") {
+    return { allowed: false, reasonCode: "OUTCOME_RECONCILIATION_REQUIRED" };
+  }
+  if (providerOutcome === "CONFIRMED_APPLIED") {
+    return { allowed: false, reasonCode: "PRIOR_SIDE_EFFECT_ALREADY_APPLIED" };
+  }
+  if (providerOutcome !== "CONFIRMED_NOT_APPLIED" &&
+      naturallyIdempotent !== true) {
+    return { allowed: false, reasonCode: "RETRY_SAFETY_NOT_ESTABLISHED" };
+  }
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 ||
+      retryIdempotencyKey !== idempotencyKey || sameCanonicalOperation !== true) {
+    return { allowed: false, reasonCode: "RETRY_BINDING_MISMATCH" };
+  }
+  if (!["failed", "cancelled", "expired"].includes(priorState)) {
+    return { allowed: false, reasonCode: "PRIOR_TASK_NOT_RETRYABLE" };
+  }
+  return { allowed: true, reasonCode: null };
 }
 
 /**
