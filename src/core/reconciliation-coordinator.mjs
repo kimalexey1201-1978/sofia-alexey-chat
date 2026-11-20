@@ -41,6 +41,7 @@ export function createReconciliationCoordinator({
   if (!store || typeof store.getTask !== "function" ||
       typeof store.acquireLease !== "function" ||
       typeof store.commitDecision !== "function" ||
+      typeof store.listEvidence !== "function" ||
       typeof store.releaseLease !== "function" ||
       typeof getPriorRequest !== "function" ||
       !adapterRegistry || typeof adapterRegistry.get !== "function" ||
@@ -119,10 +120,19 @@ export function createReconciliationCoordinator({
           return { reconciled: false, reasonCode: "RECONCILIATION_TIME_INVALID" };
         }
 
+        // The evaluator and digest must operate on the complete persisted
+        // history plus this authenticated provider response, never only the
+        // latest response batch.
+        const priorEvidence = await store.listEvidence(taskId);
+        if (!Array.isArray(priorEvidence)) {
+          return { reconciled: false, reasonCode: "PERSISTED_EVIDENCE_UNAVAILABLE",
+            taskState: "outcome_uncertain" };
+        }
+        const evidenceRecords = [...priorEvidence, ...verified.evidenceRecords];
         const evaluation = evaluateReconciliationEvidenceBatch({
           task,
           priorRequest,
-          evidenceRecords: verified.evidenceRecords,
+          evidenceRecords,
           freshnessWindowMs
         }, now);
 
@@ -130,16 +140,14 @@ export function createReconciliationCoordinator({
         // eligible for an auditable unknown decision. Invalid/ambiguous
         // evidence is not persisted as if it were verified.
         const isVerifiedUnknown =
-          evaluation.reasonCode === "PROVIDER_STATE_STILL_UNKNOWN" &&
-          evaluation.conclusion === "STILL_UNKNOWN" &&
-          verified.evidenceRecords.every(record =>
-            record?.conclusion === "STILL_UNKNOWN");
+          (evaluation.reasonCode === "PROVIDER_STATE_STILL_UNKNOWN" ||
+            evaluation.reasonCode === "MULTIPLE_DISTINCT_EVIDENCE_RECORDS") &&
+          evaluation.conclusion === "STILL_UNKNOWN";
         if (!evaluation.resolved && !isVerifiedUnknown) {
           return { reconciled: false, reasonCode: evaluation.reasonCode,
             taskState: "outcome_uncertain" };
         }
 
-        const evidenceRecords = verified.evidenceRecords;
         const evidenceSetDigest = await computeEvidenceSetDigest(evidenceRecords);
         const terminal = evaluation.resolved === true;
         const taskVersionAfter = terminal ? task.version + 1 : task.version;
