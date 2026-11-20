@@ -1,0 +1,36 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sofia.ai/contracts/v1/vehicle-cruise-control-request.schema.json",
+  "title":"Vehicle Cruise Control Voice Request",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","request_id","vehicle_id","operation","source","requested_by","issued_at","deadline","idempotency_key","authority_envelope_ref","policy_decision_ref"],
+  "properties":{
+    "schema_version":{"const":"1.0.0"},
+    "request_id":{"type":"string","minLength":1,"maxLength":200},
+    "vehicle_id":{"type":"string","minLength":1,"maxLength":200},
+    "operation":{"enum":["enable","cancel","resume","set_speed"]},
+    "target_speed":{"type":"number","exclusiveMinimum":0},
+    "speed_unit":{"enum":["km_h","mph"]},
+    "source":{"const":"authenticated_voice"},
+    "requested_by":{"type":"string","minLength":1,"maxLength":200},
+    "issued_at":{"type":"string","format":"date-time"},
+    "deadline":{"type":"string","format":"date-time"},
+    "idempotency_key":{"type":"string","minLength":16,"maxLength":200},
+    "authority_envelope_ref":{"type":"string","minLength":1,"maxLength":200},
+    "policy_decision_ref":{"type":"string","minLength":1,"maxLength":200},
+    "vehicle_state_observation_ref":{"type":"string","maxLength":200},
+    "oem_capability_ref":{"type":"string","maxLength":200},
+    "correlation_id":{"type":"string","maxLength":200}
+  },
+  "allOf":[
+    {
+      "if":{"properties":{"operation":{"const":"set_speed"}},"required":["operation"]},
+      "then":{"required":["target_speed","speed_unit"]}
+    },
+    {
+      "if":{"properties":{"operation":{"enum":["enable","resume"]}},"required":["operation"]},
+      "then":{"required":["vehicle_state_observation_ref","oem_capability_ref"]}
+    }
+  ]
+}
