@@ -42,6 +42,8 @@ test("integrates Sofia Core with OpenRouter adapter through mocked fetch", async
   assert.equal(result.taskPlan.autonomy_level, "A0");
   assert.equal(result.taskPlan.resource_policy, "FREE_ONLY");
   assert.equal(result.taskPlan.steps.length, 1);
+  assert.equal(result.taskPlan.status, "completed");
+  assert.equal(result.taskPlan.steps[0].status, "succeeded");
   assert.deepEqual(result.answer, {
     text: "Ответ от тестового провайдера",
     providerId: "openrouter",
