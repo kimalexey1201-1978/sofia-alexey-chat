@@ -18,7 +18,7 @@ async function commitInput(lease, overrides = {}) {
     decision_id:"decision-0001", task_id:"task-0001", request_id:"request-0001",
     task_version_before:1, task_version_after:2,
     conclusion:"CONFIRMED_APPLIED", reason_code:"CONFIRMED_APPLIED",
-    evidence_set_digest:await computeEvidenceSetDigest(overrides.evidenceRecords ?? [evidence()]), policy_version:"1.0.0",
+    evidence_set_digest:"", policy_version:"1.0.0",
     decided_at:now, reconciler_ref:"reconciler:test"
   };
   const evidenceRecords = overrides.evidenceRecords ?? [evidence()];
@@ -94,6 +94,7 @@ test("unknown decision appends audit evidence but preserves state and version", 
     conclusion:"STILL_UNKNOWN",reason_code:"PROVIDER_STATE_STILL_UNKNOWN",
     task_version_after:1};
   input.evidenceRecords=[{...evidence(),conclusion:"STILL_UNKNOWN"}];
+  input.decision.evidence_set_digest=await computeEvidenceSetDigest(input.evidenceRecords);
   input.auditEvent={...input.auditEvent,event_id:"event-unknown",
     event_type:"reconciliation.still_unknown",aggregate_version:1,
     payload:{conclusion:"STILL_UNKNOWN",reason_code:"PROVIDER_STATE_STILL_UNKNOWN",
