@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-registry-record.schema.json",
+  "title": "Sofia AI Device Registry Record v1",
+  "description": "Canonical registry metadata for a device. Registration, pairing, trust, connectivity, health and capability grants are distinct states.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "device_ref",
+    "owner_ref",
+    "device_class",
+    "lifecycle_state",
+    "platform",
+    "capability_refs",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "device_ref": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256
+    },
+    "owner_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "device_class": {
+      "type": "string",
+      "enum": [
+        "smartphone",
+        "tablet",
+        "smartwatch",
+        "fitness_band",
+        "smart_glasses",
+        "headphones",
+        "audio_device",
+        "camera",
+        "sensor",
+        "display",
+        "computer",
+        "vehicle_system",
+        "smart_home_hub",
+        "smart_lock",
+        "climate_device",
+        "lighting_device",
+        "security_device",
+        "other"
+      ]
+    },
+    "manufacturer": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "model": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "display_name": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "android",
+            "ios",
+            "windows",
+            "linux",
+            "macos",
+            "embedded",
+            "vendor_cloud",
+            "other"
+          ]
+        },
+        "os_version": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "platform_instance_ref": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "protocols": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 80
+      }
+    },
+    "adapter_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 180
+      }
+    },
+    "capability_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 180
+      }
+    },
+    "pairing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "platform_secure_pairing",
+            "cryptographic_challenge",
+            "out_of_band_confirmation",
+            "vendor_account_link",
+            "manual_owner_confirmation",
+            "unknown"
+          ]
+        },
+        "paired_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "proof_ref": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "credential_handle_ref": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "trust_assessment_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "connection_state": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "offline",
+        "discoverable",
+        "connecting",
+        "connected",
+        "intermittent"
+      ]
+    },
+    "health_state": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "healthy",
+        "degraded",
+        "unhealthy"
+      ]
+    },
+    "privacy_profile_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "resource_observation_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "pairing_pending",
+        "paired_unverified",
+        "registered",
+        "trusted",
+        "degraded",
+        "suspended",
+        "revoked",
+        "retired"
+      ]
+    },
+    "last_seen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revocation_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "contract_versions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 80
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string",
+      "maxLength": 128
+    }
+  }
+}
