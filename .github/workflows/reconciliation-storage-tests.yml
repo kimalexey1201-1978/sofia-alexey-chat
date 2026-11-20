@@ -9,7 +9,7 @@ on:
       - "src/core/reconciliation-manager.mjs"
       - "src/core/reconciliation-coordinator.mjs"
       - "tests/core/reconciliation-storage*.test.mjs"
-      - "tests/core/reconciliation-manager.test.mjs tests/core/reconciliation-coordinator.test.mjs"
+      - "tests/core/reconciliation-manager.test.mjs"
       - "tests/core/reconciliation-coordinator.test.mjs"
       - "tests/contracts/reconciliation-storage.contract.mjs"
       - ".github/workflows/reconciliation-storage-tests.yml"
@@ -17,8 +17,10 @@ on:
     paths:
       - "src/core/reconciliation-storage.mjs"
       - "src/core/reconciliation-manager.mjs"
+      - "src/core/reconciliation-coordinator.mjs"
       - "tests/core/reconciliation-storage*.test.mjs"
       - "tests/core/reconciliation-manager.test.mjs"
+      - "tests/core/reconciliation-coordinator.test.mjs"
       - "tests/contracts/reconciliation-storage.contract.mjs"
       - ".github/workflows/reconciliation-storage-tests.yml"
 
@@ -35,5 +37,5 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Run storage adapter and reusable contract tests
-        run: node --test tests/core/reconciliation-storage.test.mjs tests/core/reconciliation-storage.contract.test.mjs tests/core/reconciliation-manager.test.mjs
+      - name: Run storage, manager and coordinator tests
+        run: node --test tests/core/reconciliation-storage.test.mjs tests/core/reconciliation-storage.contract.test.mjs tests/core/reconciliation-manager.test.mjs tests/core/reconciliation-coordinator.test.mjs
