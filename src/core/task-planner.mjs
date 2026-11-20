@@ -124,3 +124,20 @@ export function createInferencePlan(messages, now = new Date()) {
   if (!checked.ok) throw new Error(`Generated task plan rejected: ${checked.code}`);
   return plan;
 }
+
+/** Marks the single inference step successful only after a validated response exists. */
+export function completeInferencePlan(plan, responseText) {
+  if (typeof responseText !== "string" || responseText.trim().length === 0) {
+    return { ok: false, code: "EMPTY_VERIFIED_RESPONSE" };
+  }
+  const completed = {
+    ...plan,
+    status: "completed",
+    steps: plan.steps.map(step => ({
+      ...step,
+      status: step.step_id === "respond" ? "succeeded" : step.status
+    }))
+  };
+  const checked = validateTaskPlan(completed);
+  return checked.ok ? { ok: true, plan: completed } : checked;
+}
