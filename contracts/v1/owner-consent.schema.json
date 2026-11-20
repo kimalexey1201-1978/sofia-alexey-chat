@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/owner-consent.schema.json",
+  "title": "Sofia AI Owner Consent v1",
+  "description": "Explicit, time-bounded owner choice for a narrowly scoped disclosure or action. Consent is not authentication or a general capability grant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["consent_id", "principal_ref", "session_ref", "purpose", "scope", "decision", "captured_at", "expires_at", "capture_method"],
+  "properties": {
+    "consent_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "principal_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "session_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "purpose": {"type": "string", "minLength": 1, "maxLength": 256},
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource_type", "resource_ref", "operation", "output_mode"],
+      "properties": {
+        "resource_type": {"type": "string", "enum": ["email", "message", "document", "notification", "other"]},
+        "resource_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "operation": {"type": "string", "enum": ["read", "disclose", "send", "forward", "delete", "export", "other"]},
+        "output_mode": {"type": "string", "enum": ["voice", "private_display", "shared_display", "none"]}
+      }
+    },
+    "decision": {"type": "string", "enum": ["granted", "denied", "withdrawn"]},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "capture_method": {"type": "string", "enum": ["explicit_voice_confirmation", "in_app_confirmation", "platform_confirmation", "other"]},
+    "authentication_context_ref": {"type": "string", "maxLength": 128},
+    "action_digest": {"type": "string", "maxLength": 256},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
