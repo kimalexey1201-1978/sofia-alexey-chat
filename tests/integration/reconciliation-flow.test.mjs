@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   evaluateReconciliationEvidenceBatch
 } from "../../src/core/reconciliation-manager.mjs";
-import { evaluateExecutionRetry } from "../../src/core/execution-supervisor.mjs";
+import {
+  evaluateExecutionRetry,
+  evaluateRuntimeTaskTransition
+} from "../../src/core/execution-supervisor.mjs";
 import { createMockReconciliationAdapter } from "../../src/providers/mock-reconciliation-adapter.mjs";
 
 const now = new Date("2026-11-20T15:00:00.000Z");
@@ -103,4 +106,35 @@ test("rejects conflicting contents that reuse one evidence digest", async () => 
   const result = await reconcile(queryAdapter([input.evidence, conflict]), input);
   assert.equal(result.taskState, "outcome_uncertain");
   assert.equal(result.reasonCode, "DUPLICATE_EVIDENCE_DIGEST_CONFLICT");
+});
+
+
+test("allows only the reconciled terminal transition from outcome_uncertain", async () => {
+  for (const [conclusion, expectedState] of [
+    ["CONFIRMED_APPLIED", "completed"],
+    ["CONFIRMED_NOT_APPLIED", "failed"]
+  ]) {
+    const input = fixture(conclusion);
+    const result = await reconcile(queryAdapter([input.evidence]), input);
+    const transition = evaluateRuntimeTaskTransition({
+      from: "outcome_uncertain",
+      to: expectedState,
+      reconciliationVerified: result.resolved === true
+    });
+    assert.equal(result.resolved, true);
+    assert.equal(transition.allowed, true);
+  }
+});
+
+test("does not let STILL_UNKNOWN leave outcome_uncertain", async () => {
+  const input = fixture("STILL_UNKNOWN");
+  const result = await reconcile(queryAdapter([input.evidence]), input);
+  const transition = evaluateRuntimeTaskTransition({
+    from: "outcome_uncertain",
+    to: "completed",
+    reconciliationVerified: result.resolved === true
+  });
+  assert.equal(result.resolved, false);
+  assert.equal(transition.allowed, false);
+  assert.equal(transition.reasonCode, "AUTHORITATIVE_RECONCILIATION_REQUIRED");
 });
