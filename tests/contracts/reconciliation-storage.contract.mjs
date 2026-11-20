@@ -119,7 +119,7 @@ export function defineReconciliationStorageContract({
           now: "2026-11-20T15:00:00.000Z", ttlMs: 30000
         });
         const first = await makeCommit(lease);
-        const second = makeCommit(lease, {
+        const second = await makeCommit(lease, {
           decision: { ...first.decision, decision_id: "decision-second" },
           auditEvent: { ...first.auditEvent, event_id: "event-second" }
         });
