@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-pairing-challenge.schema.json",
+  "title": "Sofia AI Device Pairing Challenge v1",
+  "description": "Single-use, short-lived challenge bound to an owner session, pairing transaction, candidate device and audience.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["challenge_id", "nonce", "pairing_transaction_id", "candidate_device_ref", "owner_principal_ref", "owner_session_ref", "audience", "issued_at", "expires_at", "status"],
+  "properties": {
+    "challenge_id": {"type": "string", "minLength": 16, "maxLength": 128},
+    "nonce": {"type": "string", "minLength": 32, "maxLength": 256},
+    "pairing_transaction_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "candidate_device_ref": {"type": "string", "minLength": 8, "maxLength": 256},
+    "owner_principal_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "owner_session_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "expected_key_fingerprint": {"type": "string", "maxLength": 256},
+    "protocol": {"type": "string", "maxLength": 128},
+    "audience": {"type": "string", "minLength": 1, "maxLength": 256},
+    "operation": {"const": "device_pairing_proof"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "status": {"type": "string", "enum": ["issued", "consumed", "expired", "revoked"]},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
