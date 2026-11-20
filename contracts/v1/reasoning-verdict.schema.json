@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/reasoning-verdict.schema.json",
+  "title": "Sofia AI Reasoning Verdict v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "verdict_id",
+    "task_ref",
+    "created_at",
+    "outcome",
+    "evidence_refs",
+    "uncertainty_level",
+    "review_status",
+    "policy_version"
+  ],
+  "properties": {
+    "verdict_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "task_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "outcome": { "enum": ["ANSWER", "QUALIFY", "ASK_OWNER", "SEEK_MORE_EVIDENCE", "DEFER", "REJECT"] },
+    "evidence_refs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 512 } },
+    "assumption_refs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 512 } },
+    "counterevidence_refs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 512 } },
+    "uncertainty_level": { "enum": ["low", "moderate", "high", "unknown"] },
+    "review_status": { "enum": ["not_required", "pending", "passed", "passed_with_warnings", "failed"] },
+    "reason_codes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 96 } },
+    "owner_approval_required": { "type": "boolean" },
+    "policy_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "valid_until": { "type": "string", "format": "date-time" }
+  }
+}
