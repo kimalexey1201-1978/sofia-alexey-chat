@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/workflow-definition.schema.json",
+  "title": "Sofia Workflow Definition",
+  "description": "Immutable, versioned workflow definition. Definitions describe allowed behavior but do not grant authority.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflow_type",
+    "definition_version",
+    "owner_module_id",
+    "initial_state",
+    "states",
+    "transitions",
+    "created_at",
+    "input_schema_ref"
+  ],
+  "properties": {
+    "workflow_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*){1,7}$",
+      "maxLength": 160
+    },
+    "definition_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "owner_module_id": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "initial_state": {
+      "type": "string",
+      "enum": ["created", "ready"]
+    },
+    "states": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["created", "ready", "running", "waiting", "paused", "succeeded", "failed", "cancelled", "compensating", "compensated", "expired"]
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "trigger"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "trigger": {
+            "type": "string",
+            "enum": ["system", "step_result", "event", "timer", "approval", "user_request", "recovery", "compensation"]
+          },
+          "required_permission": { "type": "string", "maxLength": 160 },
+          "requires_approval": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "step_refs": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "uniqueItems": true
+    },
+    "input_schema_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "output_schema_ref": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "default_deadline_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2592000
+    },
+    "max_instances_per_principal": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "retry_policy_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "resource_budget_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "retention_policy_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "compensation_supported": {
+      "type": "boolean",
+      "default": false
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
