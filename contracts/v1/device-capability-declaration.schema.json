@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-capability-declaration.schema.json",
+  "title": "Sofia AI Device Capability Declaration v1",
+  "description": "Untrusted, versioned declaration of device or adapter functionality. A declaration is not an authorization grant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "declaration_id",
+    "device_ref",
+    "capability_id",
+    "contract_version",
+    "operations",
+    "risk_tier",
+    "declared_at"
+  ],
+  "properties": {
+    "declaration_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "device_ref": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256
+    },
+    "adapter_module_id": {
+      "type": "string",
+      "maxLength": 180
+    },
+    "capability_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$",
+      "maxLength": 180
+    },
+    "contract_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "target_types": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "data_classes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "public",
+          "user_content",
+          "personal_data",
+          "sensitive_data",
+          "credentials",
+          "device_telemetry"
+        ]
+      }
+    },
+    "input_schema_ref": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "output_schema_ref": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "risk_tier": {
+      "type": "string",
+      "enum": [
+        "R0",
+        "R1",
+        "R2",
+        "R3",
+        "unknown"
+      ]
+    },
+    "sensor_access": {
+      "type": "boolean"
+    },
+    "physical_side_effect": {
+      "type": "boolean"
+    },
+    "platform_requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      }
+    },
+    "permission_requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      }
+    },
+    "resource_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "estimated_latency_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimated_energy_mwh": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "network_required": {
+          "type": "boolean"
+        },
+        "min_battery_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "declared_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provenance_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "unverified",
+        "verified",
+        "rejected",
+        "expired"
+      ]
+    }
+  }
+}
