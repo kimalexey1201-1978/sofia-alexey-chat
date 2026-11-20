@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/user-session.schema.json",
+  "title": "Sofia User Session v1",
+  "description": "Server-issued authenticated user session. Client-provided session references are identifiers only and never establish authentication.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "principal_ref",
+    "issuer",
+    "client_type",
+    "state",
+    "assurance_level",
+    "issued_at",
+    "last_authenticated_at",
+    "last_seen_at",
+    "expires_at",
+    "absolute_expires_at",
+    "session_version",
+    "correlation_id"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "issuer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "client_type": {
+      "enum": [
+        "web",
+        "android",
+        "desktop",
+        "other_supported"
+      ]
+    },
+    "device_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "state": {
+      "enum": [
+        "active",
+        "reauthentication_required",
+        "expired",
+        "revoked",
+        "closed"
+      ]
+    },
+    "assurance_level": {
+      "enum": [
+        "low",
+        "substantial",
+        "high"
+      ]
+    },
+    "authentication_context_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_authenticated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_seen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "absolute_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "idle_timeout_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 2592000
+    },
+    "session_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "credential_ref": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Opaque server-side reference to a credential record. Never store raw access or refresh tokens here."
+    },
+    "credential_rotation_counter": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_rotation_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revoked_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revocation_reason": {
+      "enum": [
+        "owner_logout",
+        "owner_security_action",
+        "credential_rotation_reuse",
+        "administrator_action",
+        "risk_policy",
+        "identity_provider_revocation"
+      ]
+    },
+    "closed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "close_reason": {
+      "enum": [
+        "logout",
+        "session_replaced",
+        "client_uninstalled",
+        "support_action"
+      ]
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "app_version": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "platform_version": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "locale": {
+          "type": "string",
+          "maxLength": 35
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "revoked"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "revoked_at",
+          "revocation_reason"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "closed"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "closed_at",
+          "close_reason"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "expired"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "closed_at"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "active"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "revoked_at"
+              ]
+            },
+            {
+              "required": [
+                "closed_at"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
