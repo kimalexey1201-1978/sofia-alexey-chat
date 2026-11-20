@@ -1,0 +1,112 @@
+const RISK = Object.freeze({ R0: 0, R1: 1, R2: 2, R3: 3 });
+
+function validTime(value, now) {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) && timestamp > now.getTime();
+}
+
+/**
+ * Fail-closed, side-effect-free admission check for the future Execution Supervisor.
+ * Inputs must be resolved from trusted internal stores; this function does not
+ * authenticate their provenance, grant authority, reserve resources, or invoke code.
+ */
+export function evaluateExecutionAdmission(input, now = new Date()) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { admitted: false, reasonCodes: ["INVALID_ADMISSION_INPUT"] };
+  }
+  const { request, module, trust, grant, authority, securityDecision, reservation, resourcePolicy } = input;
+  const reasons = [];
+
+  if (!request || typeof request !== "object" || !module || !trust ||
+      !grant || !authority || !securityDecision || !reservation) {
+    return { admitted: false, reasonCodes: ["REQUIRED_EVIDENCE_MISSING"] };
+  }
+
+  if (request.contract_version !== "1.0.0" ||
+      !request.request_id || !request.task_id || !request.correlation_id ||
+      !request.principal_ref || !request.module_id || !request.module_version ||
+      !request.capability_id || !request.operation || !request.target_ref ||
+      !request.input_ref || !validTime(request.deadline_at, now) ||
+      !validTime(request.created_at, new Date(Date.parse(request.created_at) - 1))) {
+    reasons.push("INVALID_OR_EXPIRED_EXECUTION_REQUEST");
+  }
+  if (resourcePolicy !== "FREE_ONLY") reasons.push("RESOURCE_POLICY_NOT_FREE_ONLY");
+
+  if (module.lifecycle_state !== "ACTIVE" ||
+      module.module_id !== request.module_id ||
+      module.module_version !== request.module_version ||
+      module.artifact_digest !== request.artifact_digest) {
+    reasons.push("MODULE_IDENTITY_OR_LIFECYCLE_MISMATCH");
+  }
+  if (trust.verdict !== "TRUSTED_WITH_SCOPE" ||
+      trust.module_id !== request.module_id ||
+      trust.module_version !== request.module_version ||
+      trust.artifact_digest !== request.artifact_digest ||
+      trust.signature_status !== "VALID" ||
+      trust.publisher_identity_status !== "VERIFIED" ||
+      trust.supply_chain_status !== "PASS" ||
+      !validTime(trust.expires_at, now) ||
+      !trust.approved_capability_ids?.includes(request.capability_id)) {
+    reasons.push("TRUST_EVIDENCE_INVALID");
+  }
+
+  if (grant.status !== "active" ||
+      grant.principal_ref !== request.principal_ref ||
+      grant.module_id !== request.module_id ||
+      grant.capability_id !== request.capability_id ||
+      !grant.allowed_operations?.includes(request.operation) ||
+      !grant.target_scope?.includes(request.target_ref) ||
+      !validTime(grant.expires_at, now) ||
+      (RISK[request.risk_tier] ?? 99) > (RISK[grant.risk_ceiling] ?? -1)) {
+    reasons.push("CAPABILITY_GRANT_INVALID_OR_OUT_OF_SCOPE");
+  }
+
+  if (authority.status !== "active" ||
+      authority.task_id !== request.task_id ||
+      authority.principal_id !== request.principal_ref ||
+      !authority.allowed_capabilities?.includes(request.capability_id) ||
+      !validTime(authority.expires_at, now) ||
+      (RISK[request.risk_tier] ?? 99) >
+        (RISK[authority.risk_constraints?.maximum_risk_tier] ?? -1)) {
+    reasons.push("AUTHORITY_ENVELOPE_INVALID_OR_OUT_OF_SCOPE");
+  }
+
+  if (securityDecision.decision !== "ALLOW" ||
+      securityDecision.principal_ref !== request.principal_ref ||
+      securityDecision.task_id !== request.task_id ||
+      securityDecision.capability_id !== request.capability_id ||
+      securityDecision.target_ref !== request.target_ref ||
+      securityDecision.risk_tier !== request.risk_tier ||
+      !validTime(securityDecision.expires_at, now)) {
+    reasons.push("SECURITY_DECISION_NOT_ALLOW_OR_NOT_BOUND");
+  }
+
+  if (!["reserved", "active"].includes(reservation.status) ||
+      reservation.principal_ref !== request.principal_ref ||
+      reservation.task_id !== request.task_id ||
+      !validTime(reservation.expires_at, now)) {
+    reasons.push("RESOURCE_RESERVATION_INVALID");
+  }
+  const limits = reservation.resource_limits ?? {};
+  if (resourcePolicy === "FREE_ONLY" &&
+      (limits.max_cost_minor_units !== 0 ||
+       reservation.reserved_cost_minor_units !== 0)) {
+    reasons.push("FREE_ONLY_ZERO_COST_RESERVATION_REQUIRED");
+  }
+
+  if (request.risk_tier === "R2" || request.risk_tier === "R3" ||
+      request.risk_tier === "unknown") {
+    reasons.push("OWNER_APPROVAL_REQUIRED_OR_RISK_UNKNOWN");
+  }
+  if (request.approval_ref && securityDecision.required_approval &&
+      securityDecision.required_approval !== "none") {
+    reasons.push("APPROVAL_EVIDENCE_NOT_VERIFIED_BY_V0_1");
+  }
+
+  return {
+    admitted: reasons.length === 0,
+    reasonCodes: [...new Set(reasons)],
+    requestId: request.request_id ?? null,
+    dispatchPerformed: false
+  };
+}
