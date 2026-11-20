@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/api-request.schema.json",
+  "title": "Sofia AI API Request v1",
+  "description": "Untrusted client request envelope. It cannot carry trusted system policy, credentials, permissions, or authority claims.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "schema_version",
+    "route",
+    "client",
+    "session_ref",
+    "created_at",
+    "payload"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "route": {
+      "enum": [
+        "chat",
+        "voice_session",
+        "task_submit",
+        "memory_query",
+        "device_event",
+        "health_check"
+      ]
+    },
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client_type",
+        "client_version"
+      ],
+      "properties": {
+        "client_type": {
+          "enum": [
+            "web",
+            "android",
+            "desktop",
+            "other_supported"
+          ]
+        },
+        "client_version": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "device_ref": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "locale": {
+          "type": "string",
+          "maxLength": 35
+        }
+      }
+    },
+    "session_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "maxProperties": 30,
+      "additionalProperties": true
+    },
+    "idempotency_key": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "traceparent": {
+      "type": "string",
+      "maxLength": 256
+    }
+  },
+  "not": {
+    "anyOf": [
+      {
+        "required": [
+          "system_prompt"
+        ]
+      },
+      {
+        "required": [
+          "developer_prompt"
+        ]
+      },
+      {
+        "required": [
+          "provider_api_key"
+        ]
+      },
+      {
+        "required": [
+          "authority_level"
+        ]
+      },
+      {
+        "required": [
+          "permission_grants"
+        ]
+      },
+      {
+        "required": [
+          "tool_permissions"
+        ]
+      }
+    ]
+  }
+}
