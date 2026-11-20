@@ -144,6 +144,10 @@ Calendar & Scheduling Manager owns normalized event metadata, calendar selection
 
 Financial & Expense Manager owns normalized transaction records, budgets, expense categorization, savings goals, cash-flow analysis, and payment-intent preparation. Automation & Integration Manager supplies approved finance-provider adapters and protected connection references; FEM does not custody credentials or funds. The default access mode is read-only. Payment, transfer, purchase, investment, credit, and account-security operations are separate high-impact workflows requiring fresh, exact-parameter authorization and provider-required authentication. Financial records use decimal-safe amounts and explicit currencies; data is restricted by default, minimized in logs and AI-provider disclosure, and reconciled against provider state. A budget or savings goal never authorizes a transfer. No bank connection, live balance access, financial data import, or payment execution is implemented by this architecture update.
 
-## 14. Current status
+## 14. Shopping and procurement boundary
+
+Shopping & Procurement Manager owns normalized product and offer comparisons, shopping lists, purchase-intent preparation, order tracking, and return/refund workflow metadata. Knowledge & Search Manager provides sourced discovery; Automation & Integration Manager supplies approved retailer and courier adapters; Financial & Expense Manager may provide explicitly authorized read-only budget context. Checkout and order placement are separate high-impact side effects requiring fresh confirmation bound to exact items, variants, seller, total, currency, address, delivery option, and payment reference. Price and stock data must be refreshed before purchase. Credentials remain in protected vaults; payment details are never stored in model prompts or ordinary logs. No retailer connection, cart mutation, order placement, delivery tracking, or refund execution is implemented by this architecture update.
+
+## 15. Current status
 
 This map is a design artifact. No runtime wiring or end-to-end integration has been implemented by adding this document. The consistency findings in section 7 remain open until canonical decisions, schema changes, migration tests and implementation evidence are completed.
