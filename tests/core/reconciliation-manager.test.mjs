@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateReconciliation } from "../../src/core/reconciliation-manager.mjs";
+import { evaluateReconciliation, evaluateReconciliationEvidenceBatch } from "../../src/core/reconciliation-manager.mjs";
 
 const now = new Date("2026-11-20T15:00:00.000Z");
 function fixture() {
@@ -114,3 +114,57 @@ test("rejects a task without an authoritative current request id", () => {
     "CURRENT_REQUEST_BINDING_MISMATCH");
 });
 
+
+test("accepts authenticated historical evidence beyond the freshness window", () => {
+  const input = fixture();
+  const historical = structuredClone(input.evidence);
+  const current = fixture().evidence;
+  current.evidence_digest = "d".repeat(64);
+  current.observed_at = "2026-11-20T14:59:30.000Z";
+  current.verification.verified_at = "2026-11-20T14:59:40.000Z";
+  historical.observed_at = "2026-11-20T14:00:00.000Z";
+  historical.verification.verified_at = "2026-11-20T14:00:10.000Z";
+  const result = evaluateReconciliationEvidenceBatch({
+    task: input.task,
+    priorRequest: input.priorRequest,
+    historicalEvidenceRecords: [historical],
+    evidenceRecords: [current],
+    freshnessWindowMs: 300000
+  }, now);
+  assert.equal(result.reasonCode, "MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
+  assert.equal(result.conclusion, "STILL_UNKNOWN");
+});
+
+test("rejects structurally corrupted historical evidence", () => {
+  const input = fixture();
+  const historical = structuredClone(input.evidence);
+  historical.verification.verified_at = "not-a-timestamp";
+  const current = structuredClone(input.evidence);
+  current.evidence_digest = "d".repeat(64);
+  const result = evaluateReconciliationEvidenceBatch({
+    task: input.task,
+    priorRequest: input.priorRequest,
+    historicalEvidenceRecords: [historical],
+    evidenceRecords: [current],
+    freshnessWindowMs: 300000
+  }, now);
+  assert.equal(result.reasonCode, "PERSISTED_EVIDENCE_INVALID");
+  assert.equal(result.resolved, false);
+});
+
+test("rejects historical evidence whose immutable request binding was altered", () => {
+  const input = fixture();
+  const historical = structuredClone(input.evidence);
+  historical.request_id = "request-old";
+  const current = structuredClone(input.evidence);
+  current.evidence_digest = "d".repeat(64);
+  const result = evaluateReconciliationEvidenceBatch({
+    task: input.task,
+    priorRequest: input.priorRequest,
+    historicalEvidenceRecords: [historical],
+    evidenceRecords: [current],
+    freshnessWindowMs: 300000
+  }, now);
+  assert.equal(result.reasonCode, "PERSISTED_EVIDENCE_BINDING_MISMATCH");
+  assert.equal(result.resolved, false);
+});
