@@ -1,0 +1,22 @@
+name: Sofia Core v0.1 tests
+
+on:
+  push:
+    branches:
+      - core/v0.1-minimal-cycle
+  pull_request:
+    branches:
+      - core/v0.1-minimal-cycle
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run provider and Core tests
+        run: node --test tests/core/*.test.mjs
