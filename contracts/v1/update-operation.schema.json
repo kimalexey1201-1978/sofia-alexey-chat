@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/update-operation.schema.json",
+  "title": "Sofia AI Update Operation v1",
+  "description": "Durable record for a software update, staged rollout, migration and rollback decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operation_id",
+    "update_class",
+    "target_component_id",
+    "from_version",
+    "to_version",
+    "artifact_digest",
+    "lifecycle_state",
+    "created_at",
+    "compatibility",
+    "verification"
+  ],
+  "properties": {
+    "operation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "release_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "update_class": {
+      "type": "string",
+      "enum": ["core", "runtime", "platform_adapter", "module", "security_policy", "contract", "data_migration", "configuration"]
+    },
+    "target_component_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "from_version": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "to_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "artifact_digest": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+:[A-Fa-f0-9]{32,}$"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": ["requested", "authorized", "acquiring", "verifying", "staging", "migrating", "ready", "activating", "canary", "completed", "rolling_back", "rolled_back", "blocked", "failed", "cancelled"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platforms_checked", "contract_check", "dependency_check", "result"],
+      "properties": {
+        "platforms_checked": {
+          "type": "array",
+          "items": {"type": "string", "maxLength": 128},
+          "uniqueItems": true
+        },
+        "contract_check": {
+          "type": "string",
+          "enum": ["passed", "failed", "not_run"]
+        },
+        "dependency_check": {
+          "type": "string",
+          "enum": ["passed", "failed", "not_run"]
+        },
+        "result": {
+          "type": "string",
+          "enum": ["compatible", "incompatible", "unknown"]
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["digest_verified", "provenance_status", "tests_status"],
+      "properties": {
+        "digest_verified": {"type": "boolean"},
+        "provenance_status": {
+          "type": "string",
+          "enum": ["verified", "unsigned", "invalid", "unsupported", "not_checked"]
+        },
+        "tests_status": {
+          "type": "string",
+          "enum": ["passed", "failed", "pending", "not_run"]
+        },
+        "security_findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {"type": "string", "maxLength": 512},
+          "maxItems": 256
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "reversible"],
+      "properties": {
+        "required": {"type": "boolean"},
+        "source_schema_version": {"type": "string", "maxLength": 64},
+        "target_schema_version": {"type": "string", "maxLength": 64},
+        "reversible": {"type": "boolean"},
+        "recovery_point_id": {"type": "string", "maxLength": 128},
+        "rollback_plan_ref": {"type": "string", "maxLength": 512}
+      }
+    },
+    "approval_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "canary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scope": {"type": "string", "maxLength": 256},
+        "started_at": {"type": "string", "format": "date-time"},
+        "duration_seconds": {"type": "integer", "minimum": 1},
+        "health_status": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy", "not_started"]
+        },
+        "failure_reasons": {
+          "type": "array",
+          "items": {"type": "string", "maxLength": 512},
+          "maxItems": 64
+        }
+      }
+    },
+    "rollback_target_version": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "failure_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "audit_event_ids": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 128},
+      "uniqueItems": true,
+      "maxItems": 2048
+    }
+  }
+}
