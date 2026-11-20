@@ -7,8 +7,10 @@ on:
     paths:
       - "src/core/reconciliation-storage.mjs"
       - "src/core/reconciliation-manager.mjs"
+      - "src/core/reconciliation-coordinator.mjs"
       - "tests/core/reconciliation-storage*.test.mjs"
-      - "tests/core/reconciliation-manager.test.mjs"
+      - "tests/core/reconciliation-manager.test.mjs tests/core/reconciliation-coordinator.test.mjs"
+      - "tests/core/reconciliation-coordinator.test.mjs"
       - "tests/contracts/reconciliation-storage.contract.mjs"
       - ".github/workflows/reconciliation-storage-tests.yml"
   pull_request:
