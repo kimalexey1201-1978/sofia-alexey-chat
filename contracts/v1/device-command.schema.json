@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/device-command.schema.json",
+  "title": "Sofia AI Device Command v1",
+  "description": "Authorized, bounded command dispatched to a device capability through the Device Integration Gateway.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command_id", "task_id", "principal_id", "device_id", "adapter_id", "adapter_version", "capability_id", "capability_version", "issued_at", "deadline", "idempotency_key", "authorization_context_ref", "risk_tier", "operation"],
+  "properties": {
+    "command_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "principal_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "device_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "adapter_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "capability_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "capability_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "deadline": {"type": "string", "format": "date-time"},
+    "idempotency_key": {"type": "string", "minLength": 16, "maxLength": 256},
+    "authorization_context_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "risk_tier": {"type": "string", "enum": ["R0", "R1", "R2", "R3"]},
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "input"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "input": {"type": "object", "description": "Must be validated against the input schema declared by the capability record."}
+      }
+    },
+    "resource_budget_id": {"type": "string", "maxLength": 128},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
