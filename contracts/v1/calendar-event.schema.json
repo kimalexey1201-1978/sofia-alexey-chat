@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/calendar-event.schema.json",
+  "title": "Sofia Calendar Event",
+  "description": "Normalized calendar event metadata with explicit timezone and provider provenance.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "calendar_ref", "provider_id", "status", "created_at", "updated_at"],
+  "properties": {
+    "event_id": { "type": "string", "maxLength": 256 },
+    "calendar_ref": { "type": "string", "maxLength": 256 },
+    "provider_id": { "type": "string", "maxLength": 160 },
+    "provider_revision": { "type": "string", "maxLength": 256 },
+    "title": { "type": "string", "maxLength": 512 },
+    "description": { "type": "string", "maxLength": 16384 },
+    "start_at": { "type": "string", "format": "date-time" },
+    "end_at": { "type": "string", "format": "date-time" },
+    "timezone": { "type": "string", "maxLength": 128 },
+    "all_day_start_date": { "type": "string", "format": "date" },
+    "all_day_end_date_exclusive": { "type": "string", "format": "date" },
+    "location": { "type": "string", "maxLength": 2048 },
+    "attendee_refs": { "type": "array", "maxItems": 500, "items": { "type": "string", "maxLength": 512 } },
+    "organizer_ref": { "type": "string", "maxLength": 512 },
+    "visibility": { "type": "string", "enum": ["default", "public", "private", "confidential"] },
+    "status": { "type": "string", "enum": ["tentative", "confirmed", "cancelled"] },
+    "recurrence_ref": { "type": "string", "maxLength": 256 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "source_observed_at": { "type": "string", "format": "date-time" }
+  }
+}
