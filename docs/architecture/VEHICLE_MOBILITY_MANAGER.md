@@ -78,7 +78,7 @@ If the vehicle is unknown, Sofia asks: “Is this your vehicle, or is it rented/
 
 Session states are `proposed`, `awaiting_user_classification`, `awaiting_consent`, `ready_to_connect`, `active`, `ending`, `ended`, `expired`, and `failed`. State transitions are audited. A lost connection does not silently extend the rental period. Reconnection requires a still-valid session, fresh capability discovery, and current authorization.
 
-Required contract: `vehicle-rental-session.schema.json`, defining temporary ownership/use classification, bounded session lifetime, connection method, consent and principal references, capability grants, and protected secret references. This is an architecture contract only; it does not implement pairing, OEM connectivity, or rental-provider integration.
+Required contract: `contracts/v1/vehicle-rental-session.schema.json`, defining temporary ownership/use classification, bounded session lifetime, connection method, consent and principal references, capability grants, and protected secret references. This is an architecture contract only; it does not implement pairing, OEM connectivity, or rental-provider integration.
 
 ## 8. Driver safety and legal boundaries
 
@@ -98,7 +98,7 @@ Every side-effecting operation carries an idempotency key, deadline, exact targe
 
 ## 12. Required contracts
 
-- `vehicle-rental-session.schema.json`: temporary rental/borrowed vehicle session with bounded lifetime, consent, principal and capability grants.
+- `contracts/v1/vehicle-rental-session.schema.json`: temporary rental/borrowed vehicle session with bounded lifetime, consent, principal and capability grants.
 - `vehicle-profile.schema.json`: minimal user-managed vehicle reference and supported capability references.
 - `vehicle-observation.schema.json`: sourced, timestamped vehicle telemetry with freshness and uncertainty.
 - `vehicle-command-intent.schema.json`: exact command proposal with risk, authority and confirmation references.
