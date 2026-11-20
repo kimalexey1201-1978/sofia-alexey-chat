@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/contract-version.schema.json",
+  "title": "Sofia AI Contract Version",
+  "description": "Version declaration separating schema document, public contract and implementation versions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_id", "schema_document_version", "contract_version", "versioning_policy"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "contract_id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9]+)+$" },
+    "schema_document_version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$" },
+    "contract_version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$" },
+    "implementation_version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$" },
+    "versioning_policy": { "type": "string", "enum": ["semver_2_0_0"] },
+    "compatibility_policy_ref": { "type": "string", "maxLength": 1000 },
+    "deprecated": { "type": "boolean" },
+    "sunset_at": { "type": "string", "format": "date-time" }
+  }
+}
