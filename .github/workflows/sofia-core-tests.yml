@@ -20,5 +20,7 @@ jobs:
           node-version: 22
       - name: Validate Cloudflare Worker build (dry run)
         run: npx --yes wrangler@4 deploy --dry-run --outdir .wrangler/deploy
+      - name: Validate all JSON Schemas against Draft 2020-12
+        run: npx --yes ajv-cli@5 compile -s 'contracts/v1/*.schema.json' --spec=draft2020
       - name: Run provider and Core tests
         run: node --test $(find tests -type f -name '*.test.mjs' -print)
