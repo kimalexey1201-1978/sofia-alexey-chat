@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-command-result.schema.json",
+  "title": "Sofia AI Device Command Result v1",
+  "description": "Normalized device command outcome. A timeout after dispatch may be outcome_unknown and must be reconciled before retrying non-idempotent operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command_id", "device_ref", "state", "observed_at"],
+  "properties": {
+    "command_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "device_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "state": {"type": "string", "enum": ["accepted", "queued", "sent", "acknowledged", "completed", "failed", "timed_out", "outcome_unknown", "cancelled", "rejected"]},
+    "device_status_ref": {"type": "string", "maxLength": 256},
+    "result_payload_ref": {"type": "string", "maxLength": 256},
+    "error_code": {"type": "string", "maxLength": 128},
+    "retryable": {"type": "boolean"},
+    "reconciliation_required": {"type": "boolean"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
