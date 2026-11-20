@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/sensor-capability.schema.json",
+  "title": "Sofia Sensor Capability",
+  "description": "Declared and validated sensor capability for a registered device; unknown does not mean available.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["capability_id", "device_id", "sensor_type", "availability", "adapter_id", "updated_at"],
+  "properties": {
+    "capability_id": { "type": "string", "format": "uuid" },
+    "device_id": { "type": "string", "maxLength": 128 },
+    "sensor_type": {
+      "type": "string",
+      "enum": ["microphone", "camera", "location", "accelerometer", "gyroscope", "magnetometer", "barometer", "ambient_light", "proximity", "temperature", "heart_rate", "motion", "vehicle_telemetry", "environmental", "other"]
+    },
+    "availability": {
+      "type": "string",
+      "enum": ["available", "unavailable", "permission_denied", "restricted", "disconnected", "unknown"]
+    },
+    "adapter_id": { "type": "string", "maxLength": 160 },
+    "adapter_version": { "type": "string", "maxLength": 64 },
+    "supported_modes": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 128 }
+    },
+    "minimum_sampling_hz": { "type": "number", "minimum": 0 },
+    "maximum_sampling_hz": { "type": "number", "minimum": 0 },
+    "precision_description": { "type": "string", "maxLength": 512 },
+    "supported_formats": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 128 }
+    },
+    "permission_scopes": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 160 }
+    },
+    "background_access_supported": { "type": "boolean", "default": false },
+    "requires_visible_indicator": { "type": "boolean", "default": true },
+    "maximum_session_seconds": { "type": "integer", "minimum": 1, "maximum": 604800 },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
