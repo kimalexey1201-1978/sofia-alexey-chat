@@ -118,12 +118,25 @@ export async function runSofiaCore(provider, request, config = {}) {
       }, timeoutMs);
     });
 
-    const rawResult = await Promise.race([
-      Promise.resolve().then(() => provider.generate(providerRequest)),
-      timeout
-    ]);
+    let rawResult;
+    try {
+      rawResult = await Promise.race([
+        Promise.resolve().then(() => provider.generate(providerRequest)),
+        timeout
+      ]);
+    } catch (error) {
+      if (error?.code === "SOFIA_PROVIDER_TIMEOUT") {
+        return failure("PROVIDER_TIMEOUT", "The AI provider did not respond in time");
+      }
+      return failure("PROVIDER_UNAVAILABLE", "The AI provider is temporarily unavailable");
+    }
 
-    const result = validateProviderResult(rawResult);
+    let result;
+    try {
+      result = validateProviderResult(rawResult);
+    } catch {
+      return failure("VERIFIER_REJECTED", "Provider response failed validation");
+    }
     if (result.text.length > limits.maxResponseChars) {
       return failure("VERIFIER_REJECTED", "Provider response exceeds the allowed size");
     }
@@ -138,14 +151,8 @@ export async function runSofiaCore(provider, request, config = {}) {
         ...(result.usage === undefined ? {} : { usage: result.usage })
       }
     };
-  } catch (error) {
-    if (error?.code === "SOFIA_PROVIDER_TIMEOUT") {
-      return failure("PROVIDER_TIMEOUT", "The AI provider did not respond in time");
-    }
-    if (error instanceof TypeError) {
-      return failure("VERIFIER_REJECTED", "Provider response failed validation");
-    }
-    return failure("PROVIDER_UNAVAILABLE", "The AI provider is temporarily unavailable");
+  } catch {
+    return failure("INTERNAL_FAILURE", "Core could not complete the request");
   } finally {
     if (timer) clearTimeout(timer);
   }
