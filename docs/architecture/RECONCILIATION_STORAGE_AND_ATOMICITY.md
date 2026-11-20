@@ -193,3 +193,19 @@ The reconciliation manager and future execution supervisor must depend on a stor
 - `releaseLease({ taskId, owner, fencingToken })` succeeds only for the currently held matching lease. Releasing a lease must not reset its fencing generation.
 
 Acceptance tests must prove rollback on every rejected write, concurrency safety, stale-token rejection, duplicate evidence behavior, and audit consistency. A durable implementation must preserve these invariants using database-enforced transactions or an equivalent atomic primitive; process-local serialization is not a substitute.
+
+
+## 11. Reusable storage adapter contract tests
+
+A reusable behavioral suite now lives at `tests/contracts/reconciliation-storage.contract.mjs`. The in-memory test double is the first adapter exercising it through `tests/core/reconciliation-storage.contract.test.mjs`.
+
+The suite verifies the public storage-port behavior for:
+- atomic task/evidence/decision/outbox commits;
+- compare-and-swap under concurrent commits;
+- rejection of expired leases and stale fencing generations;
+- exact evidence deduplication and digest/content conflict rejection;
+- auditable `STILL_UNKNOWN` decisions without advancing task state/version.
+
+A future durable adapter should invoke this same suite with an isolated test namespace per test. It may additionally provide `reopenStore` so the suite can verify that committed task state and fencing generations survive adapter recreation/restart. The in-memory test double intentionally does not claim or simulate restart durability; restart verification remains a required acceptance gate for a real durable adapter.
+
+The reusable suite is a baseline, not a complete production certification. A durable implementation must add fault-injection tests for transaction rollback, storage outage, migration compatibility, isolate restart, and backup/restore before production activation.
