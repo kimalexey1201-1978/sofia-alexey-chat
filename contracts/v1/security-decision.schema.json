@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/security-decision.schema.json",
+  "title": "Sofia AI Security Decision v1",
+  "description": "Deterministic authorization result issued by Sofia Security Manager. Authentication, consent, and model output are inputs, never substitutes for this decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "decision", "principal_ref", "task_id", "capability_id", "target_ref", "risk_tier", "reason_codes", "policy_version", "issued_at", "expires_at"],
+  "properties": {
+    "decision_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "decision": {"type": "string", "enum": ["ALLOW", "DENY", "REQUIRE_OWNER_APPROVAL", "REQUIRE_STEP_UP", "DEFER_UNKNOWN"]},
+    "principal_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "session_ref": {"type": "string", "maxLength": 256},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "capability_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "target_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "risk_tier": {"type": "string", "enum": ["R0", "R1", "R2", "R3", "unknown"]},
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": [
+        "identity_missing", "session_expired", "session_revoked", "assurance_insufficient",
+        "capability_not_registered", "capability_not_granted", "target_out_of_scope",
+        "authority_missing", "authority_expired", "authority_revoked", "risk_exceeds_limit",
+        "approval_missing", "approval_invalid", "consent_missing", "consent_scope_mismatch",
+        "consent_expired", "budget_exceeded", "rate_limit_exceeded", "policy_conflict",
+        "evidence_stale", "evidence_untrusted", "policy_allowed"
+      ]}
+    },
+    "required_approval": {"type": "string", "enum": ["none", "owner_confirmation", "strong_owner_confirmation", "step_up_authentication"]},
+    "authority_envelope_ref": {"type": "string", "maxLength": 128},
+    "consent_ref": {"type": "string", "maxLength": 128},
+    "authentication_context_ref": {"type": "string", "maxLength": 128},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
