@@ -110,6 +110,7 @@ export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
   }
 
   const byDigest = new Map();
+  const evaluations = [];
   for (const record of records) {
     if (!record || typeof record !== "object" || Array.isArray(record) ||
         typeof record.evidence_digest !== "string" ||
@@ -121,15 +122,23 @@ export function evaluateReconciliationEvidenceBatch(input, now = new Date()) {
     if (previous !== undefined && previous !== serialized) {
       return unknown("DUPLICATE_EVIDENCE_DIGEST_CONFLICT");
     }
-    byDigest.set(record.evidence_digest, serialized);
+    if (previous === undefined) {
+      byDigest.set(record.evidence_digest, serialized);
+      evaluations.push(evaluateReconciliation({
+        task: input.task,
+        priorRequest: input.priorRequest,
+        evidence: record,
+        freshnessWindowMs: input.freshnessWindowMs
+      }, now));
+    }
   }
-  if (byDigest.size !== 1) {
+
+  const invalid = evaluations.find(result =>
+    result.reasonCode !== "PROVIDER_STATE_STILL_UNKNOWN" && !result.resolved);
+  if (invalid) return invalid;
+
+  if (byDigest.size > 1) {
     return unknown("MULTIPLE_DISTINCT_EVIDENCE_RECORDS");
   }
-  return evaluateReconciliation({
-    task: input.task,
-    priorRequest: input.priorRequest,
-    evidence: records[0],
-    freshnessWindowMs: input.freshnessWindowMs
-  }, now);
+  return evaluations[0];
 }
