@@ -206,3 +206,15 @@ test("rejects an audit outbox payload that does not match the decision", async (
   assert.equal((await store.listDecisions("task-0001")).length,0);
   assert.equal((await store.listOutbox()).length,0);
 });
+
+
+test("treats evidence with reordered object keys as an exact duplicate", async () => {
+  const {store,lease}=await preparedStore();
+  const input=commitInput(lease);
+  const original=evidence();
+  const reordered=Object.fromEntries(Object.entries(original).reverse());
+  input.evidenceRecords=[original,reordered];
+  const result=await store.commitDecision(input);
+  assert.equal(result.committed,true);
+  assert.equal((await store.listEvidence("task-0001")).length,1);
+});
