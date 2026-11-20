@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-stream-session.schema.json",
+  "title": "Sofia Device Stream Session",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "subscription_id",
+    "capture_session_ref",
+    "device_ref",
+    "sensor_refs",
+    "purpose",
+    "started_at",
+    "expires_at",
+    "state",
+    "negotiated_limits",
+    "resource_reservation_ref"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "subscription_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "capture_session_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "device_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sensor_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "stopped_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "requested",
+        "policy_check",
+        "awaiting_owner_action",
+        "starting",
+        "active",
+        "throttled",
+        "paused",
+        "stopping",
+        "stopped",
+        "denied",
+        "expired",
+        "permission_revoked",
+        "device_disconnected",
+        "degraded",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "negotiated_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sample_rate_hz",
+        "max_duration_seconds",
+        "max_buffer_bytes"
+      ],
+      "properties": {
+        "sample_rate_hz": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "max_duration_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "max_buffer_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1073741824
+        },
+        "precision_profile": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "resource_reservation_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "last_event_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "stop_reason": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "policy_decision_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "platform_capability_report_ref": {
+      "type": "string",
+      "maxLength": 256
+    }
+  }
+}
