@@ -73,20 +73,21 @@ The initial adapter wraps the existing OpenRouter integration. Core must depend 
 
 Provider selection, model selection, endpoint, and credentials are server-controlled. Client input must never override them.
 
-### 3.3 Verifier v0.1
+### 3.3 Verifier v0.1 — implemented baseline
 
-The first verifier is deterministic and intentionally modest. It checks:
+The deterministic response verifier is called by Sofia Core after provider-result normalization. It checks:
 
-- provider result has the required shape;
-- response text is present and within configured size bounds;
-- provider/model metadata is present;
-- usage values, when supplied, are valid non-negative numbers;
-- the provider call completed within its deadline;
-- no internal provider error or raw credential is copied into the public response.
+- the task plan is structurally valid and remains in A0 / FREE_ONLY;
+- the plan contains exactly one inference-only `respond` step;
+- the step has no external capabilities;
+- response text is non-empty and within the configured character bound;
+- provider and model identifiers are present.
 
-It returns a typed result such as `passed` or `rejected`, with stable reason codes.
+The provider adapter separately validates the provider-result shape and optional usage values. Core enforces the provider deadline and maps failures to stable error codes. The Worker sanitizes provider failures before returning the legacy API envelope.
 
-**Important limitation:** this verifier validates response integrity and contract compliance. It does not prove that factual claims made by a language model are true. Independent factual verification is a later capability.
+The verifier emits structured evidence identifying its checks and explicitly marks `factualAccuracyAssessed: false`.
+
+**Important limitation:** this verifier validates response integrity, task-policy boundaries, and contract compliance. It does not prove that factual claims made by a language model are true. Independent factual verification remains future work.
 
 ## 4. Trust and validation boundary
 
@@ -99,7 +100,7 @@ It returns a typed result such as `passed` or `rejected`, with stable reason cod
 - Treat provider output as untrusted data; it cannot authorize tools or actions.
 - Do not add tool execution or external side effects in this phase.
 
-The existing prototype currently sends a client-supplied system message. Replacing that trust boundary requires a carefully tested server-side prompt migration; it must not be treated as already completed.
+The browser still constructs its legacy first system message for compatibility with the existing client request builder. The Worker adapter discards that first system message and supplies a server-owned instruction to Core. Any system-role message elsewhere in the history is rejected by Core. The browser prompt and Worker prompt are separate copies and must be kept consistent during future changes.
 
 ## 5. Normalized internal flow
 
@@ -110,7 +111,7 @@ POST /api/chat
 Request validation
       |
       v
-Sofia Core
+Sofia Core + A0/FREE_ONLY inference plan
       |
       v
 AIProvider interface
@@ -164,8 +165,8 @@ Do not return stack traces, raw provider errors, prompts, credentials, or intern
 2. Implement the minimal Core request/response flow.
 3. Implement the OpenRouter adapter behind `AIProvider`.
 4. Integrate the flow behind the existing `POST /api/chat` route.
-5. Add the deterministic verifier.
-6. Run acceptance and compatibility tests.
+5. Add the deterministic response verifier and call it from Core.
+6. Run acceptance tests through mock provider, OpenRouter adapter, Worker route, and legacy response envelope.
 7. Review the diff and rollback path before any deployment.
 
 ## 9. Explicit non-goals
