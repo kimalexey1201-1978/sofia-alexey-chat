@@ -115,3 +115,45 @@ test("returns configuration failure without exposing internals", async () => {
   assert.equal(result.error.code, "INTERNAL_FAILURE");
   assert.equal(JSON.stringify(result).includes("undefined"), false);
 });
+
+
+test("rejects invalid resource limit configuration before provider invocation", async () => {
+  let calls = 0;
+  const provider = { async generate() {
+    calls++;
+    return { text: "no", providerId: "mock", modelId: "fixture" };
+  }};
+
+  const invalidConfigs = [
+    { limits: null },
+    { limits: [] },
+    { limits: { maxMessages: 0 } },
+    { limits: { maxTotalChars: -1 } },
+    { limits: { timeoutMs: 1.5 } },
+    { limits: { unknownLimit: 10 } }
+  ];
+
+  for (const override of invalidConfigs) {
+    const result = await runSofiaCore(provider, request, {
+      ...config, ...override
+    });
+    assert.equal(result.error.code, "INTERNAL_FAILURE");
+  }
+  assert.equal(calls, 0);
+});
+
+test("accepts valid positive safe-integer resource limit overrides", async () => {
+  let captured;
+  const provider = { async generate(input) {
+    captured = input;
+    return { text: "OK", providerId: "mock", modelId: "fixture" };
+  }};
+
+  const result = await runSofiaCore(provider, request, {
+    ...config,
+    limits: { maxMessages: 12, maxMessageChars: 500 },
+    maxOutputTokens: 50
+  });
+  assert.equal(result.ok, true);
+  assert.equal(captured.messages.length, 1);
+});
