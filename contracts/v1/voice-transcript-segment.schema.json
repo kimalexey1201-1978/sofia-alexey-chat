@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/voice-transcript-segment.schema.json",
+  "title": "Sofia AI Voice Transcript Segment v1",
+  "description": "Speaker-attributed transcript segment with separate recognition and attribution confidence. Uncertain speech must not be silently guessed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "segment_id",
+    "session_id",
+    "start_ms",
+    "end_ms",
+    "speaker_label",
+    "attribution_state",
+    "recognition_state",
+    "text",
+    "overlap_detected",
+    "included_in_owner_command"
+  ],
+  "properties": {
+    "segment_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "start_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "end_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "speaker_label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "attribution_state": {
+      "enum": [
+        "owner_confident",
+        "other_speaker",
+        "ambiguous",
+        "unattributed"
+      ]
+    },
+    "attribution_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "recognition_state": {
+      "enum": [
+        "recognized",
+        "partial",
+        "unclear",
+        "unintelligible",
+        "non_speech"
+      ]
+    },
+    "recognition_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "overlap_detected": {
+      "type": "boolean"
+    },
+    "masked_span": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "included_in_owner_command": {
+      "type": "boolean"
+    },
+    "processing_method": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 12,
+      "items": {
+        "enum": [
+          "vad",
+          "diarization",
+          "beamforming",
+          "noise_suppression",
+          "source_separation",
+          "asr",
+          "manual_correction"
+        ]
+      }
+    },
+    "evidence_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "needs_clarification": {
+      "type": "boolean"
+    },
+    "clarification_scope": {
+      "type": "string",
+      "maxLength": 500
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "included_in_owner_command": {
+            "const": true
+          }
+        },
+        "required": [
+          "included_in_owner_command"
+        ]
+      },
+      "then": {
+        "properties": {
+          "attribution_state": {
+            "const": "owner_confident"
+          },
+          "recognition_state": {
+            "enum": [
+              "recognized",
+              "partial"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recognition_state": {
+            "enum": [
+              "unclear",
+              "unintelligible"
+            ]
+          }
+        },
+        "required": [
+          "recognition_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "included_in_owner_command": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "attribution_state": {
+            "enum": [
+              "ambiguous",
+              "unattributed",
+              "other_speaker"
+            ]
+          }
+        },
+        "required": [
+          "attribution_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "included_in_owner_command": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
+}
