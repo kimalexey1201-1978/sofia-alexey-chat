@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/calendar-scheduling-operation.schema.json",
+  "title": "Sofia Calendar Scheduling Operation",
+  "description": "Exact, policy-bound calendar write operation or draft request.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operation_id", "operation", "principal_id", "calendar_ref", "purpose", "requested_at", "authority_envelope_ref", "policy_decision_ref"],
+  "properties": {
+    "operation_id": { "type": "string", "format": "uuid" },
+    "operation": { "type": "string", "enum": ["create_draft", "create_event", "update_event", "send_invitation", "cancel_event", "delete_event"] },
+    "principal_id": { "type": "string", "maxLength": 128 },
+    "calendar_ref": { "type": "string", "maxLength": 256 },
+    "event_ref": { "type": "string", "maxLength": 256 },
+    "title": { "type": "string", "maxLength": 512 },
+    "description": { "type": "string", "maxLength": 16384 },
+    "start_at": { "type": "string", "format": "date-time" },
+    "end_at": { "type": "string", "format": "date-time" },
+    "timezone": { "type": "string", "maxLength": 128 },
+    "attendee_refs": { "type": "array", "maxItems": 500, "items": { "type": "string", "maxLength": 512 } },
+    "visibility": { "type": "string", "enum": ["default", "public", "private", "confidential"] },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "authority_envelope_ref": { "type": "string", "maxLength": 256 },
+    "policy_decision_ref": { "type": "string", "maxLength": 256 },
+    "approval_ref": { "type": "string", "maxLength": 256 },
+    "idempotency_key": { "type": "string", "maxLength": 256 },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}
