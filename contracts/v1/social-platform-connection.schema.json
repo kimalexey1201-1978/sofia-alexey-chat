@@ -1,0 +1,25 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sofia.ai/contracts/v1/social-platform-connection.schema.json",
+  "title":"Sofia Social Platform Connection",
+  "description":"Non-secret metadata for an authorized social platform account connection.",
+  "schema_version":"1.0.0",
+  "contract_version":"1.0.0",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["connection_id","platform_id","account_ref","granted_scopes","connection_status","created_at"],
+  "properties":{
+    "connection_id":{"type":"string","format":"uuid"},
+    "platform_id":{"type":"string","pattern":"^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*){1,7}$","maxLength":160},
+    "account_ref":{"type":"string","maxLength":256},
+    "account_type":{"type":"string","maxLength":128},
+    "region":{"type":"string","maxLength":64},
+    "granted_scopes":{"type":"array","maxItems":128,"uniqueItems":true,"items":{"type":"string","maxLength":256}},
+    "credential_vault_ref":{"type":"string","maxLength":256},
+    "token_expires_at":{"type":"string","format":"date-time"},
+    "last_verified_at":{"type":"string","format":"date-time"},
+    "connection_status":{"type":"string","enum":["pending_authorization","active","reauthorization_required","revoked","expired","disabled"]},
+    "created_at":{"type":"string","format":"date-time"},
+    "updated_at":{"type":"string","format":"date-time"}
+  }
+}
