@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/task-request.schema.json",
+  "title": "Sofia AI Task Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "requester_ref",
+    "goal",
+    "source",
+    "created_at",
+    "correlation_id"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "requester_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "session_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "source": {
+      "enum": [
+        "owner_text",
+        "owner_voice",
+        "owner_ui",
+        "trusted_system_event",
+        "scheduled_task"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "provenance_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "network_policy": {
+          "enum": [
+            "any",
+            "unmetered_only",
+            "offline_only",
+            "no_external_processing"
+          ]
+        },
+        "max_cost": {
+          "type": "number",
+          "minimum": 0
+        },
+        "preferred_locale": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "user_visible_progress": {
+          "type": "boolean"
+        }
+      }
+    },
+    "requested_data_classes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "public",
+          "internal",
+          "confidential",
+          "restricted"
+        ]
+      }
+    }
+  }
+}
