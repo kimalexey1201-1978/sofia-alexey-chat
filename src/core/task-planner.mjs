@@ -28,7 +28,7 @@ export function validateTaskPlan(plan) {
       !Array.isArray(plan.success_criteria) || plan.success_criteria.length === 0 ||
       !Array.isArray(plan.steps) || plan.steps.length === 0 ||
       !["A0", "A1", "A2", "A3", "A4"].includes(plan.autonomy_level) ||
-      !["FREE_ONLY", "OWNER_APPROVED_PAID_EXCEPTION"].includes(plan.resource_policy) ||
+      plan.resource_policy !== "FREE_ONLY" ||
       typeof plan.policy_version !== "string" || !plan.policy_version ||
       !["draft", "awaiting_owner_approval", "approved", "running", "paused",
         "blocked", "completed", "partially_completed", "failed", "cancelled",
@@ -48,8 +48,13 @@ export function validateTaskPlan(plan) {
       "verification_criteria", "status"
     ]))) return { ok: false, code: "INVALID_STEP_SHAPE" };
     if (typeof step.step_id !== "string" || !step.step_id || ids.has(step.step_id) ||
-        !Array.isArray(step.depends_on) || !Array.isArray(step.required_capabilities) ||
-        !Array.isArray(step.verification_criteria) || step.verification_criteria.length === 0) {
+        !Array.isArray(step.depends_on) ||
+        !step.depends_on.every(value => typeof value === "string" && value.length > 0) ||
+        !Array.isArray(step.required_capabilities) ||
+        !step.required_capabilities.every(value => typeof value === "string" && value.length > 0) ||
+        !Array.isArray(step.verification_criteria) || step.verification_criteria.length === 0 ||
+        !step.verification_criteria.every(value => typeof value === "string" && value.trim().length > 0) ||
+        !["planned", "ready", "running", "succeeded", "failed", "blocked", "skipped", "cancelled"].includes(step.status)) {
       return { ok: false, code: "INVALID_STEP_FIELDS" };
     }
     ids.add(step.step_id);
