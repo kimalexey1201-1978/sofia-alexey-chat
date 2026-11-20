@@ -2,7 +2,7 @@
 
 ## Status
 
-Design only. This document specifies the next non-production implementation slice. It does not add runtime wiring, provider registration, network access, durable persistence, retries, or external side effects. The existing chat endpoint remains inference-only.
+Design plus test-isolated implementation. `src/core/reconciliation-coordinator.mjs` implements this boundary against the in-memory test store, mock read-only adapter, and injected verifier stub. It remains unreachable from runtime routes and the chat endpoint. No production provider registration, network integration, durable persistence, retries, or external side effects are added. The existing chat endpoint remains inference-only.
 
 ## 1. Purpose
 
@@ -108,7 +108,7 @@ Sequence:
 9. Expired/replaced lease or stale task version prevents commit.
 10. Commit failure does not cause a second provider query or side effect.
 11. Duplicate identical records are handled deterministically; digest collision with different content and distinct evidence records remain uncertain.
-12. No path invokes an executor, retry, RBM settlement, chat endpoint, production provider, or network-capable mock.
+12. Invalid policy configuration is rejected at coordinator construction; no path invokes an executor, retry, RBM settlement, chat endpoint, production provider, or network-capable mock.
 
 ## 8. Implementation gate
 
