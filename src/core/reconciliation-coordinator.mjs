@@ -42,6 +42,13 @@ export function createReconciliationCoordinator({
   const policyVersion = policy.version ?? "1.0.0";
   const reconcilerRef = policy.reconcilerRef ?? "reconciliation-coordinator:test";
 
+  if (!Number.isFinite(freshnessWindowMs) || freshnessWindowMs <= 0 ||
+      !Number.isSafeInteger(leaseTtlMs) || leaseTtlMs <= 0 ||
+      typeof policyVersion !== "string" || !policyVersion.trim() ||
+      typeof reconcilerRef !== "string" || !reconcilerRef.trim()) {
+    throw new TypeError("RECONCILIATION_COORDINATOR_POLICY_INVALID");
+  }
+
   if (!store || typeof store.getTask !== "function" ||
       typeof store.acquireLease !== "function" ||
       typeof store.commitDecision !== "function" ||
