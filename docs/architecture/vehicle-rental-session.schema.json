@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/vehicle-rental-session.schema.json",
+  "title": "Vehicle Rental Session",
+  "description": "Temporary, consent-bound association for a rented, borrowed, or otherwise temporarily used vehicle. Architecture contract only; does not authorize or implement a connection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "vehicle_id",
+    "use_classification",
+    "status",
+    "principal_ref",
+    "consent_ref",
+    "started_at",
+    "expires_at",
+    "connection_methods",
+    "capability_grants",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "vehicle_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "use_classification": {
+      "type": "string",
+      "enum": [
+        "rented",
+        "borrowed",
+        "temporary_other"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "awaiting_user_classification",
+        "awaiting_consent",
+        "ready_to_connect",
+        "active",
+        "ending",
+        "ended",
+        "expired",
+        "failed"
+      ]
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "consent_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "rental_provider_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "rental_booking_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "connection_methods": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "bluetooth",
+          "android_auto_projection",
+          "official_oem_api",
+          "official_rental_provider_api",
+          "authorized_os_handoff"
+        ]
+      }
+    },
+    "capability_grants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability_id",
+          "scope",
+          "access_mode",
+          "consent_ref"
+        ],
+        "properties": {
+          "capability_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "access_mode": {
+            "type": "string",
+            "enum": [
+              "projection",
+              "media",
+              "navigation_handoff",
+              "read_only_telemetry",
+              "vehicle_command"
+            ]
+          },
+          "consent_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "protected_secret_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "description": "Opaque references to secrets in protected storage; never raw credentials or tokens."
+    },
+    "cleanup_requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "revoke_delegated_tokens_if_supported",
+          "disconnect_device_session",
+          "purge_ephemeral_session_data",
+          "remove_phone_pairing_from_vehicle_with_user_guidance"
+        ]
+      }
+    },
+    "retention_policy_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "termination_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "user_ended",
+        "rental_period_completed",
+        "expired",
+        "authorization_revoked",
+        "connection_failure",
+        "policy_denied",
+        null
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ended"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "ended_at"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "expired"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "ended_at"
+        ]
+      }
+    }
+  ]
+}
