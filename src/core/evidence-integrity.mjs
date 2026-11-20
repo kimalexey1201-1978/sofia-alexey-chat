@@ -98,3 +98,39 @@ export async function verifyEvidenceIntegrityEnvelope(record, envelope, { key, k
     return false;
   }
 }
+
+/**
+ * Verify an entire historical evidence batch before it crosses the storage
+ * trust boundary. Key resolution is delegated to a trusted external provider.
+ * Returns a detached copy only when every record has a valid envelope.
+ */
+export async function verifyEvidenceIntegrityBatch(entries, { resolveKey } = {}) {
+  if (!Array.isArray(entries) || entries.length === 0 ||
+      typeof resolveKey !== "function") {
+    return { verified: false, reasonCode: "EVIDENCE_INTEGRITY_BATCH_INVALID" };
+  }
+  const verifiedRecords = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object" || !entry.record || !entry.envelope ||
+        typeof entry.envelope.key_id !== "string" || !entry.envelope.key_id) {
+      return { verified: false, reasonCode: "EVIDENCE_INTEGRITY_ENVELOPE_MISSING" };
+    }
+    let key;
+    try {
+      key = await resolveKey(entry.envelope.key_id);
+    } catch {
+      return { verified: false, reasonCode: "EVIDENCE_INTEGRITY_KEY_UNAVAILABLE" };
+    }
+    if (!key) {
+      return { verified: false, reasonCode: "EVIDENCE_INTEGRITY_KEY_UNAVAILABLE" };
+    }
+    const valid = await verifyEvidenceIntegrityEnvelope(entry.record, entry.envelope, {
+      key, keyId: entry.envelope.key_id
+    });
+    if (!valid) {
+      return { verified: false, reasonCode: "EVIDENCE_INTEGRITY_VERIFICATION_FAILED" };
+    }
+    verifiedRecords.push(structuredClone(entry.record));
+  }
+  return { verified: true, records: verifiedRecords };
+}
