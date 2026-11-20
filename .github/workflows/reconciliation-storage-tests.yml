@@ -1,0 +1,35 @@
+name: Reconciliation Storage Contract
+
+on:
+  push:
+    branches:
+      - core/v0.1-storage-port
+    paths:
+      - "src/core/reconciliation-storage.mjs"
+      - "src/core/reconciliation-manager.mjs"
+      - "tests/core/reconciliation-storage*.test.mjs"
+      - "tests/contracts/reconciliation-storage.contract.mjs"
+      - ".github/workflows/reconciliation-storage-tests.yml"
+  pull_request:
+    paths:
+      - "src/core/reconciliation-storage.mjs"
+      - "src/core/reconciliation-manager.mjs"
+      - "tests/core/reconciliation-storage*.test.mjs"
+      - "tests/contracts/reconciliation-storage.contract.mjs"
+      - ".github/workflows/reconciliation-storage-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  storage-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run storage adapter and reusable contract tests
+        run: node --test tests/core/reconciliation-storage.test.mjs tests/core/reconciliation-storage.contract.test.mjs
