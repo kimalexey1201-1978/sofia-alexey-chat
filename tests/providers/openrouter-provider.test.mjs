@@ -139,7 +139,7 @@ test("rejects malformed cancellation signal before upstream dispatch", async () 
   await assert.rejects(provider.generate({
     ...providerRequest,
     signal: { aborted: false, addEventListener() {} }
-  }), /OpenRouter provider unavailable/);
+  }), /Invalid provider cancellation signal/);
   assert.equal(fetchCalled, false);
 });
 
