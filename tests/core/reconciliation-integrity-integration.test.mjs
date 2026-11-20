@@ -74,8 +74,22 @@ function createFakeDurableStore() {
           Date.parse(lease.lease_expires_at) <= Date.parse(input.now)) {
         return { committed: false, reasonCode: "ATOMIC_COMMIT_REJECTED" };
       }
+      // The coordinator supplies the complete evidence set, not only a delta.
+      // The durable adapter must merge by digest idempotently inside the transaction.
+      const merged = [...evidenceEntries];
+      for (const entry of input.evidenceEntries) {
+        const existing = merged.find(item =>
+          item.record.evidence_digest === entry.record.evidence_digest);
+        if (existing) {
+          if (JSON.stringify(existing.record) !== JSON.stringify(entry.record)) {
+            return { committed: false, reasonCode: "EVIDENCE_DIGEST_CONFLICT" };
+          }
+        } else {
+          merged.push(structuredClone(entry));
+        }
+      }
       // Single synchronous mutation models the durable transaction boundary.
-      evidenceEntries = [...evidenceEntries, ...structuredClone(input.evidenceEntries)];
+      evidenceEntries = merged;
       decisions.push(structuredClone(input.decision));
       outbox.push(structuredClone(input.auditEvent));
       task.state = input.decision.conclusion === "CONFIRMED_APPLIED" ? "completed" :
