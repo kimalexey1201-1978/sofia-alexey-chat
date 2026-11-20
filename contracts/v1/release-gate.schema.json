@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/release-gate.schema.json",
+  "title": "Sofia AI Release Gate",
+  "description": "Decision record for a single release gate. A passing record does not authorize deployment unless the required human authorization gate is satisfied.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "gate_id",
+    "candidate_commit",
+    "gate",
+    "decision",
+    "evaluated_at",
+    "evidence_ids"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "gate_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "candidate_commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "target_environment": { "type": "string", "enum": ["development", "test", "staging", "production"] },
+    "gate": { "type": "string", "enum": ["G0", "G1", "G2", "G3", "G4", "G5", "G6", "G7"] },
+    "decision": { "type": "string", "enum": ["pass", "fail", "blocked", "not_applicable"] },
+    "evaluated_at": { "type": "string", "format": "date-time" },
+    "evidence_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 160 }
+    },
+    "audit_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^A-(0[1-9]|1[01])$" }
+    },
+    "reviewer": { "type": "string", "maxLength": 300 },
+    "not_applicable_rationale": { "type": "string", "maxLength": 2000 },
+    "unresolved_risks": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 1000 }
+    },
+    "rollback_plan_reference": { "type": "string", "maxLength": 1000 },
+    "human_authorization_reference": { "type": "string", "maxLength": 1000 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "decision": { "const": "not_applicable" } }, "required": ["decision"] },
+      "then": { "required": ["not_applicable_rationale", "reviewer"] }
+    },
+    {
+      "if": { "properties": { "gate": { "const": "G7" }, "decision": { "const": "pass" } }, "required": ["gate", "decision"] },
+      "then": { "required": ["reviewer", "human_authorization_reference"] }
+    }
+  ]
+}
