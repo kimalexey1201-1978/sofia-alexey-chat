@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/owner-approval.schema.json",
+  "title": "Sofia Owner Approval v1",
+  "description": "Single-use, server-issued approval bound to one authenticated principal, session, exact action digest, and expiry window.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "approval_id",
+    "challenge_id",
+    "principal_ref",
+    "session_ref",
+    "action",
+    "assurance_required",
+    "status",
+    "issued_at",
+    "expires_at",
+    "policy_version",
+    "correlation_id"
+  ],
+  "properties": {
+    "approval_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "challenge_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "session_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_ref",
+        "capability_id",
+        "operation",
+        "target_ref",
+        "parameters_digest",
+        "digest_algorithm"
+      ],
+      "properties": {
+        "task_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "capability_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "parameters_digest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "digest_algorithm": {
+          "const": "sha-256"
+        },
+        "display_summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "assurance_required": {
+      "enum": [
+        "substantial",
+        "high"
+      ]
+    },
+    "authentication_context_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "approval_method": {
+      "enum": [
+        "explicit_in_app_confirmation",
+        "passkey",
+        "platform_biometric_with_device_credential",
+        "strong_identity_provider_step_up"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "approved",
+        "denied",
+        "expired",
+        "revoked",
+        "consumed"
+      ]
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "responded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "consumed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "consumption_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "revocation_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "idempotency_key_hash": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "denial_reason_code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{1,95}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "approved"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "responded_at",
+          "approval_method",
+          "authentication_context_ref"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "denied"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "responded_at",
+          "denial_reason_code"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "consumed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "responded_at",
+          "approval_method",
+          "authentication_context_ref",
+          "consumed_at",
+          "consumption_ref"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "revoked"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "revocation_ref"
+        ]
+      }
+    }
+  ]
+}
