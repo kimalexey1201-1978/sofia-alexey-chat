@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/request-guard-policy.schema.json",
+  "title": "Sofia AI Request Guard Policy v1",
+  "description": "Server-enforced request validation and abuse-control policy. Values are applied before expensive processing or provider invocation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_id",
+    "schema_version",
+    "version",
+    "enabled",
+    "authentication_required",
+    "authorization_required",
+    "max_body_bytes",
+    "max_messages",
+    "max_message_chars",
+    "max_total_chars",
+    "max_attachment_count",
+    "max_attachment_bytes",
+    "rate_limits",
+    "quotas",
+    "cost_controls",
+    "forbidden_client_fields",
+    "policy_failure_mode"
+  ],
+  "properties": {
+    "policy_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "enabled": {
+      "const": true
+    },
+    "authentication_required": {
+      "const": true
+    },
+    "authorization_required": {
+      "const": true
+    },
+    "max_body_bytes": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 104857600
+    },
+    "max_messages": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500
+    },
+    "max_message_chars": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200000
+    },
+    "max_total_chars": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "max_attachment_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "max_attachment_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 52428800
+    },
+    "allowed_roles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    "forbidden_client_fields": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "system_prompt",
+          "developer_prompt",
+          "provider_api_key",
+          "provider_override",
+          "tool_permissions",
+          "permission_grants",
+          "authority_level",
+          "security_policy",
+          "admin_override"
+        ]
+      }
+    },
+    "rate_limits": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "window_seconds",
+          "max_requests"
+        ],
+        "properties": {
+          "scope": {
+            "enum": [
+              "principal",
+              "session",
+              "device",
+              "route",
+              "ip_secondary"
+            ]
+          },
+          "window_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "max_requests": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          }
+        }
+      }
+    },
+    "quotas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_concurrent_requests",
+        "max_daily_requests",
+        "max_daily_input_tokens",
+        "max_daily_output_tokens"
+      ],
+      "properties": {
+        "max_concurrent_requests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "max_daily_requests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_daily_input_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_daily_output_tokens": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "cost_controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_cost_per_request",
+        "max_daily_cost",
+        "currency",
+        "emergency_stop_supported"
+      ],
+      "properties": {
+        "max_cost_per_request": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_daily_cost": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3
+        },
+        "emergency_stop_supported": {
+          "const": true
+        }
+      }
+    },
+    "allowed_content_types": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 100
+      }
+    },
+    "policy_failure_mode": {
+      "const": "fail_closed"
+    },
+    "effective_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
