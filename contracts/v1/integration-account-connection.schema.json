@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/integration-account-connection.schema.json",
+  "title": "Sofia AI Integration Account Connection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection_id",
+    "connector_id",
+    "connector_version",
+    "provider_id",
+    "owner_principal_ref",
+    "provider_account_ref",
+    "status",
+    "granted_scopes",
+    "credential_handle_ref",
+    "linked_at",
+    "updated_at",
+    "policy_version"
+  ],
+  "properties": {
+    "connection_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "connector_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "connector_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "owner_principal_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "provider_account_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "status": {
+      "enum": [
+        "PENDING",
+        "ACTIVE",
+        "REAUTH_REQUIRED",
+        "SUSPENDED",
+        "REVOKED",
+        "DISCONNECTED",
+        "UNKNOWN"
+      ]
+    },
+    "granted_scopes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "credential_handle_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Opaque vault handle only; never a raw token or secret."
+    },
+    "token_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "linked_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_validated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  }
+}
