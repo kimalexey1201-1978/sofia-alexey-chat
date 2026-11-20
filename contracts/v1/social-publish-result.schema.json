@@ -1,0 +1,23 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sofia.ai/contracts/v1/social-publish-result.schema.json",
+  "title":"Sofia Social Publish Result",
+  "description":"Platform submission and independently observed publication lifecycle result.",
+  "schema_version":"1.0.0",
+  "contract_version":"1.0.0",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["publish_request_id","status","updated_at"],
+  "properties":{
+    "publish_request_id":{"type":"string","format":"uuid"},
+    "status":{"type":"string","enum":["prepared","awaiting_user_approval","upload_accepted","processing","draft_created","scheduled","published","rejected","failed","cancelled","completion_unknown"]},
+    "platform_post_id":{"type":"string","maxLength":256},
+    "platform_status_uri":{"type":"string","maxLength":2048},
+    "submitted_content_hash_sha256":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
+    "platform_error_code":{"type":"string","maxLength":128},
+    "safe_error_message":{"type":"string","maxLength":1024},
+    "verification_method":{"type":"string","enum":["official_status_api","platform_callback","user_confirmed_in_app","not_verified"]},
+    "verified_at":{"type":"string","format":"date-time"},
+    "updated_at":{"type":"string","format":"date-time"}
+  }
+}
