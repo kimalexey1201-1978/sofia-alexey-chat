@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/file-processing-result.schema.json",
+  "title": "Sofia File Processing Result",
+  "description": "Outcome and provenance of a file operation, including partial failures and derived outputs.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operation_id", "status", "completed_at"],
+  "properties": {
+    "operation_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["queued", "running", "succeeded", "partially_succeeded", "failed", "cancelled", "completion_unknown", "blocked"] },
+    "stage": { "type": "string", "enum": ["authorization", "staging", "validation", "scanning", "extraction", "transformation", "storage", "export", "deletion", "complete"] },
+    "error_code": { "type": "string", "maxLength": 128 },
+    "safe_error_message": { "type": "string", "maxLength": 1024 },
+    "input_file_id": { "type": "string", "format": "uuid" },
+    "output_file_ids": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "input_hash_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "output_hashes_sha256": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+    },
+    "adapter_id": { "type": "string", "maxLength": 160 },
+    "adapter_version": { "type": "string", "maxLength": 64 },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "maxLength": 1024 }
+    },
+    "completed_at": { "type": "string", "format": "date-time" }
+  }
+}
