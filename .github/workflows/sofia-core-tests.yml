@@ -19,4 +19,4 @@ jobs:
         with:
           node-version: 22
       - name: Run provider and Core tests
-        run: node --test tests/core/*.test.mjs
+        run: node --test tests
