@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-enrollment-consent.schema.json",
+  "title": "Sofia AI Device Enrollment Consent v1",
+  "description": "Owner decision bound to one device enrollment transaction and exact disclosed request digest. This consent is not a capability grant or Security Manager ALLOW decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["consent_id", "transaction_id", "owner_principal_ref", "owner_session_ref", "candidate_device_ref", "request_digest", "disclosure_version", "decision", "decided_at", "expires_at"],
+  "properties": {
+    "consent_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "transaction_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "owner_principal_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "owner_session_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "candidate_device_ref": {"type": "string", "minLength": 8, "maxLength": 256},
+    "request_digest": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "disclosure_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "approved_capability_scopes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability_id", "operations"],
+        "properties": {
+          "capability_id": {"type": "string", "minLength": 1, "maxLength": 180},
+          "operations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+          "target_scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 256}},
+          "data_scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 256}},
+          "duration_seconds": {"type": "integer", "minimum": 1, "maximum": 31536000}
+        }
+      }
+    },
+    "association_approved": {"type": "boolean"},
+    "decision": {"type": "string", "enum": ["approved", "partially_approved", "rejected", "withdrawn"]},
+    "authentication_assurance": {"type": "string", "enum": ["A0", "A1", "A2", "A3", "unknown"]},
+    "approval_evidence_ref": {"type": "string", "maxLength": 256},
+    "decided_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "revoked_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"decision": {"const": "approved"}}, "required": ["decision"]},
+      "then": {"properties": {"association_approved": {"const": true}}}
+    },
+    {
+      "if": {"properties": {"decision": {"const": "rejected"}}, "required": ["decision"]},
+      "then": {"properties": {"association_approved": {"const": false}, "approved_capability_scopes": {"maxItems": 0}}}
+    }
+  ]
+}
