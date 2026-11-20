@@ -145,6 +145,8 @@ test("rejects duplicate decision and outbox identifiers without partial mutation
     aggregate_version:1,payload:{conclusion:"STILL_UNKNOWN",
       reason_code:"PROVIDER_STATE_STILL_UNKNOWN",evidence_set_digest:"b".repeat(64)}};
   assert.equal((await store.commitDecision(first)).committed,true);
+  assert.equal(await store.releaseLease({taskId:"task-0001",owner:lease.lease_owner,
+    fencingToken:lease.fencing_token}),true);
   const next=await store.acquireLease({taskId:"task-0001",owner:"worker-b",
     now:"2026-11-20T15:00:01.000Z",ttlMs:30000});
   const duplicate=commitInput(next,{now:"2026-11-20T15:00:01.000Z",
