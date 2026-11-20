@@ -121,7 +121,9 @@ export async function runSofiaCore(provider, request, config = {}) {
     ? config.timeoutMs : DEFAULTS.timeoutMs;
   let taskPlan;
   try { taskPlan = createInferencePlan(checked.messages); }
-  catch { return failure("INTERNAL_FAILURE", "Task planning could not create a valid plan"); }\n\n  const providerRequest = {
+  catch { return failure("INTERNAL_FAILURE", "Task planning could not create a valid plan"); }
+
+  const providerRequest = {
     requestId: config.requestId || makeRequestId(),
     messages: checked.messages,
     systemInstruction: config.systemInstruction,
