@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/executor-assessment.schema.json",
+  "title": "Sofia AI Executor Assessment v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "assessment_id",
+    "task_id",
+    "capability_id",
+    "evaluated_at",
+    "eligible",
+    "exclusion_reason_codes",
+    "policy_version"
+  ],
+  "properties": {
+    "assessment_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "capability_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "candidate_module_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "selected_module_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "eligible": {
+      "type": "boolean"
+    },
+    "exclusion_reason_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 96
+      }
+    },
+    "quality_evidence_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "trust_assessment_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "health_record_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "resource_reservation_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "estimated_cost_minor_units": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  }
+}
