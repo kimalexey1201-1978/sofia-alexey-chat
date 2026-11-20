@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/workflow-instance.schema.json",
+  "title": "Sofia Workflow Instance",
+  "description": "Durable state record for one execution pinned to a specific workflow definition version.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflow_instance_id",
+    "workflow_type",
+    "definition_version",
+    "state",
+    "revision",
+    "initiated_by",
+    "created_at",
+    "updated_at",
+    "correlation_id"
+  ],
+  "properties": {
+    "workflow_instance_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "workflow_type": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "definition_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["created", "ready", "running", "waiting", "paused", "succeeded", "failed", "cancelled", "compensating", "compensated", "expired"]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "initiated_by": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "tenant_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "principal_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "current_step_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "wait_condition_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lease_owner": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "lease_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fencing_token": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "checkpoint_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "last_error_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
