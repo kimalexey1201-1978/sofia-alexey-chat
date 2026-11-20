@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/sensor-capture-session.schema.json",
+  "title": "Sofia Sensor Capture Session",
+  "description": "Explicitly authorized, bounded sensor capture session with consent and permission references.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "device_id",
+    "capability_id",
+    "sensor_type",
+    "requesting_principal_id",
+    "requesting_module_id",
+    "purpose",
+    "status",
+    "started_at",
+    "expires_at",
+    "data_classification"
+  ],
+  "properties": {
+    "session_id": { "type": "string", "format": "uuid" },
+    "device_id": { "type": "string", "maxLength": 128 },
+    "capability_id": { "type": "string", "format": "uuid" },
+    "sensor_type": { "type": "string", "maxLength": 64 },
+    "requesting_principal_id": { "type": "string", "maxLength": 128 },
+    "requesting_module_id": { "type": "string", "maxLength": 160 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "consent_reference": { "type": "string", "maxLength": 256 },
+    "permission_grant_reference": { "type": "string", "maxLength": 256 },
+    "configuration": {
+      "type": "object",
+      "maxProperties": 64,
+      "description": "Requested/negotiated sampling, resolution, precision, and format settings."
+    },
+    "destination_ref": { "type": "string", "maxLength": 2048 },
+    "status": {
+      "type": "string",
+      "enum": ["requested", "awaiting_user_action", "authorized", "active", "paused", "stopped", "expired", "denied", "failed"]
+    },
+    "visible_indicator_active": { "type": "boolean" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "stopped_at": { "type": "string", "format": "date-time" },
+    "stop_reason": {
+      "type": "string",
+      "enum": ["user_stop", "permission_revoked", "consent_revoked", "policy_change", "device_disconnected", "process_terminated", "duration_limit", "resource_limit", "error", "completed"]
+    },
+    "maximum_bytes": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "retention_policy_ref": { "type": "string", "maxLength": 256 }
+  }
+}
