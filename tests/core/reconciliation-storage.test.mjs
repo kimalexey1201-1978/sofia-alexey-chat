@@ -146,9 +146,10 @@ test("rejects duplicate decision and outbox identifiers without partial mutation
   first.decision={...first.decision,conclusion:"STILL_UNKNOWN",
     reason_code:"PROVIDER_STATE_STILL_UNKNOWN",task_version_after:1};
   first.evidenceRecords=[{...evidence(),conclusion:"STILL_UNKNOWN"}];
+  first.decision.evidence_set_digest=await computeEvidenceSetDigest(first.evidenceRecords);
   first.auditEvent={...first.auditEvent,event_type:"reconciliation.still_unknown",
     aggregate_version:1,payload:{conclusion:"STILL_UNKNOWN",
-      reason_code:"PROVIDER_STATE_STILL_UNKNOWN",evidence_set_digest:"b".repeat(64)}};
+      reason_code:"PROVIDER_STATE_STILL_UNKNOWN",evidence_set_digest:first.decision.evidence_set_digest}};
   assert.equal((await store.commitDecision(first)).committed,true);
   assert.equal(await store.releaseLease({taskId:"task-0001",owner:lease.lease_owner,
     fencingToken:lease.fencing_token}),true);
