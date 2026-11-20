@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/capability-grant.schema.json",
+  "title": "Sofia AI Capability Grant v1",
+  "description": "Owner- or policy-authorized grant for a narrowly scoped capability. Manifest permissions are requests only and never create a grant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["grant_id", "principal_ref", "module_id", "module_version_constraint", "capability_id", "allowed_operations", "target_scope", "risk_ceiling", "issued_at", "expires_at", "status", "grant_source"],
+  "properties": {
+    "grant_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "principal_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "device_ref": {"type": "string", "maxLength": 256},
+    "module_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "module_version_constraint": {"type": "string", "minLength": 1, "maxLength": 128},
+    "capability_id": {"type": "string", "minLength": 1, "maxLength": 180},
+    "allowed_operations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+    "target_scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "maxLength": 256}},
+    "data_scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 256}},
+    "risk_ceiling": {"type": "string", "enum": ["R0", "R1", "R2", "R3"]},
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_calls": {"type": "integer", "minimum": 1},
+        "max_cost_minor_units": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "allowed_time_window": {"type": "string", "maxLength": 256},
+        "require_confirmation_each_use": {"type": "boolean"}
+      }
+    },
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "status": {"type": "string", "enum": ["pending", "active", "suspended", "revoked", "expired"]},
+    "grant_source": {"type": "string", "enum": ["owner_approval", "administrator_policy", "system_policy"]},
+    "approval_ref": {"type": "string", "maxLength": 128},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "revocation_ref": {"type": "string", "maxLength": 128},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
