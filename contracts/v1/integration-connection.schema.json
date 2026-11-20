@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/integration-connection.schema.json",
+  "title": "Sofia Integration Connection",
+  "description": "Non-secret account or device connection metadata; credentials remain in a protected vault.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["connection_id", "adapter_id", "principal_id", "status", "granted_scopes", "created_at"],
+  "properties": {
+    "connection_id": { "type": "string", "format": "uuid" },
+    "adapter_id": { "type": "string", "maxLength": 160 },
+    "principal_id": { "type": "string", "maxLength": 128 },
+    "provider_account_ref": { "type": "string", "maxLength": 256 },
+    "credential_vault_ref": { "type": "string", "maxLength": 256 },
+    "granted_scopes": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 256 }
+    },
+    "status": { "type": "string", "enum": ["authorization_pending", "active", "reauthorization_required", "revoked", "expired", "disabled", "error"] },
+    "last_verified_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
