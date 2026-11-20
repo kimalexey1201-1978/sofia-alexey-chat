@@ -1,8 +1,5 @@
 /**
- * Sofia Core v0.1 — provider boundary (scaffold only).
- *
- * This module is deliberately independent of Cloudflare and OpenRouter.
- * Production wiring is not performed in this step.
+ * Sofia Core v0.1 — provider boundary.
  */
 
 /**
@@ -13,6 +10,7 @@
  * @property {string=} model
  * @property {number} maxOutputTokens
  * @property {number} timeoutMs
+ * @property {AbortSignal=} signal Cancellation signal owned by Sofia Core.
  */
 
 /**
@@ -24,18 +22,12 @@
  */
 
 /**
- * Runtime contract for a provider adapter.
- * Implementations must expose generate(request) and return ProviderResult.
- *
+ * Provider adapters must honor request.signal and stop upstream work when aborted.
  * @typedef {Object} AIProvider
  * @property {(request: ProviderRequest) => Promise<ProviderResult>} generate
  */
 
-/**
- * Rejects objects that do not implement the provider boundary.
- * @param {unknown} provider
- * @returns {asserts provider is AIProvider}
- */
+/** @param {unknown} provider @returns {asserts provider is AIProvider} */
 export function assertAIProvider(provider) {
   if (!provider || typeof provider !== "object" ||
       typeof provider.generate !== "function") {
@@ -43,19 +35,12 @@ export function assertAIProvider(provider) {
   }
 }
 
-/**
- * Performs deterministic structural validation only.
- * It does not assess whether the generated text is factually correct.
- * @param {unknown} result
- * @returns {ProviderResult}
- */
+/** @param {unknown} result @returns {ProviderResult} */
 export function validateProviderResult(result) {
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     throw new TypeError("Invalid provider result");
   }
-
   const { text, providerId, modelId, usage } = result;
-
   if (typeof text !== "string" || text.trim().length === 0) {
     throw new TypeError("Provider result text must be a non-empty string");
   }
@@ -75,23 +60,12 @@ export function validateProviderResult(result) {
       }
     }
   }
-
   return { text, providerId, modelId, ...(usage === undefined ? {} : { usage }) };
 }
 
-/**
- * Test-only provider. It is not used by the Worker or production endpoint.
- * @param {ProviderResult} result
- * @returns {AIProvider}
- */
+/** @param {ProviderResult} result @returns {AIProvider} */
 export function createMockProvider(result = {
-  text: "Mock response",
-  providerId: "mock",
-  modelId: "mock-model"
+  text: "Mock response", providerId: "mock", modelId: "mock-model"
 }) {
-  return {
-    async generate() {
-      return result;
-    }
-  };
+  return { async generate() { return result; } };
 }
