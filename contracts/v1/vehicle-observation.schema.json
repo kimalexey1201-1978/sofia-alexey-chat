@@ -1,0 +1,21 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://sofia.ai/contracts/v1/vehicle-observation.schema.json",
+  "title":"Vehicle Observation",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","observation_id","vehicle_id","observed_at","source","values","freshness","confidence","data_classification"],
+  "properties":{
+    "schema_version":{"const":"1.0.0"},
+    "observation_id":{"type":"string","minLength":1,"maxLength":200},
+    "vehicle_id":{"type":"string","minLength":1,"maxLength":200},
+    "observed_at":{"type":"string","format":"date-time"},
+    "source":{"enum":["oem_api","vehicle_device","user_entered","service_provider","derived_estimate"]},
+    "values":{"type":"object","minProperties":1,"maxProperties":50,"additionalProperties":{"type":["string","number","integer","boolean","null"]}},
+    "units":{"type":"object","additionalProperties":{"type":"string","maxLength":32}},
+    "freshness":{"enum":["fresh","stale","delayed","unknown"]},
+    "confidence":{"type":"number","minimum":0,"maximum":1},
+    "quality_notes":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":300}},
+    "data_classification":{"enum":["confidential","restricted"]}
+  }
+}
