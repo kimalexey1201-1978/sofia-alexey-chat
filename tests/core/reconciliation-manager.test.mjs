@@ -5,7 +5,7 @@ import { evaluateReconciliation } from "../../src/core/reconciliation-manager.mj
 const now = new Date("2026-11-20T15:00:00.000Z");
 function fixture() {
   return {
-    task: { task_id: "task-0001", state: "outcome_uncertain" },
+    task: { task_id: "task-0001", current_request_id: "request-0001", state: "outcome_uncertain" },
     priorRequest: {
       request_id: "request-0001", provider_id: "provider-x",
       provider_operation_ref: "operation-123", target_ref: "mailbox:user-1",
@@ -99,3 +99,18 @@ test("rejects an invalid reconciliation clock", () => {
   assert.equal(evaluateReconciliation(fixture(), "not-a-date").reasonCode,
     "RECONCILIATION_TIME_INVALID");
 });
+
+test("rejects evidence for a prior request that is no longer current", () => {
+  const input = fixture();
+  input.task.current_request_id = "request-0002";
+  assert.equal(evaluateReconciliation(input, now).reasonCode,
+    "CURRENT_REQUEST_BINDING_MISMATCH");
+});
+
+test("rejects a task without an authoritative current request id", () => {
+  const input = fixture();
+  delete input.task.current_request_id;
+  assert.equal(evaluateReconciliation(input, now).reasonCode,
+    "CURRENT_REQUEST_BINDING_MISMATCH");
+});
+
