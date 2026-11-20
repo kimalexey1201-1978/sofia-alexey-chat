@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/user-profile.schema.json",
+  "title": "Sofia User Profile",
+  "description": "Structured, user-scoped profile container. Sensitive data must use separate purpose-specific governed flows.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_id", "principal_id", "profile_version", "created_at", "updated_at"],
+  "properties": {
+    "profile_id": { "type": "string", "format": "uuid" },
+    "principal_id": { "type": "string", "maxLength": 128 },
+    "profile_version": { "type": "integer", "minimum": 1 },
+    "locale": { "$ref": "https://sofia.ai/contracts/v1/user-locale-preferences.schema.json" },
+    "interaction_defaults": { "$ref": "https://sofia.ai/contracts/v1/interaction-preferences.schema.json" },
+    "accessibility": { "$ref": "https://sofia.ai/contracts/v1/accessibility-preferences.schema.json" },
+    "device_preferences": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "object", "maxProperties": 32 }
+    },
+    "profile_item_refs": {
+      "type": "array",
+      "maxItems": 1000,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 256 }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "deleted_at": { "type": "string", "format": "date-time" }
+  }
+}
