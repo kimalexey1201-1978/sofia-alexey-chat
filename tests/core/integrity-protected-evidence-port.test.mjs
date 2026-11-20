@@ -92,3 +92,30 @@ test("reports storage failure without claiming evidence was appended", async () 
     appended: false, reasonCode: "EVIDENCE_ATOMIC_APPEND_FAILED"
   });
 });
+
+
+test("rejects a forged or unverifiable sealer result before storage is called", async () => {
+  let appendCalls = 0;
+  const port = createIntegrityProtectedEvidencePort({
+    sealEvidence: async item => ({
+      version: "1.0.0",
+      algorithm: "HMAC-SHA-256",
+      key_id: "missing-key",
+      accepted_at: acceptedAt,
+      record_digest: "0".repeat(64),
+      binding: {
+        task_id: item.task_id, request_id: item.request_id,
+        provider_id: item.provider_id, schema_version: item.schema_version,
+        evidence_digest: item.evidence_digest
+      },
+      mac: "0".repeat(64)
+    }),
+    resolveKey: async () => null,
+    readEntries: async () => [],
+    appendEntries: async () => { appendCalls++; return { appended: true }; }
+  });
+  assert.deepEqual(await port.appendEvidence(taskId, [record()]), {
+    appended: false, reasonCode: "EVIDENCE_INTEGRITY_SEAL_FAILED"
+  });
+  assert.equal(appendCalls, 0);
+});
