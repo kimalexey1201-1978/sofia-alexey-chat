@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/integration-operation-result.schema.json",
+  "title": "Sofia AI Integration Operation Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operation_id",
+    "task_id",
+    "status",
+    "connector_id",
+    "connector_version",
+    "started_at",
+    "completed_at",
+    "contract_version"
+  ],
+  "properties": {
+    "operation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "status": {
+      "enum": [
+        "SUCCEEDED",
+        "ACCEPTED",
+        "QUEUED",
+        "DELIVERED",
+        "FAILED",
+        "REJECTED",
+        "TIMED_OUT",
+        "CANCELLED",
+        "OUTCOME_UNKNOWN"
+      ]
+    },
+    "connector_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "connector_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "provider_operation_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "result_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "result_digest": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "error_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "retry_after_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "SUCCEEDED",
+              "ACCEPTED",
+              "QUEUED",
+              "DELIVERED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "provider_operation_ref"
+            ]
+          },
+          {
+            "required": [
+              "result_ref"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "FAILED",
+              "REJECTED",
+              "TIMED_OUT",
+              "CANCELLED",
+              "OUTCOME_UNKNOWN"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "error_code"
+        ]
+      }
+    }
+  ]
+}
