@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/event-envelope.schema.json",
+  "title": "Sofia Event Envelope",
+  "description": "Immutable asynchronous event envelope. Producer identity must be authenticated and resolved by the trusted runtime; clients must not self-assert it.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "contract_version",
+    "schema_version",
+    "producer",
+    "occurred_at",
+    "ingested_at",
+    "correlation_id",
+    "data_classification",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Immutable event identifier; UUIDv7 is recommended."
+    },
+    "event_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*){1,7}$",
+      "maxLength": 160
+    },
+    "contract_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "producer": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*){1,7}$",
+      "maxLength": 160
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ingested_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "causation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "aggregate_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "tenant_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "principal_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "purpose": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "consent_reference": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific payload validated against the registered event-type schema.",
+      "maxProperties": 128
+    },
+    "payload_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "integrity_sha256"],
+      "properties": {
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "integrity_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replay_operation_id", "replayed_at"],
+      "properties": {
+        "replay_operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "initiated_by": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    }
+  },
+  "oneOf": [
+    { "required": ["payload"], "not": { "required": ["payload_reference"] } },
+    { "required": ["payload_reference"], "not": { "required": ["payload"] } }
+  ]
+}
