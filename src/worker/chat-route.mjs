@@ -2,7 +2,7 @@ import { runSofiaCore } from "../core/sofia-core.mjs";
 import { createOpenRouterProvider } from "../providers/openrouter-provider.mjs";
 
 const MAX_BODY_BYTES = 64 * 1024;
-const SYSTEM_INSTRUCTION = "Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Обращайся «дорогой» или «любимый», когда уместно. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.";
+const SYSTEM_INSTRUCTION = "Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Обращайся «дорогой», когда уместно. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "https://kimalexey1201-1978.github.io",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
