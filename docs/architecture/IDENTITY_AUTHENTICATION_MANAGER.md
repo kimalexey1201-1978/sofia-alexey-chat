@@ -37,7 +37,8 @@ Assurance is action-specific. A voice match can support conversational routing a
 Voice processing has two distinct stages:
 
 1. **Wake-word detection** activates the listening session; it does not identify or authenticate the speaker.
-2. **Speaker verification** estimates whether a speech segment matches the owner's enrolled voice profile, returning a confidence score and quality indicators.
+2. **Speaker diarization and owner-speaker extraction** identify who is speaking when several people are present, separate overlapping speech where technically feasible, and isolate the owner's speech stream.
+3. **Speaker verification** estimates whether the isolated speech matches the owner's enrolled voice profile, returning a confidence score and quality indicators. These are separate stages: diarization answers “which voice/when?”, while verification answers “is this the owner?”
 
 Requirements:
 
@@ -46,12 +47,16 @@ Requirements:
 - Do not store raw enrollment recordings by default. If diagnostic recordings are ever proposed, require separate explicit consent, retention limits and deletion controls.
 - Evaluate false-accept and false-reject rates across realistic noise, distance, microphones, illness, aging and speech variation.
 - Use replay/spoof detection and audio-quality checks, but treat them as risk signals rather than proof of liveness.
-- If multiple speakers overlap, confidence is low, the sample is too short or spoof checks fail, return **unknown** and do not execute owner-only commands.
+- Do not cancel or discard an owner's command merely because other voices are present. The preferred behavior is to detect speaker turns, track the enrolled owner voice, suppress or separate background speakers, and extract the owner's speech for recognition.
+- Use microphone-array beamforming, source separation, noise suppression, voice activity detection and speaker diarization where supported by the device. Treat these as capability-dependent signal-processing stages, not guaranteed features on every phone or microphone.
+- When the owner's speech can be isolated with sufficient quality and verified with sufficient confidence, continue processing the owner's command even while other people are talking.
+- If voices overlap so severely that the owner's words cannot be reliably recovered, preserve the partial result and ask the owner to repeat only the unclear portion; do not silently reinterpret another speaker's words as the owner's command.
+- Return **unknown** only for the affected speech segment when owner attribution or content recovery is genuinely uncertain. Background conversation alone must not downgrade a clearly attributable owner command.
 - Other speakers must not be able to enroll, replace or reset the owner's voice profile.
 - Never silently adapt the enrolled profile from ambient conversations.
 - Provide a non-voice fallback such as a device confirmation or passkey.
 
-The assistant may ignore non-owner speech for owner-only command execution. It should not claim perfect speaker discrimination: acoustic conditions and spoofing create uncertainty.
+The assistant should prioritize the owner's voice stream and ignore non-owner speech for owner-only command execution, while still allowing ordinary multi-person conversation when explicitly requested. It should not claim perfect speaker discrimination: acoustic conditions, device microphones and spoofing create uncertainty. The system must degrade gracefully by requesting a repeat of an unclear segment rather than treating all simultaneous speech as a reason to cancel the whole command.
 
 ## 5. Authentication session lifecycle
 
@@ -97,14 +102,17 @@ IAM does not issue permission grants. Authentication answers “who, and how str
 
 1. Wake word from another person does not establish owner identity.
 2. A high-confidence voice match alone cannot authorize an R3 action.
-3. Overlapping voices or noisy/short samples produce unknown when confidence is insufficient.
-4. Replayed or synthesized audio is flagged or routed to a safe low-assurance state.
-5. A model-generated claim of successful authentication is ignored.
-6. Device pairing does not automatically grant access to private data or protected actions.
-7. Expired, revoked or replayed session evidence is rejected.
-8. Voice profile cannot be changed without strong owner authentication.
-9. Revoking a device or credential invalidates its active sessions.
-10. Biometric data and authentication secrets are absent from prompts and ordinary logs.
+3. When several people speak, the system attempts diarization and owner-voice extraction; it continues if the owner's words remain recoverable.
+4. A clearly attributable owner command is not cancelled solely because background speakers are audible.
+5. If a short overlapping segment cannot be separated, only that segment is marked uncertain and the assistant asks for clarification or repetition.
+6. No non-owner speaker's words are merged into an owner command.
+7. Replayed or synthesized audio is flagged or routed to a safe low-assurance state.
+8. A model-generated claim of successful authentication is ignored.
+9. Device pairing does not automatically grant access to private data or protected actions.
+10. Expired, revoked or replayed session evidence is rejected.
+11. Voice profile cannot be changed without strong owner authentication.
+12. Revoking a device or credential invalidates its active sessions.
+13. Biometric data and authentication secrets are absent from prompts and ordinary logs.
 
 ## 11. Implementation boundary
 
