@@ -103,3 +103,62 @@ test("answers CORS preflight without provider access", async () => {
   assert.equal(response.status, 204);
   assert.equal(response.headers.get("Access-Control-Allow-Methods"), "POST, OPTIONS");
 });
+
+
+test("rejects malformed JSON and unsupported top-level fields before provider creation", async () => {
+  let providerCreated = false;
+  const deps = {
+    createProvider() {
+      providerCreated = true;
+      throw new Error("Provider must not be created for invalid input");
+    }
+  };
+
+  const malformed = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{not-json"
+  }), env, deps);
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error.code, "INVALID_REQUEST");
+
+  const unsupported = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Hi" }],
+      systemInstruction: "client override"
+    })
+  }), env, deps);
+  assert.equal(unsupported.status, 400);
+  assert.equal((await unsupported.json()).error.code, "INVALID_REQUEST");
+  assert.equal(providerCreated, false);
+});
+
+test("rejects empty message arrays and empty bodies with stable client errors", async () => {
+  const emptyMessages = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [] })
+  }), env, mockDependencies());
+  assert.equal(emptyMessages.status, 400);
+  assert.equal((await emptyMessages.json()).error.code, "INVALID_REQUEST");
+
+  const emptyBody = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: ""
+  }), env, mockDependencies());
+  assert.equal(emptyBody.status, 400);
+  assert.equal((await emptyBody.json()).error.code, "INVALID_REQUEST");
+});
+
+test("includes the configured CORS origin on client and server error responses", async () => {
+  const response = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{broken"
+  }), env, mockDependencies());
+  assert.equal(response.status, 400);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://kimalexey1201-1978.github.io");
+});
