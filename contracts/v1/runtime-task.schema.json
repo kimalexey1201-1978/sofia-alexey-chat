@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.local/contracts/v1/runtime-task.schema.json",
+  "title": "Sofia AI Runtime Task v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "module_ref",
+    "state",
+    "priority",
+    "created_at",
+    "idempotency_key",
+    "cancellable"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "module_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "state": {
+      "enum": [
+        "created",
+        "admitted",
+        "running",
+        "paused",
+        "checkpointed",
+        "resuming",
+        "completed",
+        "failed",
+        "cancelled",
+        "expired"
+      ]
+    },
+    "priority": {
+      "enum": [
+        "P0",
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "budget_ref": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256
+    },
+    "cancellable": {
+      "type": "boolean"
+    },
+    "resumable": {
+      "type": "boolean"
+    },
+    "requires_network": {
+      "type": "boolean"
+    },
+    "requires_foreground": {
+      "type": "boolean"
+    },
+    "checkpoint_ref": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "correlation_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "last_error_code": {
+      "type": "string",
+      "maxLength": 128
+    }
+  }
+}
