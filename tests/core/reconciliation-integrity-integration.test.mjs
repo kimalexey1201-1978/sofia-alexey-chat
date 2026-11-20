@@ -179,6 +179,37 @@ test("end-to-end coordinator fails closed on tampered persisted history before p
 });
 
 
+test("storage read failure stops before provider query and releases the lease", async () => {
+  const { durable, adapter, coordinator } = await setup();
+  durable.listEvidenceEntries = async () => {
+    throw new Error("simulated storage outage");
+  };
+
+  const result = await coordinator.reconcile({
+    taskId, owner: "worker-storage-outage"
+  });
+
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "RECONCILIATION_DEPENDENCY_ERROR");
+  assert.equal(result.taskState, "outcome_uncertain");
+  assert.equal(adapter.calls.length, 0);
+  assert.equal(durable.atomicCommitCalls, 0);
+  assert.equal(durable.decisions.length, 0);
+  assert.equal(durable.outbox.length, 0);
+
+  // A failed verified read must not strand the lease.
+  const recoveredLease = await durable.acquireLease({
+    taskId, owner: "worker-after-storage-outage",
+    now: "2026-11-20T15:00:01.000Z", ttlMs: 30000
+  });
+  assert.ok(recoveredLease);
+  assert.equal(recoveredLease.fencing_token, 2);
+  assert.equal(await durable.releaseLease({
+    taskId, owner: "worker-after-storage-outage",
+    fencingToken: recoveredLease.fencing_token
+  }), true);
+});
+
 test("repeated reconciliation after terminal resolution is idempotently refused", async () => {
   const { durable, adapter, coordinator } = await setup();
   const first = await coordinator.reconcile({ taskId, owner: "worker-first" });
