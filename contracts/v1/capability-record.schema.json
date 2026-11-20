@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/capability-record.schema.json",
+  "title": "Sofia AI Capability Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "capability_id",
+    "contract_version",
+    "provider",
+    "input_schema_ref",
+    "output_schema_ref",
+    "risk_class",
+    "permissions",
+    "limits",
+    "side_effects",
+    "state"
+  ],
+  "properties": {
+    "capability_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$",
+      "maxLength": 180
+    },
+    "contract_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "module_id",
+        "module_version"
+      ],
+      "properties": {
+        "module_id": {
+          "type": "string"
+        },
+        "module_version": {
+          "type": "string"
+        }
+      }
+    },
+    "input_schema_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "output_schema_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "risk_class": {
+      "enum": [
+        "read_only",
+        "low_impact",
+        "external_side_effect",
+        "high_impact",
+        "critical"
+      ]
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timeout_ms",
+        "max_payload_bytes",
+        "max_concurrency"
+      ],
+      "properties": {
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600000
+        },
+        "max_payload_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 104857600
+        },
+        "max_concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "requests_per_minute": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        }
+      }
+    },
+    "side_effects": {
+      "enum": [
+        "none",
+        "reversible",
+        "irreversible",
+        "unknown"
+      ]
+    },
+    "idempotency": {
+      "enum": [
+        "idempotent",
+        "key_required",
+        "not_idempotent",
+        "unknown"
+      ]
+    },
+    "supported_platforms": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "android",
+          "web",
+          "windows",
+          "linux",
+          "macos",
+          "cloud",
+          "device"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "state": {
+      "enum": [
+        "DECLARED",
+        "VALIDATING",
+        "AVAILABLE",
+        "DEGRADED",
+        "UNAVAILABLE",
+        "DISABLED",
+        "REVOKED"
+      ]
+    },
+    "validated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 300
+      }
+    }
+  }
+}
