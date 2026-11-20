@@ -23,6 +23,8 @@ test("completes a full Core -> mock provider -> verifier -> response cycle", asy
   assert.equal(result.taskPlan.owner_goal, "Привет");
   assert.equal(result.taskPlan.autonomy_level, "A0");
   assert.equal(result.taskPlan.resource_policy, "FREE_ONLY");
+  assert.equal(result.taskPlan.status, "completed");
+  assert.equal(result.taskPlan.steps[0].status, "succeeded");
   assert.deepEqual(result.answer, {
     text: "Здравствуйте!",
     providerId: "mock",
