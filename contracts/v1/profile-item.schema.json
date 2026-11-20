@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/profile-item.schema.json",
+  "title": "Sofia Profile Item",
+  "description": "Single scoped profile value with explicit source provenance and confirmation state. Sensitive traits are excluded.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "item_id",
+    "principal_id",
+    "category",
+    "key",
+    "value",
+    "source_type",
+    "confirmation_state",
+    "scope",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "item_id": { "type": "string", "format": "uuid" },
+    "principal_id": { "type": "string", "maxLength": 128 },
+    "category": {
+      "type": "string",
+      "enum": ["explicit_preference", "locale", "interaction_default", "accessibility", "device_preference", "inferred_preference"]
+    },
+    "key": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "value": {
+      "type": ["string", "number", "integer", "boolean", "object", "array", "null"],
+      "description": "Structured non-secret preference value. Must not contain credentials or unapproved sensitive traits."
+    },
+    "source_type": {
+      "type": "string",
+      "enum": ["explicit_user_statement", "user_setting", "imported_with_consent", "inferred"]
+    },
+    "provenance_ref": { "type": "string", "maxLength": 256 },
+    "inference_rationale_ref": { "type": "string", "maxLength": 256 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "confirmation_state": {
+      "type": "string",
+      "enum": ["confirmed", "unconfirmed", "rejected", "expired"]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope_type"],
+      "properties": {
+        "scope_type": { "type": "string", "enum": ["account", "device", "channel", "task_category", "session"] },
+        "scope_id": { "type": "string", "maxLength": 160 }
+      }
+    },
+    "purpose": { "type": "string", "maxLength": 160 },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "deleted_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "source_type": { "const": "inferred" } }, "required": ["source_type"] },
+      "then": { "required": ["confidence", "inference_rationale_ref"], "properties": { "confirmation_state": { "const": "unconfirmed" } } }
+    }
+  ]
+}
