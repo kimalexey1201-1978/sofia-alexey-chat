@@ -199,6 +199,7 @@ test("rejects a request body stream that fails while being read", async () => {
   let providerCreated = false;
   const request = new Request("https://sofia.example/api/chat", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: new ReadableStream({
       start(controller) { controller.error(new Error("private stream failure")); }
     }),
@@ -218,6 +219,7 @@ test("rejects invalid UTF-8 before provider creation", async () => {
   let providerCreated = false;
   const request = new Request("https://sofia.example/api/chat", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: new Uint8Array([0xff, 0xfe])
   });
   const response = await handleChatRequest(request, env, {
@@ -235,4 +237,56 @@ test("does not reflect an untrusted Origin as an allowed CORS origin", async () 
     body: "{broken"
   }), env, mockDependencies());
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://kimalexey1201-1978.github.io");
+});
+
+
+test("requires JSON content type before reading or invoking the provider", async () => {
+  let providerCreated = false;
+  const response = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: '{"messages":[{"role":"user","content":"Hello"}]}'
+  }), env, {
+    createProvider() { providerCreated = true; throw new Error("must not run"); }
+  });
+  assert.equal(response.status, 415);
+  assert.equal((await response.json()).error.code, "UNSUPPORTED_MEDIA_TYPE");
+  assert.equal(providerCreated, false);
+});
+
+test("marks API responses as non-cacheable and adds defensive response headers", async () => {
+  const response = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] })
+  }), env, mockDependencies());
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(response.headers.get("Referrer-Policy"), "no-referrer");
+});
+
+test("does not expose arbitrary Core error details or accept malformed Core result shapes", async () => {
+  const request = () => new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] })
+  });
+  const leaked = await handleChatRequest(request(), env, {
+    async runCore() { return { ok: false, error: { code: "PROVIDER_UNAVAILABLE", message: "secret token leaked" } }; }
+  });
+  const leakedData = await leaked.json();
+  assert.equal(leaked.status, 502);
+  assert.equal(JSON.stringify(leakedData).includes("secret token"), false);
+
+  const malformed = await handleChatRequest(request(), env, {
+    async runCore() { return { ok: false, error: { message: "missing code" } }; }
+  });
+  assert.equal(malformed.status, 500);
+  assert.equal((await malformed.json()).error.code, "INTERNAL_FAILURE");
+
+  const malformedAnswer = await handleChatRequest(request(), env, {
+    async runCore() { return { ok: true, answer: { text: { unsafe: true } } }; }
+  });
+  assert.equal(malformedAnswer.status, 500);
+  assert.equal((await malformedAnswer.json()).error.code, "INTERNAL_FAILURE");
 });

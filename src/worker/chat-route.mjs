@@ -9,8 +9,15 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
+const RESPONSE_HEADERS = {
+  ...CORS_HEADERS,
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer"
+};
+
 function json(data, status = 200) {
-  return Response.json(data, { status, headers: CORS_HEADERS });
+  return Response.json(data, { status, headers: RESPONSE_HEADERS });
 }
 
 async function readBoundedBody(request) {
@@ -58,9 +65,13 @@ async function readBoundedBody(request) {
  * The legacy first system message is discarded; server-owned instruction wins.
  */
 export async function handleChatRequest(request, env, dependencies = {}) {
-  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: RESPONSE_HEADERS });
   if (request.method !== "POST") {
     return json({ error: { code: "METHOD_NOT_ALLOWED", message: "Method not allowed" } }, 405);
+  }
+  const mediaType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    return json({ error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Content-Type must be application/json" } }, 415);
   }
   if (!env?.OPENROUTER_API_KEY) {
     return json({ error: { code: "PROVIDER_NOT_CONFIGURED", message: "AI provider is not configured" } }, 503);
@@ -116,21 +127,30 @@ export async function handleChatRequest(request, env, dependencies = {}) {
   }
 
   if (!result.ok) {
-    const statusByCode = {
-      INVALID_REQUEST: 400,
-      UNSUPPORTED_ROLE: 400,
-      REQUEST_TOO_LARGE: 413,
-      PROVIDER_TIMEOUT: 504,
-      PROVIDER_UNAVAILABLE: 502,
-      VERIFIER_REJECTED: 502,
-      INTERNAL_FAILURE: 500
+    const safeErrors = {
+      INVALID_REQUEST: [400, "Request is invalid"],
+      UNSUPPORTED_ROLE: [400, "Message role is not supported"],
+      REQUEST_TOO_LARGE: [413, "Request exceeds the allowed size"],
+      PROVIDER_TIMEOUT: [504, "The AI provider did not respond in time"],
+      PROVIDER_UNAVAILABLE: [502, "The AI provider is temporarily unavailable"],
+      VERIFIER_REJECTED: [502, "Provider response failed validation"],
+      INTERNAL_FAILURE: [500, "Core could not complete the request"]
     };
+    const safeError = result.error && safeErrors[result.error.code];
+    if (!safeError) {
+      return json({ error: { code: "INTERNAL_FAILURE", message: "Core returned an invalid error" } }, 500);
+    }
     return json({
       error: {
         code: result.error.code,
-        message: result.error.message
+        message: safeError[1]
       }
-    }, statusByCode[result.error.code] || 500);
+    }, safeError[0]);
+  }
+
+  if (!result.answer || typeof result.answer.text !== "string" ||
+      typeof result.answer.providerId !== "string" || typeof result.answer.modelId !== "string") {
+    return json({ error: { code: "INTERNAL_FAILURE", message: "Core returned an invalid answer" } }, 500);
   }
 
   // Preserve the OpenAI-compatible shape consumed by the existing index.html.
