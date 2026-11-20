@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createInferencePlan, validateTaskPlan } from "../../src/core/task-planner.mjs";
+import { createInferencePlan, completeInferencePlan, validateTaskPlan } from "../../src/core/task-planner.mjs";
 
 test("creates a bounded A0 FREE_ONLY inference plan", () => {
   const plan = createInferencePlan([
@@ -37,4 +37,16 @@ test("rejects plans that exceed the bounded goal size", () => {
   const plan = createInferencePlan([{ role: "user", content: "Test" }]);
   plan.owner_goal = "x".repeat(4001);
   assert.equal(validateTaskPlan(plan).code, "INVALID_PLAN_FIELDS");
+});
+
+test("completes the plan only after a non-empty verified response", () => {
+  const plan = createInferencePlan([{ role: "user", content: "Test" }]);
+  const rejected = completeInferencePlan(plan, "   ");
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.code, "EMPTY_VERIFIED_RESPONSE");
+  const completed = completeInferencePlan(plan, "Готово");
+  assert.equal(completed.ok, true);
+  assert.equal(completed.plan.status, "completed");
+  assert.equal(completed.plan.steps[0].status, "succeeded");
+  assert.equal(plan.status, "running");
 });
