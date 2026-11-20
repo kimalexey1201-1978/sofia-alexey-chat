@@ -221,7 +221,7 @@ A coordinator-facing adapter is prototyped in `src/core/integrity-protected-reco
 
 - `listEvidence(taskId)` reads `{record,envelope}` entries from the durable adapter and returns records only after whole-batch verification and task binding.
 - `commitDecision(input)` seals every evidence record first, strips the raw `evidenceRecords` field, and passes only `evidenceEntries` to the durable adapter.
-- The durable adapter's `commitDecision` must persist `evidenceEntries`, task transition, decision and audit outbox atomically, or persist none.
+- The coordinator passes the complete evidence set to `commitDecision`, not only newly observed records. The durable adapter must merge entries idempotently by `record.evidence_digest`, reject same-digest/different-content conflicts, and persist the resulting evidence set, task transition, decision and audit outbox atomically, or persist none.
 - The durable adapter must expose `listEvidenceEntries(taskId)` from a consistent snapshot. It must not provide a bypass that exposes raw persisted evidence to the coordinator.
 - Key resolution and sealing remain injected trust boundaries; no key material is stored in this module.
 
