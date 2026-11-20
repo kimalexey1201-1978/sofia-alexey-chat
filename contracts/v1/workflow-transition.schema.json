@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/workflow-transition.schema.json",
+  "title": "Sofia Workflow Transition",
+  "description": "Append-only record of an attempted or committed workflow state transition.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "transition_id",
+    "workflow_instance_id",
+    "from_state",
+    "to_state",
+    "expected_revision",
+    "actor_id",
+    "trigger",
+    "occurred_at",
+    "idempotency_key",
+    "result"
+  ],
+  "properties": {
+    "transition_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "workflow_instance_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "from_state": {
+      "type": "string",
+      "enum": ["created", "ready", "running", "waiting", "paused", "succeeded", "failed", "cancelled", "compensating", "compensated", "expired"]
+    },
+    "to_state": {
+      "type": "string",
+      "enum": ["created", "ready", "running", "waiting", "paused", "succeeded", "failed", "cancelled", "compensating", "compensated", "expired"]
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "committed_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "trigger": {
+      "type": "string",
+      "enum": ["system", "step_result", "event", "timer", "approval", "user_request", "recovery", "compensation"]
+    },
+    "reason_code": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "policy_decision_ref": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "causation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "result": {
+      "type": "string",
+      "enum": ["committed", "rejected", "conflict", "unknown"]
+    },
+    "details_ref": {
+      "type": "string",
+      "maxLength": 2048
+    }
+  }
+}
