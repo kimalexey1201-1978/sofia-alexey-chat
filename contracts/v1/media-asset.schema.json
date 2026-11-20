@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/media-asset.schema.json",
+  "title": "Sofia Media Asset",
+  "description": "Media-specific metadata and provenance referencing a governed file object.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["media_asset_id", "file_id", "media_kind", "source_content_hash_sha256", "metadata_status"],
+  "properties": {
+    "media_asset_id": { "type": "string", "format": "uuid" },
+    "file_id": { "type": "string", "format": "uuid" },
+    "media_kind": { "type": "string", "enum": ["image", "audio", "video", "audiovisual"] },
+    "source_file_version": { "type": "integer", "minimum": 1 },
+    "source_content_hash_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "container_format": { "type": "string", "maxLength": 128 },
+    "video_codec": { "type": "string", "maxLength": 128 },
+    "audio_codec": { "type": "string", "maxLength": 128 },
+    "width_pixels": { "type": "integer", "minimum": 1, "maximum": 32768 },
+    "height_pixels": { "type": "integer", "minimum": 1, "maximum": 32768 },
+    "frame_rate_num": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+    "frame_rate_den": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+    "duration_ms": { "type": "integer", "minimum": 0, "maximum": 604800000 },
+    "sample_rate_hz": { "type": "integer", "minimum": 1, "maximum": 768000 },
+    "audio_channels": { "type": "integer", "minimum": 1, "maximum": 256 },
+    "orientation_degrees": { "type": "integer", "enum": [0, 90, 180, 270] },
+    "language_tags": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 35 }
+    },
+    "metadata_status": { "type": "string", "enum": ["pending", "complete", "partial", "failed"] },
+    "metadata_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "data_classification": { "type": "string", "enum": ["public", "internal", "confidential", "restricted"] },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}
