@@ -162,3 +162,77 @@ test("includes the configured CORS origin on client and server error responses",
   assert.equal(response.status, 400);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://kimalexey1201-1978.github.io");
 });
+
+
+test("contains unexpected Core exceptions and does not leak internal details", async () => {
+  const response = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] })
+  }), env, {
+    ...mockDependencies(),
+    async runCore() { throw new Error("private stack and secret details"); }
+  });
+  const data = await response.json();
+  assert.equal(response.status, 500);
+  assert.equal(data.error.code, "INTERNAL_FAILURE");
+  assert.equal(JSON.stringify(data).includes("private stack"), false);
+});
+
+test("maps Core provider timeouts to HTTP 504 without invoking a live provider", async () => {
+  let providerCreated = false;
+  const response = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] })
+  }), env, {
+    createProvider() { providerCreated = true; return {}; },
+    async runCore() { return { ok: false, error: { code: "PROVIDER_TIMEOUT", message: "The AI provider did not respond in time" } }; }
+  });
+  const data = await response.json();
+  assert.equal(providerCreated, true);
+  assert.equal(response.status, 504);
+  assert.equal(data.error.code, "PROVIDER_TIMEOUT");
+});
+
+test("rejects a request body stream that fails while being read", async () => {
+  let providerCreated = false;
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    body: new ReadableStream({
+      start(controller) { controller.error(new Error("private stream failure")); }
+    }),
+    duplex: "half"
+  });
+  const response = await handleChatRequest(request, env, {
+    createProvider() { providerCreated = true; throw new Error("must not run"); }
+  });
+  const data = await response.json();
+  assert.equal(response.status, 400);
+  assert.equal(data.error.code, "INVALID_REQUEST");
+  assert.equal(providerCreated, false);
+  assert.equal(JSON.stringify(data).includes("private stream failure"), false);
+});
+
+test("rejects invalid UTF-8 before provider creation", async () => {
+  let providerCreated = false;
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    body: new Uint8Array([0xff, 0xfe])
+  });
+  const response = await handleChatRequest(request, env, {
+    createProvider() { providerCreated = true; throw new Error("must not run"); }
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error.code, "INVALID_REQUEST");
+  assert.equal(providerCreated, false);
+});
+
+test("does not reflect an untrusted Origin as an allowed CORS origin", async () => {
+  const response = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Origin": "https://attacker.example" },
+    body: "{broken"
+  }), env, mockDependencies());
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://kimalexey1201-1978.github.io");
+});

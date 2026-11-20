@@ -29,11 +29,14 @@ async function readBoundedBody(request) {
       if (done) break;
       total += value.byteLength;
       if (total > MAX_BODY_BYTES) {
-        await reader.cancel();
+        try { await reader.cancel(); } catch {}
         return { error: json({ error: { code: "REQUEST_TOO_LARGE", message: "Request body exceeds the allowed size" } }, 413) };
       }
       chunks.push(value);
     }
+  } catch {
+    try { await reader.cancel(); } catch {}
+    return { error: json({ error: { code: "INVALID_REQUEST", message: "Request body could not be read" } }, 400) };
   } finally {
     reader.releaseLock();
   }
@@ -43,7 +46,11 @@ async function readBoundedBody(request) {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return { text: new TextDecoder().decode(bytes) };
+  try {
+    return { text: new TextDecoder("utf-8", { fatal: true }).decode(bytes) };
+  } catch {
+    return { error: json({ error: { code: "INVALID_REQUEST", message: "Request body must use valid UTF-8 encoding" } }, 400) };
+  }
 }
 
 /**
@@ -93,11 +100,20 @@ export async function handleChatRequest(request, env, dependencies = {}) {
     return json({ error: { code: "INTERNAL_FAILURE", message: "Core configuration is invalid" } }, 500);
   }
 
-  const result = await runCore(provider, { messages }, {
-    systemInstruction: SYSTEM_INSTRUCTION,
-    maxOutputTokens: 1200,
-    timeoutMs: 20000
-  });
+  let result;
+  try {
+    result = await runCore(provider, { messages }, {
+      systemInstruction: SYSTEM_INSTRUCTION,
+      maxOutputTokens: 1200,
+      timeoutMs: 20000
+    });
+  } catch {
+    return json({ error: { code: "INTERNAL_FAILURE", message: "Core could not complete the request" } }, 500);
+  }
+
+  if (!result || typeof result !== "object" || typeof result.ok !== "boolean") {
+    return json({ error: { code: "INTERNAL_FAILURE", message: "Core returned an invalid result" } }, 500);
+  }
 
   if (!result.ok) {
     const statusByCode = {
