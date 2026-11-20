@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/knowledge-source.schema.json",
+  "title": "Sofia Knowledge Source",
+  "description": "Registered source with access, purpose, provenance, trust, freshness, and retention metadata.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "source_type", "access_method", "trust_class", "enabled", "created_at"],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*){1,7}$",
+      "maxLength": 160
+    },
+    "source_type": {
+      "type": "string",
+      "enum": ["official", "primary", "academic", "news", "secondary", "user_file", "connected_repository", "internal_store", "dataset", "other"]
+    },
+    "canonical_uri": { "type": "string", "maxLength": 2048 },
+    "connector_id": { "type": "string", "maxLength": 160 },
+    "owner_or_publisher": { "type": "string", "maxLength": 256 },
+    "access_method": {
+      "type": "string",
+      "enum": ["public_web", "authenticated_web", "connector", "file_library", "internal_api", "local_index"]
+    },
+    "trust_class": {
+      "type": "string",
+      "enum": ["unassessed", "primary_authoritative", "reputable_secondary", "community", "user_supplied", "internal_governed"]
+    },
+    "permitted_purposes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 160 }
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "freshness_max_age_seconds": { "type": "integer", "minimum": 0, "maximum": 315360000 },
+    "retention_policy_ref": { "type": "string", "maxLength": 256 },
+    "allowed_domains": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 253 }
+    },
+    "enabled": { "type": "boolean" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "last_verified_at": { "type": "string", "format": "date-time" }
+  }
+}
