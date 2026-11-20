@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-enrollment-result.schema.json",
+  "title": "Sofia AI Device Enrollment Result v1",
+  "description": "Normalized outcome of an enrollment orchestration transaction. Completion does not imply all requested capabilities were granted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transaction_id", "outcome", "completed_at", "capability_results"],
+  "properties": {
+    "transaction_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "outcome": {"type": "string", "enum": ["completed", "partially_enrolled", "blocked", "rejected", "expired", "cancelled", "outcome_unknown", "revocation_pending", "revoked"]},
+    "device_ref": {"type": "string", "maxLength": 256},
+    "trust_assessment_ref": {"type": "string", "maxLength": 256},
+    "registry_commit_ref": {"type": "string", "maxLength": 256},
+    "capability_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability_id", "status"],
+        "properties": {
+          "capability_id": {"type": "string", "minLength": 1, "maxLength": 180},
+          "status": {"type": "string", "enum": ["granted", "granted_with_limits", "denied", "not_requested", "pending", "unknown"]},
+          "grant_ref": {"type": "string", "maxLength": 256},
+          "reason_code": {"type": "string", "maxLength": 128}
+        }
+      }
+    },
+    "reason_code": {"type": "string", "maxLength": 128},
+    "retryable": {"type": "boolean"},
+    "reconciliation_required": {"type": "boolean"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
