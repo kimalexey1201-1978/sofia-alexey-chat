@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createEvidenceIntegrityEnvelope,
-  verifyEvidenceIntegrityEnvelope
+  verifyEvidenceIntegrityEnvelope,
+  verifyEvidenceIntegrityBatch
 } from "../../src/core/evidence-integrity.mjs";
 
 const acceptedAt = "2026-11-20T15:00:00.000Z";
@@ -103,4 +104,54 @@ test("fails closed for malformed evidence and envelope inputs", async () => {
   assert.equal(await verifyEvidenceIntegrityEnvelope(record(), {}, {
     key: secret, keyId: "key-1"
   }), false);
+});
+
+test("verifies a complete historical batch using externally resolved keys", async () => {
+  const secret = await key();
+  const item = record();
+  const envelope = await createEvidenceIntegrityEnvelope(item, {
+    key: secret, keyId: "key-batch", acceptedAt
+  });
+  const result = await verifyEvidenceIntegrityBatch(
+    [{ record: item, envelope }],
+    { resolveKey: async id => id === "key-batch" ? secret : null }
+  );
+  assert.equal(result.verified, true);
+  assert.deepEqual(result.records, [item]);
+  assert.notEqual(result.records[0], item);
+});
+
+test("fails the entire historical batch if any envelope is missing or invalid", async () => {
+  const secret = await key();
+  const item = record();
+  const envelope = await createEvidenceIntegrityEnvelope(item, {
+    key: secret, keyId: "key-batch", acceptedAt
+  });
+  const missing = await verifyEvidenceIntegrityBatch(
+    [{ record: item }],
+    { resolveKey: async () => secret }
+  );
+  assert.equal(missing.verified, false);
+  assert.equal(missing.reasonCode, "EVIDENCE_INTEGRITY_ENVELOPE_MISSING");
+
+  const invalid = await verifyEvidenceIntegrityBatch(
+    [{ record: item, envelope }, { record: { ...item, conclusion: "CONFIRMED_NOT_APPLIED" }, envelope }],
+    { resolveKey: async () => secret }
+  );
+  assert.equal(invalid.verified, false);
+  assert.equal(invalid.reasonCode, "EVIDENCE_INTEGRITY_VERIFICATION_FAILED");
+});
+
+test("fails closed when a historical envelope key cannot be resolved", async () => {
+  const secret = await key();
+  const item = record();
+  const envelope = await createEvidenceIntegrityEnvelope(item, {
+    key: secret, keyId: "key-retired", acceptedAt
+  });
+  const result = await verifyEvidenceIntegrityBatch(
+    [{ record: item, envelope }],
+    { resolveKey: async () => null }
+  );
+  assert.equal(result.verified, false);
+  assert.equal(result.reasonCode, "EVIDENCE_INTEGRITY_KEY_UNAVAILABLE");
 });
