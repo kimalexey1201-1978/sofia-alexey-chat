@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/device-runtime-session.schema.json",
+  "title": "Sofia AI Device Runtime Session v1",
+  "description": "Supervised lifecycle record for one adapter runtime instance. It does not authenticate the owner or authorize device operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["runtime_session_id", "adapter_id", "adapter_version", "artifact_digest", "host_id", "profile_ref", "state", "started_at", "updated_at"],
+  "properties": {
+    "runtime_session_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "adapter_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "adapter_version": {"type": "string", "minLength": 1, "maxLength": 80},
+    "artifact_digest": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+    "host_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "profile_ref": {"type": "string", "minLength": 8, "maxLength": 256},
+    "state": {"type": "string", "enum": ["QUARANTINED", "VALIDATING", "STAGED", "START_PENDING", "STARTING", "READY", "RUNNING", "DEGRADED", "STOPPING", "STOPPED", "FAILED", "SUSPENDED", "REVOKED", "RETIRED"]},
+    "process_ref": {"type": "string", "maxLength": 256},
+    "platform_session_ref": {"type": "string", "maxLength": 256},
+    "health_ref": {"type": "string", "maxLength": 256},
+    "permission_state_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 256}},
+    "resource_reservation_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 256}},
+    "active_invocation_count": {"type": "integer", "minimum": 0},
+    "last_error_code": {"type": "string", "maxLength": 128},
+    "suspension_reason": {"type": "string", "maxLength": 500},
+    "started_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "stopped_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "maxLength": 128}
+  }
+}
