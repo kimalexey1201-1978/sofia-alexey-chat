@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/financial-transaction.schema.json",
+  "title": "Sofia Financial Transaction",
+  "description": "Normalized transaction record with explicit currency, state, and source provenance.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transaction_id", "account_ref", "amount", "currency", "flow", "status", "source_type", "observed_at"],
+  "properties": {
+    "transaction_id": { "type": "string", "maxLength": 256 },
+    "account_ref": { "type": "string", "maxLength": 256 },
+    "provider_transaction_ref": { "type": "string", "maxLength": 256 },
+    "amount": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]{1,8})?$", "maxLength": 40 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "flow": { "type": "string", "enum": ["inflow", "outflow", "neutral"] },
+    "status": { "type": "string", "enum": ["pending", "posted", "declined", "reversed", "refunded", "disputed", "unknown"] },
+    "category_ref": { "type": "string", "maxLength": 128 },
+    "counterparty_ref": { "type": "string", "maxLength": 256 },
+    "description": { "type": "string", "maxLength": 2048 },
+    "source_type": { "type": "string", "enum": ["user_entered", "provider_api", "statement_import", "receipt_extraction"] },
+    "source_record_ref": { "type": "string", "maxLength": 256 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "posted_at": { "type": "string", "format": "date-time" }
+  }
+}
