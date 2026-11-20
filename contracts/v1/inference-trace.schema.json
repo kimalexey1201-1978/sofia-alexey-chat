@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia-ai.example/contracts/v1/inference-trace.schema.json",
+  "title": "Sofia AI Inference Trace v1",
+  "description": "Auditable evidence and method summary; not hidden chain-of-thought.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trace_id",
+    "task_ref",
+    "created_at",
+    "method_id",
+    "method_version",
+    "premise_refs",
+    "steps",
+    "conclusion_refs",
+    "uncertainty",
+    "critic_status"
+  ],
+  "properties": {
+    "trace_id": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "task_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "method_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "method_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "premise_refs": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 512 }
+    },
+    "assumption_refs": {
+      "type": "array", "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 512 }
+    },
+    "steps": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step_id", "operation", "input_refs", "output_ref", "status"],
+        "properties": {
+          "step_id": { "type": "string", "maxLength": 64 },
+          "operation": { "type": "string", "maxLength": 128 },
+          "input_refs": { "type": "array", "items": { "type": "string", "maxLength": 512 } },
+          "output_ref": { "type": "string", "maxLength": 512 },
+          "rule_ref": { "type": "string", "maxLength": 256 },
+          "status": { "enum": ["valid", "invalid", "inconclusive", "skipped"] }
+        }
+      }
+    },
+    "conclusion_refs": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 512 }
+    },
+    "counterevidence_refs": {
+      "type": "array", "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 512 }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "limitations"],
+      "properties": {
+        "level": { "enum": ["low", "moderate", "high", "unknown"] },
+        "limitations": { "type": "array", "items": { "type": "string", "maxLength": 1000 } }
+      }
+    },
+    "critic_status": { "enum": ["not_run", "passed", "passed_with_warnings", "failed", "disputed"] },
+    "critic_ref": { "type": "string", "maxLength": 256 },
+    "policy_version": { "type": "string", "maxLength": 80 }
+  }
+}
