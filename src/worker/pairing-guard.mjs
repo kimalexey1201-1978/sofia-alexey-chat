@@ -1,6 +1,3 @@
-const MAX_FAILED_ATTEMPTS = 5;
-const FAILURE_WINDOW_MS = 15 * 60 * 1000;
-const LOCKOUT_MS = 15 * 60 * 1000;
 const MAX_BODY_BYTES = 1024;
 
 function equalConstantTime(a, b) {
@@ -11,13 +8,14 @@ function equalConstantTime(a, b) {
 }
 
 /**
- * One named instance is used for the single Sofia owner pairing gate.
- * State is persisted transactionally; the supplied secrets are never stored.
+ * Stateless pairing verifier.
+ *
+ * Deliberately keeps no failed-attempt counter, lockout timestamp, or other
+ * shared authentication state. An unauthenticated caller must never be able
+ * to create a global lockout that prevents the owner from pairing.
  */
 export class PairingGuard {
-  constructor(ctx) {
-    this.storage = ctx.storage;
-  }
+  constructor(_ctx) {}
 
   async fetch(request) {
     if (request.method !== "POST" || new URL(request.url).pathname !== "/verify") {
@@ -31,6 +29,7 @@ export class PairingGuard {
       return Response.json({ error: "REQUEST_TOO_LARGE" }, { status: 413 });
     }
     if (!request.body) return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
+
     const reader = request.body.getReader();
     const chunks = [];
     let total = 0;
@@ -51,12 +50,14 @@ export class PairingGuard {
     } finally {
       reader.releaseLock();
     }
+
     const bytes = new Uint8Array(total);
     let offset = 0;
     for (const chunk of chunks) {
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
+
     let body;
     try {
       body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
@@ -71,32 +72,9 @@ export class PairingGuard {
       return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
     }
 
-    const now = Date.now();
-    const result = await this.storage.transaction(async txn => {
-      let state = await txn.get("pairing-state");
-      // Check the active lockout before expiring the rolling failure window.
-      if (state?.lockedUntil > now) return { status: 429 };
-      if (!state || now - state.windowStartedAt >= FAILURE_WINDOW_MS) {
-        state = { windowStartedAt: now, failedAttempts: 0, lockedUntil: 0 };
-      }
-      if (equalConstantTime(body.pairingCode, body.expectedCode)) {
-        await txn.delete("pairing-state");
-        return { status: 200 };
-      }
-      state.failedAttempts += 1;
-      if (state.failedAttempts >= MAX_FAILED_ATTEMPTS) {
-        state.lockedUntil = now + LOCKOUT_MS;
-        await txn.put("pairing-state", state);
-        return { status: 429 };
-      }
-      await txn.put("pairing-state", state);
-      return { status: 401 };
-    });
-
-    if (result.status === 200) return Response.json({ valid: true });
-    if (result.status === 429) {
-      return Response.json({ error: "PAIRING_TEMPORARILY_BLOCKED" }, { status: 429, headers: { "Retry-After": "900" } });
+    if (!equalConstantTime(body.pairingCode, body.expectedCode)) {
+      return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
-    return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    return Response.json({ valid: true });
   }
 }
