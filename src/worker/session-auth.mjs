@@ -46,7 +46,7 @@ async function verifyPairingProof(code, challenge, proofCounter, env, now = Math
         payload.exp - payload.iat > PAIRING_CHALLENGE_TTL_SECONDS ||
         payload.difficulty !== PAIRING_WORK_DIFFICULTY_BITS ||
         typeof payload.nonce !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(payload.nonce)) return false;
-    const codeDigest = b64url(await crypto.subtle.digest("SHA-256", encoder.encode(code)));
+    const codeDigest = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(code))));
     const workInput = encoder.encode(payload.nonce + "." + codeDigest + "." + proofCounter);
     const workDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", workInput));
     return hasLeadingZeroBits(workDigest, payload.difficulty);
