@@ -33,7 +33,7 @@ async function verifyPairingProof(code, challenge, proofCounter, env, now = Math
   if (typeof code !== "string" || code.length < 20 || code.length > 256 ||
       typeof challenge !== "string" || challenge.length > 512 ||
       typeof proofCounter !== "string" || !/^(0|[1-9][0-9]{0,15})$/.test(proofCounter) ||
-      !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(challenge) ||
+      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(challenge) ||
       typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string") return false;
   try {
     const [payloadPart, signaturePart] = challenge.split(".");
