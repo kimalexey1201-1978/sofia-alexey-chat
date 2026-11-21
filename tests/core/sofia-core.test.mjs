@@ -208,3 +208,66 @@ test("removes caller abort listener after successful completion", async () => {
   assert.equal(added, 1);
   assert.equal(removed, 1);
 });
+
+test("caller cancellation wins when it races with the provider timeout", async () => {
+  const caller = new AbortController();
+  let calls = 0;
+  const provider = { generate() {
+    calls++;
+    // Abort synchronously as the provider starts; the timeout is already armed.
+    caller.abort(new Error("caller disconnected"));
+    return new Promise(() => {});
+  }};
+
+  const result = await runSofiaCore(provider, request, {
+    ...config, timeoutMs: 1, signal: caller.signal
+  });
+  assert.equal(result.error.code, "REQUEST_CANCELLED");
+  assert.equal(calls, 1);
+});
+
+test("removes caller abort listener after cancelled completion", async () => {
+  const caller = new AbortController();
+  let added = 0;
+  let removed = 0;
+  const add = caller.signal.addEventListener.bind(caller.signal);
+  const remove = caller.signal.removeEventListener.bind(caller.signal);
+  caller.signal.addEventListener = (...args) => { added++; return add(...args); };
+  caller.signal.removeEventListener = (...args) => { removed++; return remove(...args); };
+  const provider = { generate() { return new Promise(() => {}); } };
+
+  const pending = runSofiaCore(provider, request, {
+    ...config, timeoutMs: 10000, signal: caller.signal
+  });
+  await Promise.resolve();
+  caller.abort();
+  const result = await pending;
+
+  assert.equal(result.error.code, "REQUEST_CANCELLED");
+  assert.equal(added, 1);
+  assert.equal(removed, 1);
+});
+
+test("a new Core request succeeds after a previous request was cancelled", async () => {
+  const caller = new AbortController();
+  let calls = 0;
+  const provider = { generate() {
+    calls++;
+    if (calls === 1) return new Promise(() => {});
+    return Promise.resolve({ text: "Второй запрос выполнен", providerId: "mock", modelId: "fixture" });
+  }};
+
+  const cancelledRequest = runSofiaCore(provider, request, {
+    ...config, timeoutMs: 10000, signal: caller.signal
+  });
+  await Promise.resolve();
+  caller.abort();
+  const cancelledResult = await cancelledRequest;
+  assert.equal(cancelledResult.error.code, "REQUEST_CANCELLED");
+
+  const nextResult = await runSofiaCore(provider, request, config);
+  assert.equal(nextResult.ok, true);
+  assert.equal(nextResult.answer.text, "Второй запрос выполнен");
+  assert.equal(calls, 2);
+});
+
