@@ -1,5 +1,7 @@
 const encoder = new TextEncoder();
 const TOKEN_TTL_SECONDS = 43200;
+const MAX_SESSION_BODY_BYTES = 4096;
+
 function b64url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -19,6 +21,42 @@ function equal(a, b) {
 async function sign(data, secret) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(data)));
+}
+async function readBoundedJson(request) {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_SESSION_BODY_BYTES) return { error: "TOO_LARGE" };
+  if (!request.body) return { error: "INVALID" };
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_SESSION_BODY_BYTES) {
+        try { await reader.cancel(); } catch {}
+        return { error: "TOO_LARGE" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    try { await reader.cancel(); } catch {}
+    return { error: "INVALID" };
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { body: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) };
+  } catch {
+    return { error: "INVALID" };
+  }
 }
 export async function issueOwnerSession(code, env, now = Math.floor(Date.now() / 1000)) {
   if (typeof env?.SOFIA_OWNER_PAIRING_CODE !== "string" || env.SOFIA_OWNER_PAIRING_CODE.length < 20 ||
@@ -43,9 +81,18 @@ export async function handleSessionRequest(request, env) {
   const headers = { "Access-Control-Allow-Origin": "https://kimalexey1201-1978.github.io", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
   if (request.method !== "POST") return Response.json({ error: { code: "METHOD_NOT_ALLOWED" } }, { status: 405, headers });
-  let body;
-  try { body = await request.json(); } catch { return Response.json({ error: { code: "INVALID_JSON" } }, { status: 400, headers }); }
-  if (typeof body?.pairingCode !== "string" || body.pairingCode.length < 20 || body.pairingCode.length > 256) return Response.json({ error: { code: "INVALID_PAIRING_CODE" } }, { status: 400, headers });
+  if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+    return Response.json({ error: { code: "UNSUPPORTED_MEDIA_TYPE" } }, { status: 415, headers });
+  }
+  const parsed = await readBoundedJson(request);
+  if (parsed.error === "TOO_LARGE") return Response.json({ error: { code: "REQUEST_TOO_LARGE" } }, { status: 413, headers });
+  if (parsed.error) return Response.json({ error: { code: "INVALID_JSON" } }, { status: 400, headers });
+  const body = parsed.body;
+  if (!body || typeof body !== "object" || Array.isArray(body) ||
+      Object.keys(body).some(key => key !== "pairingCode") ||
+      typeof body.pairingCode !== "string" || body.pairingCode.length < 20 || body.pairingCode.length > 256) {
+    return Response.json({ error: { code: "INVALID_PAIRING_CODE" } }, { status: 400, headers });
+  }
   try {
     const session = await issueOwnerSession(body.pairingCode, env);
     if (!session) return Response.json({ error: { code: "UNAUTHORIZED" } }, { status: 401, headers });
