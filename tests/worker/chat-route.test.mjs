@@ -7,6 +7,7 @@ const completion = { text: "Привет из Core", providerId: "mock", modelId
 
 function mockDependencies(capture = {}) {
   return {
+    verifyOwnerSession: async () => true,
     createProvider(config) {
       capture.providerConfig = config;
       return {
@@ -186,6 +187,7 @@ test("maps Core provider timeouts to HTTP 504 without invoking a live provider",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] })
   }), env, {
+    verifyOwnerSession: async () => true,
     createProvider() { providerCreated = true; return {}; },
     async runCore() { return { ok: false, error: { code: "PROVIDER_TIMEOUT", message: "The AI provider did not respond in time" } }; }
   });
@@ -272,6 +274,7 @@ test("does not expose arbitrary Core error details or accept malformed Core resu
     body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] })
   });
   const leaked = await handleChatRequest(request(), env, {
+    verifyOwnerSession: async () => true,
     async runCore() { return { ok: false, error: { code: "PROVIDER_UNAVAILABLE", message: "secret token leaked" } }; }
   });
   const leakedData = await leaked.json();
@@ -279,12 +282,14 @@ test("does not expose arbitrary Core error details or accept malformed Core resu
   assert.equal(JSON.stringify(leakedData).includes("secret token"), false);
 
   const malformed = await handleChatRequest(request(), env, {
+    verifyOwnerSession: async () => true,
     async runCore() { return { ok: false, error: { message: "missing code" } }; }
   });
   assert.equal(malformed.status, 500);
   assert.equal((await malformed.json()).error.code, "INTERNAL_FAILURE");
 
   const malformedAnswer = await handleChatRequest(request(), env, {
+    verifyOwnerSession: async () => true,
     async runCore() { return { ok: true, answer: { text: { unsafe: true } } }; }
   });
   assert.equal(malformedAnswer.status, 500);
