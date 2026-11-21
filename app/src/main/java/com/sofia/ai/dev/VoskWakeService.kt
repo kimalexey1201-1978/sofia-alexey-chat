@@ -114,10 +114,8 @@ class VoskWakeService : Service() {
 
                 createdAudioService.startListening(createListener(generation, startId))
             } catch (error: Exception) {
-                val shouldReportFailure = synchronized(this) {
-                    generation == startGeneration && isRunning && !restartAfterStartup && !wakeHandled
-                }
-                if (ownershipTransferred && shouldReportFailure) stopListening()
+                val shouldReportFailure = stopListeningForGeneration(generation) &&
+                    synchronized(this) { !restartAfterStartup }
                 if (shouldReportFailure) {
                     val message = "Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}"
                     sendStatus(message)
@@ -225,8 +223,22 @@ class VoskWakeService : Service() {
     }
 
     @Synchronized
+    private fun stopListeningForGeneration(generation: Long): Boolean {
+        if (generation != startGeneration || !isRunning || wakeHandled) return false
+        isRunning = false
+        startGeneration++
+        releaseAudioResources()
+        return true
+    }
+
+    @Synchronized
     private fun stopListening() {
         isRunning = false
+        startGeneration++
+        releaseAudioResources()
+    }
+
+    private fun releaseAudioResources() {
         val activeSpeechService = speechService
         speechService = null
         try {
@@ -246,6 +258,9 @@ class VoskWakeService : Service() {
         model = null
     }
 
+    /* STOP_LISTENING_REPLACED */
+    private fun stopListeningOldUnused() {
+        isRunning = false
     private fun containsWakeWord(json: String): Boolean {
         return try {
             val word = JSONObject(json).optString("text")
