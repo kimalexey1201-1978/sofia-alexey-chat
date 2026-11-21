@@ -299,6 +299,11 @@ class MainActivity : Activity() {
     private fun sendCurrentMessage() {
         val text = input.text.toString().trim()
         if (text.isEmpty()) return
+        if (ownerSessionToken.isNullOrBlank()) {
+            showPairingDialog()
+            status.text = "Сначала подключи доступ владельца."
+            return
+        }
         input.setText("")
         if (selectedImages.isNotEmpty()) {
             addBubble("user", "К сообщению выбрано изображений: ${selectedImages.size}.")
@@ -452,12 +457,14 @@ class MainActivity : Activity() {
                 readTimeout = 25000
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("Authorization", "Bearer ${ownerSessionToken ?: return null}")
             }
             val body = JSONObject().put("messages", payload).toString().toByteArray(Charsets.UTF_8)
             connection.outputStream.use { it.write(body) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: return null
+            if (code == 401) ownerSessionToken = null
             if (code !in 200..299) return null
             val response = JSONObject(responseText)
             response.optJSONArray("choices")?.optJSONObject(0)
