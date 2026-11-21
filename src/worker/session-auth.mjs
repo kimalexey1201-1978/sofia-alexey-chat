@@ -104,11 +104,6 @@ export async function handleSessionRequest(request, env) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pairingCode: body.pairingCode, expectedCode: env.SOFIA_OWNER_PAIRING_CODE })
     });
-    if (guardResponse.status === 429) {
-      return Response.json({ error: { code: "PAIRING_TEMPORARILY_BLOCKED" } }, {
-        status: 429, headers: { ...headers, "Retry-After": guardResponse.headers.get("Retry-After") || "900" }
-      });
-    }
     if (!guardResponse.ok) {
       if (guardResponse.status === 401) return Response.json({ error: { code: "UNAUTHORIZED" } }, { status: 401, headers });
       return Response.json({ error: { code: "PAIRING_PROTECTION_UNAVAILABLE" } }, { status: 503, headers });
