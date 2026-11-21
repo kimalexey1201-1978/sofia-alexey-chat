@@ -98,7 +98,7 @@ export class PairingGuard {
         const key = "used-challenge:" + body.challengeNonce;
         const existing = await transaction.get(key);
         if (existing !== undefined) return false;
-        await transaction.put(key, { expiresAt: body.challengeExpiresAt });
+        await transaction.put(key, { expiresAt: body.challengeExpiresAt }, { expiration: body.challengeExpiresAt });
         return true;
       });
       if (!consumed) return Response.json({ error: "CHALLENGE_REPLAYED" }, { status: 401 });
