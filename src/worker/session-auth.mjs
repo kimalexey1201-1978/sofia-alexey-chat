@@ -53,6 +53,39 @@ async function verifyPairingProof(code, challenge, proofCounter, env, now = Math
   } catch { return false; }
 }
 
+function b64url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).split("=").join("").replaceAll("+", "-").replaceAll("/", "_");
+}
+function decodeB64url(value) {
+  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
+  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+  return Uint8Array.from(binary, c => c.charCodeAt(0));
+}
+async function hmacKey(secret, usages) {
+  return crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, usages);
+}
+async function sign(data, secret) {
+  const key = await hmacKey(secret, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(data)));
+}
+async function verifySignature(data, signature, secret) {
+  const key = await hmacKey(secret, ["verify"]);
+  return crypto.subtle.verify("HMAC", key, signature, encoder.encode(data));
+}
+async function equalSecret(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length > 256 || b.length > 256) return false;
+  const [left, right] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(a)),
+    crypto.subtle.digest("SHA-256", encoder.encode(b))
+  ]);
+  const x = new Uint8Array(left);
+  const y = new Uint8Array(right);
+  let difference = 0;
+  for (let i = 0; i < 32; i++) difference |= x[i] ^ y[i];
+  return difference === 0;
+}
 async function readBoundedJson(request) {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_SESSION_BODY_BYTES) return { error: "TOO_LARGE" };
