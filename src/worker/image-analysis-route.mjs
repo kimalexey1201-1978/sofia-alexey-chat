@@ -1,3 +1,4 @@
+import { createOpenRouterCredentialPort } from "../core/provider-credential-port.mjs";
 import { verifyOwnerSession } from "./session-auth.mjs";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -34,11 +35,10 @@ export async function handleImageAnalysisRequest(request, env, dependencies = {}
   if (Number.isFinite(declared) && declared > maxRequestBytes) {
     return json({ error: { code: "IMAGE_TOO_LARGE", message: "Image upload exceeds the request size limit" } }, 413);
   }
-  if (!env?.OPENROUTER_API_KEY || !env?.OPENROUTER_VISION_MODEL) {
+  if (!env?.OPENROUTER_VISION_MODEL) {
     return json({ error: { code: "VISION_NOT_CONFIGURED", message: "Image analysis is not configured on the server" } }, 503);
   }
 
-  // Enforce the cap while consuming the stream, before multipart parsing can allocate its buffers.
   if (!request.body) return json({ error: { code: "INVALID_MULTIPART", message: "Image upload could not be read" } }, 400);
   const reader = request.body.getReader();
   const chunks = [];
@@ -90,13 +90,18 @@ export async function handleImageAnalysisRequest(request, env, dependencies = {}
     : "Опиши изображение кратко и точно. Отделяй видимые факты от предположений. Не пытайся устанавливать личность людей.";
   const bytes = new Uint8Array(await file.arrayBuffer());
   const dataUrl = `data:${file.type.toLowerCase()};base64,${toBase64(bytes)}`;
-  const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
+
+  let credentialedFetch;
+  try {
+    credentialedFetch = createOpenRouterCredentialPort(env, dependencies.fetchImpl ?? globalThis.fetch);
+  } catch {
+    return json({ error: { code: "VISION_NOT_CONFIGURED", message: "Image analysis is not configured on the server" } }, 503);
+  }
 
   try {
-    const response = await fetchImpl(ENDPOINT, {
+    const response = await credentialedFetch(ENDPOINT, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
         "X-Title": "Sofia AI"
       },
