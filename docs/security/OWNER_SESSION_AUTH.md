@@ -22,7 +22,10 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 
 ## Security limitations before deployment
 
-- The pairing endpoint now enforces a 4 KiB streaming request-body limit, JSON content type, and strict top-level field validation. Durable rate limiting / lockout protection against repeated guessing is still required.
+- The pairing endpoint enforces a 4 KiB streaming request-body limit, JSON content type, and strict top-level field validation.
+- Pairing verification is delegated to one named SQLite-backed Durable Object. It allows four failed attempts in a 15-minute window; the fifth failure starts a 15-minute lockout. The state is persisted transactionally and is shared across Cloudflare locations.
+- The Worker fails closed with HTTP 503 if the `SOFIA_PAIRING_GUARD` binding is absent or unavailable. The pairing code is passed only through the internal Worker-to-DO binding request and is never persisted by the Durable Object.
+- The Durable Object class and runtime integration are implemented in this branch, but the Wrangler binding/export declaration is intentionally not added yet. It must be reviewed and configured as a separate deployment step.
 - Image uploads now enforce a streaming request-body limit of 5 MiB plus 64 KiB before multipart parsing, in addition to the 5 MiB file-size check.
 - The owner token is a first access gate, not device attestation. It does not prove that a request came from an untampered APK or a particular physical phone.
 - Do not enable file mutation, gallery-wide access, or other privileged actions on the basis of this token alone.
@@ -30,11 +33,12 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 ## Before enabling
 
 1. Configure both secrets in the intended Worker environment using Cloudflare secret storage.
-2. Complete request-size and pairing-rate-limit protections before exposing the endpoints.
-3. Review the pending pull request and confirm the Worker deployment target.
-4. Pair the Android app using the private pairing code.
-5. Verify that missing, invalid, and expired tokens receive HTTP 401 for both protected endpoints.
-6. Verify that valid owner sessions can chat and analyze a test image.
-7. Rotate both secrets immediately if either is exposed.
+2. Add the `SOFIA_PAIRING_GUARD` binding and declare `PairingGuard` as a SQLite-backed Durable Object in Wrangler configuration; review the Cloudflare lifecycle mechanism already used by the Worker before choosing `exports` or legacy `migrations`.
+3. Deploy to a non-production Preview environment and verify the fifth-failure lockout, persistence, correct-code recovery after expiry, and fail-closed behavior.
+4. Review the pending pull request and confirm the Worker deployment target.
+5. Pair the Android app using the private pairing code.
+6. Verify that missing, invalid, and expired tokens receive HTTP 401 for both protected endpoints.
+7. Verify that valid owner sessions can chat and analyze a test image.
+8. Rotate both secrets immediately if either is exposed.
 
 No secret values should be placed in this repository, APK resources, or chat messages.
