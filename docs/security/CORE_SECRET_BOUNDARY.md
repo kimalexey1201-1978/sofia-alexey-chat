@@ -13,6 +13,8 @@ Only trusted Sofia Core server code may turn a server-side secret into a narrowl
 
 For OpenRouter, the trusted `src/core/provider-credential-port.mjs` module reads the Worker environment and creates a request capability. That capability:
 - permits only HTTPS POST requests to the exact OpenRouter chat-completions endpoint;
+- binds each capability to one server-selected model, request purpose (chat or vision), message schema, temperature, and output-token ceiling;
+- rejects unapproved model changes, tool/function fields, malformed messages, and unsupported image payloads;
 - accepts only JSON request bodies within an 8 MiB bound;
 - injects the Authorization header internally and overwrites caller-supplied authorization;
 - forwards only the explicitly permitted provider metadata headers;
