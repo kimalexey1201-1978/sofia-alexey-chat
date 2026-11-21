@@ -22,7 +22,10 @@ import org.vosk.android.SpeechService
 class VoskWakeService : Service() {
     private var model: Model? = null
     private var recognizer: Recognizer? = null
+    @Volatile
     private var speechService: SpeechService? = null
+
+    @Volatile
     private var wakeHandled = false
 
     @Volatile
