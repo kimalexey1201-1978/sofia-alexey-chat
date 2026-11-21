@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: "22"
       - name: Run core and image intake tests
-        run: node --test test/media-share-intake.test.mjs test/image-analysis-route.test.mjs
+        run: node --test test/media-share-intake.test.mjs test/image-analysis-route.test.mjs test/session-auth.test.mjs
 
   assemble-debug:
     runs-on: ubuntu-latest
