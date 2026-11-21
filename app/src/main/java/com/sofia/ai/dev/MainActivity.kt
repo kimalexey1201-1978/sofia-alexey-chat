@@ -452,7 +452,7 @@ class MainActivity : Activity() {
             }
             val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeId)
             if (requestCode == 43) copySelectedImagesToFolder(parentUri)
-            else showCreateFolderDialog(treeUri, parentUri)
+            else showCreateFolderDialog(parentUri)
             return
         }
         if (requestCode != 42) return
@@ -548,7 +548,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showCreateFolderDialog(treeUri: Uri, parentUri: Uri) {
+    private fun showCreateFolderDialog(parentUri: Uri) {
         val nameField = EditText(this).apply {
             hint = "Название новой папки"
             setSingleLine(true)
