@@ -1,9 +1,11 @@
 const MAX_BODY_BYTES = 1024;
 
 function equalConstantTime(a, b) {
-  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
-  let difference = 0;
-  for (let i = 0; i < a.length; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  if (typeof a !== "string" || typeof b !== "string" || a.length > 256 || b.length > 256) return false;
+  let difference = a.length ^ b.length;
+  for (let i = 0; i < 256; i++) {
+    difference |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
   return difference === 0;
 }
 
