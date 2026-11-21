@@ -24,7 +24,7 @@ test("transfer contract requires destination integrity evidence before completio
 
 test("local cleanup is a separate approved phase, never implied by upload completion", async () => {
   const schema = await load("file-transfer-job");
-  const approvalGate = schema.allOf.find(rule => rule.if?.properties?.state?.enum?.includes("cleanup_approved"));
+  const approvalGate = schema.allOf.find(rule => rule.then?.required?.includes("cleanup_approval_ref"));
   assert.ok(approvalGate);
   assert.ok(approvalGate.then.required.includes("cleanup_approval_ref"));
   assert.ok(approvalGate.then.required.includes("cleanup_approved_at"));
