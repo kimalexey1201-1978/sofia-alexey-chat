@@ -15,7 +15,7 @@ function file(overrides = {}) {
     size_bytes: 2048,
     content_hash_sha256: HASH_A,
     owner_principal_id: OWNER,
-    data_classification: "personal",
+    data_classification: "internal",
     lifecycle_state: "available",
     created_at: created,
     ...overrides
