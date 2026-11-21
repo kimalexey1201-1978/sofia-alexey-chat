@@ -21,13 +21,13 @@ test("mock provider returns a provider-independent result", async () => {
     text: "Hello",
     providerId: "mock",
     modelId: "fixture-v1",
-    usage: { promptTokens: 3, completionTokens: 1 }
+    usage: { inputTokens: 3, outputTokens: 1 }
   });
   assert.deepEqual(await provider.generate({ requestId: "test-1" }), {
     text: "Hello",
     providerId: "mock",
     modelId: "fixture-v1",
-    usage: { promptTokens: 3, completionTokens: 1 }
+    usage: { inputTokens: 3, outputTokens: 1 }
   });
 });
 
@@ -36,7 +36,7 @@ test("accepts a structurally valid provider result", () => {
     text: "A response",
     providerId: "mock",
     modelId: "fixture-v1",
-    usage: { totalTokens: 4 }
+    usage: { inputTokens: 3, outputTokens: 1 }
   };
   assert.deepEqual(validateProviderResult(result), result);
 });
@@ -56,6 +56,6 @@ test("rejects empty text and missing provider metadata", () => {
 test("rejects malformed usage metadata", () => {
   assert.throws(() => validateProviderResult({
     text: "response", providerId: "mock", modelId: "fixture-v1",
-    usage: { totalTokens: -1 }
-  }), /finite non-negative numbers/);
+    usage: { inputTokens: -1 }
+  }), /non-negative safe integers/);
 });
