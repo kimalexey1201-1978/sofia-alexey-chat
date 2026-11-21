@@ -54,13 +54,13 @@ test("rejects invalid, altered and expired sessions", async () => {
   assert.equal(await verifyOwnerSession(new Request("https://x.test", { headers: { Authorization: "Bearer " + result.token + "x" } }), env, 1001), false);
   assert.equal(await verifyOwnerSession(new Request("https://x.test", { headers: { Authorization: "Bearer " + result.token } }), env, 44200), false);
 });
-test("issues a signed challenge and accepts a matching PBKDF2 pairing proof", async () => {
+test("issues a signed challenge and accepts a matching Hashcash pairing proof", async () => {
   const challengeResponse = await handleSessionRequest(new Request("https://x.test/api/session/challenge", { method: "GET" }), env);
   const challenge = await challengeResponse.json();
   assert.equal(challengeResponse.status, 200);
   assert.equal(challenge.difficulty, 16);
   assert.equal(typeof challenge.challenge, "string");
-  assert.equal(typeof challenge.salt, "string");
+  assert.equal(typeof challenge.nonce, "string");
   const response = await postPairing(env.SOFIA_OWNER_PAIRING_CODE);
   const body = await response.json();
   assert.equal(response.status, 200);
