@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.app.PendingIntent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -137,6 +138,22 @@ class VoskWakeService : Service() {
         }
         model = null
 
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_START_VOICE, true)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, WAKE_NOTIFICATION_ID, openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val wakeNotification = Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("София услышала обращение")
+            .setContentText("Нажми, чтобы продиктовать команду")
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(WAKE_NOTIFICATION_ID, wakeNotification)
         sendBroadcast(Intent(ACTION_WAKE_DETECTED).setPackage(packageName))
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -210,6 +227,8 @@ class VoskWakeService : Service() {
         const val ACTION_WAKE_DETECTED = "com.sofia.ai.dev.action.WAKE_DETECTED"
         const val ACTION_STATUS = "com.sofia.ai.dev.action.WAKE_STATUS"
         const val EXTRA_STATUS = "status"
+        const val EXTRA_START_VOICE = "start_voice_after_wake"
+        const val WAKE_NOTIFICATION_ID = 7102
         private const val CHANNEL_ID = "sofia_wake_listener"
         private const val NOTIFICATION_ID = 7101
         private const val SAMPLE_RATE = 16000.0f
