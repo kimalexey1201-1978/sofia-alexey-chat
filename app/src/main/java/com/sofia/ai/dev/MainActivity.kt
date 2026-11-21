@@ -446,6 +446,8 @@ class MainActivity : Activity() {
 
     private fun restartWakeListeningAfterCommand() {
         if (!wakeModeEnabled) return
+        speechRecognizer?.destroy()
+        speechRecognizer = null
         wakeListeningRequested = false
         status.postDelayed({
             if (wakeModeEnabled && !isFinishing && !isDestroyed) {
@@ -457,6 +459,7 @@ class MainActivity : Activity() {
     private fun startVoiceInput() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             Toast.makeText(this, "Голосовой ввод на этом устройстве недоступен.", Toast.LENGTH_LONG).show()
+            restartWakeListeningAfterCommand()
             return
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
