@@ -124,10 +124,13 @@ export async function handleChatRequest(request, env, dependencies = {}) {
   const runCore = dependencies.runCore ?? runSofiaCore;
   let provider;
   try {
-    const credentialPort = createOpenRouterCredentialPort(env, dependencies.fetchImpl ?? globalThis.fetch);
+    const model = env.OPENROUTER_MODEL || "openrouter/free";
+    const credentialPort = createOpenRouterCredentialPort(env, dependencies.fetchImpl ?? globalThis.fetch, {
+      mode: "chat", model, maxTokens: 1200, temperature: 0.7
+    });
     provider = createProvider({
       fetchImpl: credentialPort,
-      model: env.OPENROUTER_MODEL || "openrouter/free",
+      model,
       siteUrl: new URL(request.url).origin,
       appName: "Sofia and Alexey"
     });
