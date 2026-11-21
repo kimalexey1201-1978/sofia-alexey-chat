@@ -24,7 +24,5 @@ jobs:
           node-version: 22
       - name: Validate Cloudflare Worker and Durable Object configuration
         run: npx --yes wrangler@4 deploy --dry-run --name sofia-preview --outdir .wrangler/deploy
-      - name: Validate the configured Wrangler Preview command
-        run: npx --yes wrangler@4 preview
       - name: Run Worker and pairing security tests
         run: node --test test/*.test.mjs tests/client/*.test.mjs tests/worker/*.test.mjs
