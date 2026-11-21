@@ -70,10 +70,10 @@ export function createOpenRouterProvider(config = {}) {
           throw new TypeError("OpenRouter returned an invalid completion");
         }
         const usage = {};
-        if (Number.isFinite(data?.usage?.prompt_tokens) && data.usage.prompt_tokens >= 0) {
+        if (Number.isSafeInteger(data?.usage?.prompt_tokens) && data.usage.prompt_tokens >= 0) {
           usage.inputTokens = data.usage.prompt_tokens;
         }
-        if (Number.isFinite(data?.usage?.completion_tokens) && data.usage.completion_tokens >= 0) {
+        if (Number.isSafeInteger(data?.usage?.completion_tokens) && data.usage.completion_tokens >= 0) {
           usage.outputTokens = data.usage.completion_tokens;
         }
         return { text, providerId: "openrouter", modelId,
