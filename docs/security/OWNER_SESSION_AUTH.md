@@ -22,7 +22,7 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 
 ## Security limitations before deployment
 
-- The pairing endpoint still needs request-body size limiting and rate limiting / lockout protection against repeated guessing.
+- The pairing endpoint now enforces a 4 KiB streaming request-body limit, JSON content type, and strict top-level field validation. Durable rate limiting / lockout protection against repeated guessing is still required.
 - Image uploads still need a streaming request-body limit before multipart parsing; the post-parse file-size check alone does not cap parser memory use.
 - The owner token is a first access gate, not device attestation. It does not prove that a request came from an untampered APK or a particular physical phone.
 - Do not enable file mutation, gallery-wide access, or other privileged actions on the basis of this token alone.
