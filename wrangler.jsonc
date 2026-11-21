@@ -32,10 +32,22 @@
       }
     ]
   },
-  "exports": {
-    "PairingGuard": {
-      "type": "durable-object",
-      "storage": "sqlite"
+  "previews": {
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "SOFIA_PAIRING_GUARD",
+          "class_name": "PairingGuard"
+        }
+      ]
     }
-  }
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": [
+        "PairingGuard"
+      ]
+    }
+  ]
 }

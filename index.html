@@ -11,6 +11,7 @@
 <script type="module">
 import { applyAssistantResult, buildChatRequestMessages } from './src/client/chat-result.mjs';
 import { resolveApiUrl } from './src/client/api-url.mjs';
+import { makePairingProof } from './src/client/pairing-proof.mjs';
 const $=id=>document.getElementById(id),KEY='sofia-chat-v3',AVS='sofia-avatars-v1';let chat=[];try{chat=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}if(!Array.isArray(chat))chat=[];let avatars={sofia:'',alexey:'alexey-avatar.jpg'};try{avatars={...avatars,...JSON.parse(localStorage.getItem(AVS)||'{}')}}catch{}
 const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Не обращайся к пользователю по имени и не используй ласковые обращения; сохраняй нейтральную форму, если пользователь явно не попросил иначе. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.'};
 function save(){localStorage.setItem(KEY,JSON.stringify(chat))}
@@ -26,8 +27,14 @@ async function ensureOwnerSession(){
   const code=prompt('Для доступа к Софии введи личный код владельца. Код не сохраняется.');
   if(!code)return null;
   try{
+    setConnection('Готовлю защищённую проверку доступа…');
+    const challengeResponse=await fetch(resolveApiUrl('/api/session/challenge'),{method:'GET',cache:'no-store'});
+    const challengeData=await challengeResponse.json();
+    if(!challengeResponse.ok||typeof challengeData.challenge!=='string'||typeof challengeData.nonce!=='string'||!Number.isInteger(challengeData.difficulty))throw new Error('CHALLENGE_FAILED');
+    const proofCounter=await makePairingProof(code,challengeData.nonce,challengeData.difficulty);
     const response=await fetch(resolveApiUrl('/api/session'),{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairingCode:code})
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pairingCode:code,challenge:challengeData.challenge,proofCounter})
     });
     const data=await response.json();
     if(!response.ok||typeof data.token!=='string')throw new Error('AUTH_FAILED');

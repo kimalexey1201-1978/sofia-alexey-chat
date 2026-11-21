@@ -17,6 +17,31 @@ const env = {
     })
   }
 };
+
+async function pairingPayload(code) {
+  const challengeResponse = await handleSessionRequest(new Request("https://x.test/api/session/challenge", { method: "GET" }), env);
+  assert.equal(challengeResponse.status, 200);
+  const challenge = await challengeResponse.json();
+  const codeHashBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code)));
+  let binary = "";
+  for (const byte of codeHashBytes) binary += String.fromCharCode(byte);
+  const codeHash = btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  let proofCounter = null;
+  for (let counter = 0; counter < 0x7fffffff; counter++) {
+    const digest = new Uint8Array(await crypto.subtle.digest(
+      "SHA-256", new TextEncoder().encode(challenge.nonce + "." + codeHash + "." + counter)
+    ));
+    if (digest[0] === 0 && digest[1] === 0) { proofCounter = String(counter); break; }
+  }
+  assert.notEqual(proofCounter, null);
+  return { pairingCode: code, challenge: challenge.challenge, proofCounter };
+}
+async function postPairing(code) {
+  const body = await pairingPayload(code);
+  return handleSessionRequest(new Request("https://x.test/api/session", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  }), env);
+}
 test("issues a signed short-lived session for the owner pairing code", async () => {
   const result = await issueOwnerSession(env.SOFIA_OWNER_PAIRING_CODE, env, 1000);
   assert.equal(result.expiresAt, 1000 + 43200);
@@ -29,15 +54,37 @@ test("rejects invalid, altered and expired sessions", async () => {
   assert.equal(await verifyOwnerSession(new Request("https://x.test", { headers: { Authorization: "Bearer " + result.token + "x" } }), env, 1001), false);
   assert.equal(await verifyOwnerSession(new Request("https://x.test", { headers: { Authorization: "Bearer " + result.token } }), env, 44200), false);
 });
-test("pairing endpoint returns a session and does not echo the pairing code", async () => {
-  const response = await handleSessionRequest(new Request("https://x.test/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pairingCode: env.SOFIA_OWNER_PAIRING_CODE }) }), env);
+test("issues a signed challenge and accepts a matching Hashcash pairing proof", async () => {
+  const challengeResponse = await handleSessionRequest(new Request("https://x.test/api/session/challenge", { method: "GET" }), env);
+  const challenge = await challengeResponse.json();
+  assert.equal(challengeResponse.status, 200);
+  assert.equal(challenge.difficulty, 16);
+  assert.equal(typeof challenge.challenge, "string");
+  assert.equal(typeof challenge.nonce, "string");
+  const response = await postPairing(env.SOFIA_OWNER_PAIRING_CODE);
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(typeof body.token, "string");
   assert.equal(JSON.stringify(body).includes(env.SOFIA_OWNER_PAIRING_CODE), false);
 });
-test("rejects incorrect pairing codes", async () => {
-  const response = await handleSessionRequest(new Request("https://x.test/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pairingCode: "z".repeat(32) }) }), env);
+test("rejects a work proof computed for a different pairing code", async () => {
+  const payload = await pairingPayload("wrong-code-".padEnd(32, "z"));
+  payload.pairingCode = env.SOFIA_OWNER_PAIRING_CODE;
+  const response = await handleSessionRequest(new Request("https://x.test/api/session", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+  }), env);
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error.code, "INVALID_PAIRING_PROOF");
+});
+test("rejects pairing attempts without a signed challenge and proof", async () => {
+  const response = await handleSessionRequest(new Request("https://x.test/api/session", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pairingCode: env.SOFIA_OWNER_PAIRING_CODE })
+  }), env);
+  assert.equal(response.status, 400);
+});
+test("rejects incorrect pairing codes after proof validation", async () => {
+  const response = await postPairing("z".repeat(32));
   assert.equal(response.status, 401);
 });
 
@@ -69,11 +116,36 @@ test("requires JSON content type for pairing requests", async () => {
 
 test("fails closed when durable pairing protection is not configured", async () => {
   const { SOFIA_PAIRING_GUARD, ...unprotectedEnv } = env;
+  const payload = await pairingPayload(env.SOFIA_OWNER_PAIRING_CODE);
   const response = await handleSessionRequest(new Request("https://x.test/api/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pairingCode: env.SOFIA_OWNER_PAIRING_CODE })
+    body: JSON.stringify(payload)
   }), unprotectedEnv);
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error.code, "PAIRING_PROTECTION_NOT_CONFIGURED");
+});
+
+test("rejects oversized bearer headers before HMAC verification", async () => {
+  const request = new Request("https://x.test", {
+    headers: { Authorization: "Bearer " + "a".repeat(600) }
+  });
+  assert.equal(await verifyOwnerSession(request, env, 1001), false);
+});
+
+test("rejects bearer tokens with extra segments or invalid base64url characters", async () => {
+  assert.equal(await verifyOwnerSession(new Request("https://x.test", {
+    headers: { Authorization: "Bearer a.b.c" }
+  }), env, 1001), false);
+  assert.equal(await verifyOwnerSession(new Request("https://x.test", {
+    headers: { Authorization: "Bearer a*.b*" }
+  }), env, 1001), false);
+});
+
+test("rejects sessions with a future issue time beyond clock tolerance", async () => {
+  const result = await issueOwnerSession(env.SOFIA_OWNER_PAIRING_CODE, env, 2000);
+  const request = new Request("https://x.test", {
+    headers: { Authorization: "Bearer " + result.token }
+  });
+  assert.equal(await verifyOwnerSession(request, env, 1900), false);
 });

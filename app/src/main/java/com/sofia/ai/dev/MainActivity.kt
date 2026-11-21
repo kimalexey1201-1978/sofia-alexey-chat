@@ -29,6 +29,8 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import android.util.Base64
+import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
@@ -383,14 +385,50 @@ class MainActivity : Activity() {
     private fun exchangePairingCode(code: String): String? {
         var connection: HttpURLConnection? = null
         return try {
+            connection = (URL("$sessionUrl/challenge").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 15000
+                readTimeout = 20000
+                setRequestProperty("Cache-Control", "no-store")
+            }
+            if (connection.responseCode !in 200..299) return null
+            val challengeData = JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+            val challenge = challengeData.optString("challenge")
+            val nonce = challengeData.optString("nonce")
+            val difficulty = challengeData.optInt("difficulty", 0)
+            if (challenge.count { it == '.' } != 1 || nonce.isBlank() || difficulty != 16) return null
+            connection.disconnect()
+            connection = null
+
+            val codeHash = Base64.encodeToString(
+                MessageDigest.getInstance("SHA-256").digest(code.toByteArray(Charsets.UTF_8)),
+                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+            )
+            val digest = MessageDigest.getInstance("SHA-256")
+            var proofCounter: String? = null
+            for (counter in 0 until Int.MAX_VALUE) {
+                val work = "$nonce.$codeHash.$counter".toByteArray(Charsets.UTF_8)
+                val result = digest.digest(work)
+                if (result[0].toInt() == 0 && result[1].toInt() == 0) {
+                    proofCounter = counter.toString()
+                    break
+                }
+            }
+            val proof = proofCounter ?: return null
+
             connection = (URL(sessionUrl).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
                 readTimeout = 20000
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("Cache-Control", "no-store")
             }
-            val body = JSONObject().put("pairingCode", code).toString().toByteArray(Charsets.UTF_8)
+            val body = JSONObject()
+                .put("pairingCode", code)
+                .put("challenge", challenge)
+                .put("proofCounter", proof)
+                .toString().toByteArray(Charsets.UTF_8)
             connection.outputStream.use { it.write(body) }
             if (connection.responseCode !in 200..299) return null
             JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })

@@ -1,9 +1,15 @@
 const MAX_BODY_BYTES = 1024;
 
-function equalConstantTime(a, b) {
-  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+async function equalSecret(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const [left, right] = await Promise.all([
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(a)),
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(b))
+  ]);
+  const x = new Uint8Array(left);
+  const y = new Uint8Array(right);
   let difference = 0;
-  for (let i = 0; i < a.length; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < 32; i++) difference |= x[i] ^ y[i];
   return difference === 0;
 }
 
@@ -72,7 +78,7 @@ export class PairingGuard {
       return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
     }
 
-    if (!equalConstantTime(body.pairingCode, body.expectedCode)) {
+    if (!(await equalSecret(body.pairingCode, body.expectedCode))) {
       return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
     return Response.json({ valid: true });
