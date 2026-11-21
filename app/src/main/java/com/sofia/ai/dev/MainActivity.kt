@@ -559,7 +559,7 @@ class MainActivity : Activity() {
                         }
                         copied++
                     } catch (error: Exception) {
-                        failures.add("$" + "{displayName}: " + "$" + "{error.message ?: "ошибка копирования"}")
+                        failures.add("${displayName}: ${error.message ?: "ошибка копирования"}")
                     }
                 }
             } catch (error: Exception) {
@@ -567,7 +567,7 @@ class MainActivity : Activity() {
             }
             runOnUiThread {
                 status.text = "Готово"
-                val summary = "Скопировано: $" + "{copied} из $" + "{snapshot.size}. Оригиналы не удалялись." +
+                val summary = "Скопировано: ${copied} из ${snapshot.size}. Оригиналы не удалялись." +
                     if (failures.isEmpty()) "" else "\nНе удалось скопировать:\n" + failures.take(5).joinToString("\n")
                 addBubble("assistant", summary)
             }
