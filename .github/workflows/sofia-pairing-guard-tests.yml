@@ -6,11 +6,6 @@ on:
       - security/durable-pairing-guard-20261121
       - security/no-global-owner-lockout-20261121
       - fix/cloudflare-preview-build-config-20261121
-  pull_request:
-    branches:
-      - fix/storage-api-origin-routing-20261121
-      - security/durable-pairing-guard-20261121
-      - security/no-global-owner-lockout-20261121
 
 jobs:
   pairing-guard:
