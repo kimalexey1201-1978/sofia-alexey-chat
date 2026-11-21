@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var wakeReceiverRegistered = false
     private var wakeListeningRequested = false
+    private var wakeModeEnabled = false
     private lateinit var wakeButton: Button
     private val wakeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -57,12 +58,13 @@ class MainActivity : Activity() {
                 VoskWakeService.ACTION_WAKE_DETECTED -> {
                     getSystemService(NotificationManager::class.java).cancel(VoskWakeService.WAKE_NOTIFICATION_ID)
                     wakeListeningRequested = false
-                    wakeButton.text = "Активация: выкл"
+                    wakeButton.text = "Активация: вкл"
                     status.text = "Услышала обращение. Слушаю команду…"
                     startVoiceInput()
                 }
                 VoskWakeService.ACTION_STATUS -> {
                     wakeListeningRequested = false
+                    wakeModeEnabled = false
                     wakeButton.text = "Активация: выкл"
                     status.text = intent.getStringExtra(VoskWakeService.EXTRA_STATUS) ?: "Ошибка голосовой активации."
                 }
@@ -90,7 +92,7 @@ class MainActivity : Activity() {
             incoming.removeExtra(VoskWakeService.EXTRA_START_VOICE)
             getSystemService(NotificationManager::class.java).cancel(VoskWakeService.WAKE_NOTIFICATION_ID)
             wakeListeningRequested = false
-            if (::wakeButton.isInitialized) wakeButton.text = "Активация: выкл"
+            if (::wakeButton.isInitialized) wakeButton.text = if (wakeModeEnabled) "Активация: вкл" else "Активация: выкл"
             if (::status.isInitialized) {
                 status.text = "Услышала обращение. Слушаю команду…"
                 status.post { startVoiceInput() }
@@ -391,11 +393,9 @@ class MainActivity : Activity() {
     }
 
     private fun toggleWakeListening() {
-        if (wakeListeningRequested) {
-            startService(Intent(this, VoskWakeService::class.java).apply {
-                action = VoskWakeService.ACTION_STOP
-            })
-            wakeListeningRequested = false
+        if (wakeModeEnabled) {
+            wakeModeEnabled = false
+            stopWakeService()
             wakeButton.text = "Активация: выкл"
             status.text = "Ожидание обращения остановлено."
             return
@@ -408,6 +408,12 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 45)
             return
         }
+        wakeModeEnabled = true
+        startWakeService()
+    }
+
+    private fun startWakeService() {
+        if (!wakeModeEnabled || wakeListeningRequested) return
         val serviceIntent = Intent(this, VoskWakeService::class.java).apply {
             action = VoskWakeService.ACTION_START
         }
@@ -419,12 +425,33 @@ class MainActivity : Activity() {
             }
             wakeListeningRequested = true
             wakeButton.text = "Активация: вкл"
-            status.text = "Загружаю локальную модель и запускаю ожидание…"
+            status.text = "Запускаю локальное ожидание обращения…"
         } catch (error: Exception) {
             wakeListeningRequested = false
+            wakeModeEnabled = false
             wakeButton.text = "Активация: выкл"
             status.text = "Не удалось включить активацию: ${error.message ?: "ошибка Android"}"
         }
+    }
+
+    private fun stopWakeService() {
+        try {
+            startService(Intent(this, VoskWakeService::class.java).apply {
+                action = VoskWakeService.ACTION_STOP
+            })
+        } catch (_: Exception) {
+        }
+        wakeListeningRequested = false
+    }
+
+    private fun restartWakeListeningAfterCommand() {
+        if (!wakeModeEnabled) return
+        wakeListeningRequested = false
+        status.postDelayed({
+            if (wakeModeEnabled && !isFinishing && !isDestroyed) {
+                startWakeService()
+            }
+        }, 700)
     }
 
     private fun startVoiceInput() {
@@ -444,7 +471,10 @@ class MainActivity : Activity() {
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() { status.text = "Распознаю речь…" }
-                override fun onError(error: Int) { status.text = "Голос не распознан. Попробуй ещё раз." }
+                override fun onError(error: Int) {
+                    status.text = "Голос не распознан. Попробуй ещё раз."
+                    restartWakeListeningAfterCommand()
+                }
                 override fun onResults(results: Bundle?) {
                     val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     if (!phrase.isNullOrBlank()) {
@@ -452,6 +482,7 @@ class MainActivity : Activity() {
                         input.setSelection(phrase.length)
                     }
                     status.text = "На связи"
+                    restartWakeListeningAfterCommand()
                 }
                 override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -475,6 +506,7 @@ class MainActivity : Activity() {
             startVoiceInput()
         } else if (requestCode == 41) {
             Toast.makeText(this, "Для голосового ввода нужно разрешение на микрофон.", Toast.LENGTH_LONG).show()
+            restartWakeListeningAfterCommand()
         }
     }
 
