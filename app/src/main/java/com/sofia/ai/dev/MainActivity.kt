@@ -457,6 +457,11 @@ class MainActivity : Activity() {
     }
 
     private fun startVoiceInput() {
+        // The local wake-word engine and Android SpeechRecognizer must not
+        // compete for the microphone. Keep the user's wake-mode preference.
+        if (wakeModeEnabled && wakeListeningRequested) {
+            stopWakeService()
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             Toast.makeText(this, "Голосовой ввод на этом устройстве недоступен.", Toast.LENGTH_LONG).show()
             restartWakeListeningAfterCommand()
