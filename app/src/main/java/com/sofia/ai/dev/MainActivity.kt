@@ -152,9 +152,15 @@ class MainActivity : Activity() {
     }
 
     private fun renderChat() {
+        val density = resources.displayMetrics.density
+        fun dp(value: Int): Int = (value * density + 0.5f).toInt()
+
+        // Keep the composer usable on narrow Android screens.
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(18, 24, 18, 12)
+            setPadding(dp(16), dp(20), dp(16), dp(8))
         }
         root.addView(TextView(this).apply {
             text = "София"
@@ -163,7 +169,7 @@ class MainActivity : Activity() {
         status = TextView(this).apply {
             text = "На связи"
             textSize = 12f
-            setPadding(0, 4, 0, 12)
+            setPadding(0, dp(4), 0, dp(12))
         }
         root.addView(status)
         val galleryButton = Button(this).apply {
@@ -176,7 +182,10 @@ class MainActivity : Activity() {
             setOnClickListener { toggleWakeListening() }
         }
         root.addView(wakeButton)
-        val scroll = ScrollView(this)
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+        }
         messages = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -186,31 +195,44 @@ class MainActivity : Activity() {
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(4))
         }
         input = EditText(this).apply {
             hint = "Написать Софии…"
             minLines = 1
-            maxLines = 4
+            maxLines = 3
+            minWidth = 0
+            textSize = 16f
             imeOptions = EditorInfo.IME_ACTION_SEND
             setSingleLine(false)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
         }
-        controls.addView(input, LinearLayout.LayoutParams(0, -2, 1f))
-        val mic = Button(this).apply {
-            text = "🎙"
-            setOnClickListener { startVoiceInput() }
+        controls.addView(input, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            marginEnd = dp(4)
+        })
+
+        fun compactButton(label: String, widthDp: Int, textSizeSp: Float, action: () -> Unit): Button {
+            return Button(this).apply {
+                text = label
+                textSize = textSizeSp
+                minWidth = 0
+                minHeight = 0
+                setPadding(0, 0, 0, 0)
+                setOnClickListener { action() }
+                layoutParams = LinearLayout.LayoutParams(dp(widthDp), dp(48)).apply {
+                    marginStart = dp(4)
+                }
+            }
         }
+
+        val mic = compactButton("🎙", 48, 18f) { startVoiceInput() }
         controls.addView(mic)
-        val authorize = Button(this).apply {
-            text = "Доступ"
-            setOnClickListener { showPairingDialog() }
-        }
+        val authorize = compactButton("Доступ", 68, 12f) { showPairingDialog() }
         controls.addView(authorize)
-        sendButton = Button(this).apply {
-            text = "➤"
-            setOnClickListener { sendCurrentMessage() }
-        }
+        sendButton = compactButton("➤", 48, 20f) { sendCurrentMessage() }
         controls.addView(sendButton)
-        root.addView(controls)
+
+        root.addView(controls, LinearLayout.LayoutParams(-1, -2))
         setContentView(root)
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
