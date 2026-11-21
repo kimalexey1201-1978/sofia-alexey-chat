@@ -49,7 +49,7 @@ async function verifyPairingProof(code, challenge, proofCounter, env, now = Math
     const codeDigest = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(code))));
     const workInput = encoder.encode(payload.nonce + "." + codeDigest + "." + proofCounter);
     const workDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", workInput));
-    return hasLeadingZeroBits(workDigest, payload.difficulty);
+    return hasLeadingZeroBits(workDigest, payload.difficulty) ? payload : false;
   } catch { return false; }
 }
 
@@ -172,7 +172,8 @@ export async function handleSessionRequest(request, env) {
     return Response.json({ error: { code: "INVALID_PAIRING_CODE" } }, { status: 400, headers });
   }
   try {
-    if (!(await verifyPairingProof(body.pairingCode, body.challenge, body.proofCounter, env))) {
+    const verifiedChallenge = await verifyPairingProof(body.pairingCode, body.challenge, body.proofCounter, env);
+    if (!verifiedChallenge) {
       return Response.json({ error: { code: "INVALID_PAIRING_PROOF" } }, { status: 401, headers });
     }
     if (!env?.SOFIA_PAIRING_GUARD) {
@@ -183,7 +184,12 @@ export async function handleSessionRequest(request, env) {
     const guardResponse = await guard.fetch("https://pairing-guard.internal/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pairingCode: body.pairingCode, expectedCode: env.SOFIA_OWNER_PAIRING_CODE })
+      body: JSON.stringify({
+        pairingCode: body.pairingCode,
+        expectedCode: env.SOFIA_OWNER_PAIRING_CODE,
+        challengeNonce: verifiedChallenge.nonce,
+        challengeExpiresAt: verifiedChallenge.exp
+      })
     });
     if (!guardResponse.ok) {
       if (guardResponse.status === 401) return Response.json({ error: { code: "UNAUTHORIZED" } }, { status: 401, headers });
