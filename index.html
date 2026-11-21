@@ -12,7 +12,7 @@
 import { applyAssistantResult, buildChatRequestMessages } from './src/client/chat-result.mjs';
 import { resolveApiUrl } from './src/client/api-url.mjs';
 const $=id=>document.getElementById(id),KEY='sofia-chat-v3',AVS='sofia-avatars-v1';let chat=[];try{chat=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}if(!Array.isArray(chat))chat=[];let avatars={sofia:'',alexey:'alexey-avatar.jpg'};try{avatars={...avatars,...JSON.parse(localStorage.getItem(AVS)||'{}')}}catch{}
-const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Обращайся «дорогой», когда уместно. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.'};
+const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Не обращайся к пользователю по имени и не используй ласковые обращения; сохраняй нейтральную форму, если пользователь явно не попросил иначе. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.'};
 function save(){localStorage.setItem(KEY,JSON.stringify(chat))}
 function avatar(who,cls){let e=document.createElement('div');e.className=cls;let src=avatars[who];if(src){let im=document.createElement('img');im.src=src;im.onerror=()=>e.textContent=who==='sofia'?'🌷':'👤';e.append(im)}else e.textContent=who==='sofia'?'🌷':'👤';return e}
 function paint(id,who){let e=$(id);e.replaceChildren();let src=avatars[who];if(src){let im=document.createElement('img');im.src=src;im.onerror=()=>e.textContent=who==='sofia'?'🌷':'👤';e.append(im)}else e.textContent=who==='sofia'?'🌷':'👤'}
