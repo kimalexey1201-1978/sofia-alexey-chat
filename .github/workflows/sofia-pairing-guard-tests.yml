@@ -1,0 +1,22 @@
+name: Sofia pairing guard tests
+
+on:
+  push:
+    branches:
+      - security/durable-pairing-guard-20261121
+  pull_request:
+    branches:
+      - fix/storage-api-origin-routing-20261121
+
+jobs:
+  pairing-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Worker and pairing security tests
+        run: node --test test/*.test.mjs tests/client/*.test.mjs tests/worker/*.test.mjs
