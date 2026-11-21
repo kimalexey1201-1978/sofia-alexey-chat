@@ -1,4 +1,5 @@
 import { runSofiaCore } from "../core/sofia-core.mjs";
+import { createOpenRouterCredentialPort } from "../core/provider-credential-port.mjs";
 import { createOpenRouterProvider } from "../providers/openrouter-provider.mjs";
 import { verifyOwnerSession } from "./session-auth.mjs";
 
@@ -64,6 +65,8 @@ async function readBoundedBody(request) {
 /**
  * Compatibility adapter for the existing browser chat contract.
  * The legacy first system message is discarded; server-owned instruction wins.
+ * Provider adapters receive only a scoped request capability, never Worker env
+ * or a raw provider credential.
  */
 export async function handleChatRequest(request, env, dependencies = {}) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: RESPONSE_HEADERS });
@@ -73,9 +76,6 @@ export async function handleChatRequest(request, env, dependencies = {}) {
   const mediaType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (mediaType !== "application/json") {
     return json({ error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Content-Type must be application/json" } }, 415);
-  }
-  if (!env?.OPENROUTER_API_KEY) {
-    return json({ error: { code: "PROVIDER_NOT_CONFIGURED", message: "AI provider is not configured" } }, 503);
   }
 
   const bounded = await readBoundedBody(request);
@@ -94,11 +94,8 @@ export async function handleChatRequest(request, env, dependencies = {}) {
   }
 
   let messages = body.messages;
-  // Existing index.html sends one system message at position zero. Its content is untrusted.
   if (messages.length > 1 && messages[0]?.role === "system") messages = messages.slice(1);
 
-  // Reject untrusted message structure and roles before constructing a provider.
-  // This keeps invalid requests away from provider configuration and network adapters.
   if (messages.length === 0) {
     return json({ error: { code: "INVALID_REQUEST", message: "At least one message is required" } }, 400);
   }
@@ -127,14 +124,17 @@ export async function handleChatRequest(request, env, dependencies = {}) {
   const runCore = dependencies.runCore ?? runSofiaCore;
   let provider;
   try {
+    const credentialPort = createOpenRouterCredentialPort(env, dependencies.fetchImpl ?? globalThis.fetch);
     provider = createProvider({
-      apiKey: env.OPENROUTER_API_KEY,
+      fetchImpl: credentialPort,
       model: env.OPENROUTER_MODEL || "openrouter/free",
       siteUrl: new URL(request.url).origin,
-      appName: "Sofia and Alexey",
-      ...(dependencies.fetchImpl ? { fetchImpl: dependencies.fetchImpl } : {})
+      appName: "Sofia and Alexey"
     });
-  } catch {
+  } catch (error) {
+    if (error?.message === "PROVIDER_CREDENTIAL_NOT_CONFIGURED") {
+      return json({ error: { code: "PROVIDER_NOT_CONFIGURED", message: "AI provider is not configured" } }, 503);
+    }
     return json({ error: { code: "INTERNAL_FAILURE", message: "Core configuration is invalid" } }, 500);
   }
 
@@ -182,7 +182,6 @@ export async function handleChatRequest(request, env, dependencies = {}) {
     return json({ error: { code: "INTERNAL_FAILURE", message: "Core returned an invalid answer" } }, 500);
   }
 
-  // Preserve the OpenAI-compatible shape consumed by the existing index.html.
   return json({
     choices: [{
       message: {
