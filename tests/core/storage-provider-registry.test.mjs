@@ -38,6 +38,28 @@ test("rejects credentials and unknown fields from provider records", () => {
   assert.equal(result.code, "PROVIDER_FIELD_NOT_ALLOWED");
 });
 
+test("rejects credentials and permission grants nested in provider metadata", () => {
+  for (const provider_metadata of [
+    { account_label: "Personal Drive", auth: { access_token: "secret" } },
+    { nested: { client_secret: "secret" } },
+    { permission_grants: ["all_files"] },
+    { service_endpoint: "https://example.invalid" },
+    { nested: { deeper: { deepest: { too_deep: { value: true } } } } }
+  ]) {
+    const result = validateStorageProvider({ ...baseProvider, provider_metadata });
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "PROVIDER_METADATA_INVALID");
+  }
+});
+
+test("accepts bounded descriptive provider metadata", () => {
+  const result = validateStorageProvider({
+    ...baseProvider,
+    provider_metadata: { account_label: "Personal Drive", region_code: "kr" }
+  });
+  assert.equal(result.ok, true);
+});
+
 test("rejects inconsistent or unsafe quota metadata", () => {
   for (const patch of [
     { quota_bytes: -1 },
