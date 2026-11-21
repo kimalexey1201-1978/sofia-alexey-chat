@@ -37,6 +37,9 @@ class VoskWakeService : Service() {
     @Volatile
     private var restartAfterStartup = false
 
+    @Volatile
+    private var startGeneration = 0L
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -66,6 +69,7 @@ class VoskWakeService : Service() {
         }
         if (speechService != null) return START_STICKY
         if (isStarting) {
+            startGeneration++
             // A quick stop/start can arrive while the model is still loading.
             // Let the current worker finish or abort, then honor the new request.
             isRunning = true
@@ -78,31 +82,38 @@ class VoskWakeService : Service() {
         wakeHandled = false
         restartAfterStartup = false
         isStarting = true
+        val generation = ++startGeneration
 
         Thread {
+            var loadedModel: Model? = null
+            var wakeRecognizer: Recognizer? = null
+            var audioService: SpeechService? = null
+            var ownershipTransferred = false
             try {
                 val modelDirectory = VoskModelInstaller.ensureInstalled(applicationContext)
-                val loadedModel = Model(modelDirectory.absolutePath)
-                val wakeRecognizer = Recognizer(loadedModel, SAMPLE_RATE, WAKE_GRAMMAR)
-                val audioService = SpeechService(wakeRecognizer, SAMPLE_RATE)
+                loadedModel = Model(modelDirectory.absolutePath)
+                wakeRecognizer = Recognizer(loadedModel, SAMPLE_RATE, WAKE_GRAMMAR)
+                audioService = SpeechService(wakeRecognizer, SAMPLE_RATE)
 
-                synchronized(this) {
-                    if (wakeHandled || !isRunning) {
-                        audioService.shutdown()
-                        wakeRecognizer.close()
-                        loadedModel.close()
-                        return@Thread
+                val accepted = synchronized(this) {
+                    if (generation != startGeneration || wakeHandled || !isRunning) {
+                        false
+                    } else {
+                        model = loadedModel
+                        recognizer = wakeRecognizer
+                        speechService = audioService
+                        ownershipTransferred = true
+                        true
                     }
-                    model = loadedModel
-                    recognizer = wakeRecognizer
-                    speechService = audioService
                 }
+                if (!accepted) return@Thread
 
-                audioService.startListening(listener)
+                audioService.startListening(createListener(generation))
             } catch (error: Exception) {
                 val shouldReportFailure = synchronized(this) {
-                    isRunning && !restartAfterStartup && !wakeHandled
+                    generation == startGeneration && isRunning && !restartAfterStartup && !wakeHandled
                 }
+                if (ownershipTransferred && shouldReportFailure) stopListening()
                 if (shouldReportFailure) {
                     val message = "Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}"
                     sendStatus(message)
@@ -111,6 +122,11 @@ class VoskWakeService : Service() {
                     stopSelf(startId)
                 }
             } finally {
+                if (!ownershipTransferred) {
+                    try { audioService?.shutdown() } catch (_: Exception) {}
+                    try { wakeRecognizer?.close() } catch (_: Exception) {}
+                    try { loadedModel?.close() } catch (_: Exception) {}
+                }
                 val shouldRestart = synchronized(this) {
                     isStarting = false
                     val restart = restartAfterStartup && isRunning && !wakeHandled
@@ -127,20 +143,20 @@ class VoskWakeService : Service() {
         return START_NOT_STICKY
     }
 
-    private val listener = object : RecognitionListener {
+    private fun createListener(generation: Long) = object : RecognitionListener {
         override fun onPartialResult(hypothesis: String) = Unit
 
         override fun onResult(hypothesis: String) {
-            if (containsWakeWord(hypothesis)) onWakeWordDetected()
+            if (containsWakeWord(hypothesis)) onWakeWordDetected(generation)
         }
 
         override fun onFinalResult(hypothesis: String) {
-            if (containsWakeWord(hypothesis)) onWakeWordDetected()
+            if (containsWakeWord(hypothesis)) onWakeWordDetected(generation)
         }
 
         override fun onError(exception: Exception) {
             val shouldReportFailure = synchronized(this@VoskWakeService) {
-                isRunning && !wakeHandled
+                generation == startGeneration && isRunning && !wakeHandled
             }
             if (!shouldReportFailure) return
             val message = "Ошибка микрофона: ${exception.message ?: "неизвестная ошибка"}"
@@ -154,8 +170,8 @@ class VoskWakeService : Service() {
     }
 
     @Synchronized
-    private fun onWakeWordDetected() {
-        if (wakeHandled || !isRunning) return
+    private fun onWakeWordDetected(generation: Long) {
+        if (generation != startGeneration || wakeHandled || !isRunning) return
         wakeHandled = true
 
         val activeSpeechService = speechService
