@@ -18,6 +18,25 @@ function paint(id,who){let e=$(id);e.replaceChildren();let src=avatars[who];if(s
 function render(){let a=$('messages');a.replaceChildren();for(let m of chat){let r=document.createElement('div');r.className='row '+(m.who==='me'?'me':'');let b=document.createElement('div');b.className='bubble';let t=document.createElement('div');t.textContent=m.text;let s=document.createElement('div');s.className='stamp';s.textContent=new Date(m.date).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});b.append(t,s);if(m.who==='me')r.append(b,avatar('alexey','mini-avatar'));else r.append(avatar('sofia','mini-avatar'),b);a.append(r)}a.scrollTop=a.scrollHeight;save();paint('sofiaHead','sofia');paint('sofiaProfile','sofia');paint('alexeyProfile','alexey')}
 if(!chat.length)chat=[{who:'sofia',text:'Привет, дорогой! ❤️ Это наш личный чат.',date:new Date().toISOString()}];render();
 let pendingMessages=null,isSending=false;
+const SESSION_KEY='sofia-owner-session-v1';
+async function ensureOwnerSession(){
+  const existing=sessionStorage.getItem(SESSION_KEY);
+  if(existing)return existing;
+  const code=prompt('Для доступа к Софии введи личный код владельца. Код не сохраняется.');
+  if(!code)return null;
+  try{
+    const response=await fetch('https://sofia.kim-alexey1201.workers.dev/api/session',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairingCode:code})
+    });
+    const data=await response.json();
+    if(!response.ok||typeof data.token!=='string')throw new Error('AUTH_FAILED');
+    sessionStorage.setItem(SESSION_KEY,data.token);
+    return data.token;
+  }catch{
+    setConnection('Авторизация не выполнена. Проверь код и попробуй снова.',true);
+    return null;
+  }
+}
 function setConnection(message, retryable=false){
   const status=$('connection');
   status.replaceChildren(document.createTextNode(message));
@@ -36,23 +55,27 @@ async function attemptPending(){
   $('sendBtn').disabled=true;
   $('input').disabled=true;
   $('voiceBtn').disabled=true;
-  setConnection('София печатает…');
+  setConnection('Проверяю доступ…');
   let result;
   try {
+    const token=await ensureOwnerSession();
+    if(!token)throw new Error('OWNER_AUTH_REQUIRED');
+    setConnection('София печатает…');
     const res=await fetch('https://sofia.kim-alexey1201.workers.dev/api/chat',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body:JSON.stringify({messages:requestSnapshot})
     });
     let data;
     try { data=await res.json(); }
     catch { throw new Error('Сервер вернул некорректный ответ'); }
+    if(res.status===401){sessionStorage.removeItem(SESSION_KEY);throw new Error('OWNER_SESSION_EXPIRED');}
     if(!res.ok) throw new Error('Сервис временно недоступен (HTTP '+res.status+')');
     const answer=data.choices?.[0]?.message?.content;
     if(typeof answer!=='string' || !answer.trim()) throw new Error('Сервис не прислал текст ответа');
     result={ok:true,answer};
   } catch(error) {
-    result={ok:false,message:'Не удалось получить ответ. Проверь соединение и попробуй ещё раз.'};
+    result={ok:false,message:error?.message==='OWNER_SESSION_EXPIRED'?'Срок доступа истёк. Нажми «Повторить» и введи код владельца снова.':error?.message==='OWNER_AUTH_REQUIRED'?'Для работы нужен вход владельца. Нажми «Повторить» после ввода кода.':'Не удалось получить ответ. Проверь соединение и попробуй ещё раз.'};
   }
   const applied=applyAssistantResult(chat,result);
   chat=applied.chat;
