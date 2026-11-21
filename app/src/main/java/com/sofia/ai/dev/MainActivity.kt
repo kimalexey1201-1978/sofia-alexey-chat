@@ -30,8 +30,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import android.util.Base64
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.PBEKeySpec
+import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
@@ -395,20 +394,27 @@ class MainActivity : Activity() {
             if (connection.responseCode !in 200..299) return null
             val challengeData = JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
             val challenge = challengeData.optString("challenge")
-            val saltText = challengeData.optString("salt")
-            val iterations = challengeData.optInt("iterations", 0)
-            if (challenge.count { it == '.' } != 1 || saltText.isBlank() || iterations !in 100000..150000) return null
+            val nonce = challengeData.optString("nonce")
+            val difficulty = challengeData.optInt("difficulty", 0)
+            if (challenge.count { it == '.' } != 1 || nonce.isBlank() || difficulty != 16) return null
             connection.disconnect()
             connection = null
 
-            val salt = Base64.decode(saltText, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-            val spec = PBEKeySpec(code.toCharArray(), salt, iterations, 256)
-            val proofBytes = try {
-                SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-            } finally {
-                spec.clearPassword()
+            val codeHash = Base64.encodeToString(
+                MessageDigest.getInstance("SHA-256").digest(code.toByteArray(Charsets.UTF_8)),
+                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+            )
+            val digest = MessageDigest.getInstance("SHA-256")
+            var proofCounter: String? = null
+            for (counter in 0 until Int.MAX_VALUE) {
+                val work = "$nonce.$codeHash.$counter".toByteArray(Charsets.UTF_8)
+                val result = digest.digest(work)
+                if (result[0].toInt() == 0 && result[1].toInt() == 0) {
+                    proofCounter = counter.toString()
+                    break
+                }
             }
-            val proof = Base64.encodeToString(proofBytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+            val proof = proofCounter ?: return null
 
             connection = (URL(sessionUrl).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -421,7 +427,7 @@ class MainActivity : Activity() {
             val body = JSONObject()
                 .put("pairingCode", code)
                 .put("challenge", challenge)
-                .put("proof", proof)
+                .put("proofCounter", proof)
                 .toString().toByteArray(Charsets.UTF_8)
             connection.outputStream.use { it.write(body) }
             if (connection.responseCode !in 200..299) return null
