@@ -38,5 +38,14 @@
       "storage": "sqlite"
     }
   },
-  "previews": {}
+  "previews": {
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "SOFIA_PAIRING_GUARD",
+          "class_name": "PairingGuard"
+        }
+      ]
+    }
+  }
 }
