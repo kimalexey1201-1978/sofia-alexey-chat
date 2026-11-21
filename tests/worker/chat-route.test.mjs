@@ -458,6 +458,10 @@ test("returns cancellation immediately when the request is already aborted befor
 test("forwards client disconnect cancellation through Worker and maps it to HTTP 499", async () => {
   const caller = new AbortController();
   let receivedSignal;
+  let markRunCoreStarted;
+  const runCoreStarted = new Promise(resolve => {
+    markRunCoreStarted = resolve;
+  });
   const request = new Request("https://sofia.example/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -468,6 +472,7 @@ test("forwards client disconnect cancellation through Worker and maps it to HTTP
     createProvider() { return {}; },
     runCore(_provider, _payload, config) {
       receivedSignal = config.signal;
+      markRunCoreStarted();
       return new Promise(resolve => {
         if (config.signal.aborted) {
           resolve({ ok: false, error: { code: "REQUEST_CANCELLED" } });
@@ -480,11 +485,12 @@ test("forwards client disconnect cancellation through Worker and maps it to HTTP
     }
   });
 
-  await Promise.resolve();
+  // Do not abort while the Worker is still reading the request body.
+  await runCoreStarted;
+  assert.equal(receivedSignal, request.signal);
   caller.abort();
   const response = await pending;
   const data = await response.json();
-  assert.equal(receivedSignal, caller.signal);
   assert.equal(response.status, 499);
   assert.equal(data.error.code, "REQUEST_CANCELLED");
 });
