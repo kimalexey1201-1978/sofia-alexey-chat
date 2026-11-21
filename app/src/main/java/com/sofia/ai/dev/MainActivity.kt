@@ -30,6 +30,8 @@ class MainActivity : Activity() {
     private val maxItems = 100
     private val apiUrl = "https://sofia.kim-alexey1201.workers.dev/api/chat"
     private val imageAnalysisUrl = "https://sofia.kim-alexey1201.workers.dev/api/analyze-image"
+    private val sessionUrl = "https://sofia.kim-alexey1201.workers.dev/api/session"
+    @Volatile private var ownerSessionToken: String? = null
     private val maxImageBytes = 5 * 1024 * 1024
     private val executor = Executors.newSingleThreadExecutor()
     private val conversation = mutableListOf<Pair<String, String>>()
@@ -100,6 +102,11 @@ class MainActivity : Activity() {
             setOnClickListener { startVoiceInput() }
         }
         controls.addView(mic)
+        val authorize = Button(this).apply {
+            text = "Доступ"
+            setOnClickListener { showPairingDialog() }
+        }
+        controls.addView(authorize)
         sendButton = Button(this).apply {
             text = "➤"
             setOnClickListener { sendCurrentMessage() }
@@ -177,6 +184,57 @@ class MainActivity : Activity() {
     }
 
 
+
+    private fun showPairingDialog() {
+        val field = EditText(this).apply {
+            hint = "Код владельца"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Авторизация Sofia")
+            .setMessage("Введите личный код подключения. Он не сохраняется на устройстве.")
+            .setView(field)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Подключить") { _, _ ->
+                val code = field.text.toString()
+                if (code.length < 20) {
+                    Toast.makeText(this, "Код слишком короткий.", Toast.LENGTH_LONG).show()
+                } else {
+                    status.text = "Проверяю доступ…"
+                    executor.execute {
+                        val token = exchangePairingCode(code)
+                        runOnUiThread {
+                            ownerSessionToken = token
+                            status.text = if (token != null) "Владелец авторизован" else "Авторизация не выполнена"
+                            Toast.makeText(this, if (token != null) "Доступ открыт на ограниченное время." else "Код не принят или сервер не настроен.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }.show()
+    }
+
+    private fun exchangePairingCode(code: String): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL(sessionUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15000
+                readTimeout = 20000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+            val body = JSONObject().put("pairingCode", code).toString().toByteArray(Charsets.UTF_8)
+            connection.outputStream.use { it.write(body) }
+            if (connection.responseCode !in 200..299) return null
+            JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+                .optString("token").takeIf { it.count { ch -> ch == '.' } == 1 }
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     private fun analyzeSharedImages(prompt: String): String? {
         val results = mutableListOf<String>()
         for ((index, item) in selectedImages.withIndex()) {
@@ -194,6 +252,7 @@ class MainActivity : Activity() {
                     readTimeout = 60000
                     doOutput = true
                     setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+                    setRequestProperty("Authorization", "Bearer ${ownerSessionToken ?: return null}")
                 }
                 connection.outputStream.use { output ->
                     fun writeText(value: String) { output.write(value.toByteArray(Charsets.UTF_8)) }
@@ -378,7 +437,7 @@ class MainActivity : Activity() {
             })
             messages.addView(row)
         }
-        addBubble("assistant", "Теперь можешь написать или надиктовать команду. Важно: пока изображения доступны только в этом Android-экране; текстовый AI-сервис ещё не получает сами файлы. Никаких файловых изменений я не выполняю.")
+        addBubble("assistant", "Выбранные фотографии можно передать на визуальный анализ после авторизации владельца. Доступ действует ограниченное время. Никаких файловых изменений я не выполняю.")
         input.setText("Работай с выбранными фотографиями.")
     }
 
