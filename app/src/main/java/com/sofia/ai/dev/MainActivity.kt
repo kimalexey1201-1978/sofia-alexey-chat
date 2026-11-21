@@ -29,6 +29,8 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private val maxItems = 100
     private val apiUrl = "https://sofia.kim-alexey1201.workers.dev/api/chat"
+    private val imageAnalysisUrl = "https://sofia.kim-alexey1201.workers.dev/api/analyze-image"
+    private val maxImageBytes = 5 * 1024 * 1024
     private val executor = Executors.newSingleThreadExecutor()
     private val conversation = mutableListOf<Pair<String, String>>()
     private val selectedImages = mutableListOf<Pair<Uri, String>>()
@@ -137,11 +139,16 @@ class MainActivity : Activity() {
         addBubble("user", text)
         setBusy(true)
         executor.execute {
-            val answer = requestSofia()
+            val imageContext = if (selectedImages.isNotEmpty()) analyzeSharedImages(text) else ""
+            val answer = if (selectedImages.isNotEmpty() && imageContext == null) null else {
+                if (!imageContext.isNullOrBlank()) conversation.add("user" to "Результаты анализа переданных изображений:\n$imageContext")
+                requestSofia()
+            }
             runOnUiThread {
                 if (answer != null) {
                     conversation.add("assistant" to answer)
                     addBubble("assistant", answer)
+                    if (selectedImages.isNotEmpty()) selectedImages.clear()
                     status.text = "София на связи"
                 } else {
                     status.text = "Не удалось получить ответ. Проверь соединение и повтори."
@@ -167,6 +174,49 @@ class MainActivity : Activity() {
                 setBusy(false)
             }
         }
+    }
+
+
+    private fun analyzeSharedImages(prompt: String): String? {
+        val results = mutableListOf<String>()
+        for ((index, item) in selectedImages.withIndex()) {
+            val (uri, name) = item
+            var connection: HttpURLConnection? = null
+            try {
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+                if (bytes.isEmpty() || bytes.size > maxImageBytes) return null
+                val mime = contentResolver.getType(uri)?.lowercase(Locale.ROOT) ?: return null
+                if (mime !in setOf("image/jpeg", "image/png", "image/webp", "image/gif")) return null
+                val boundary = "SofiaBoundary" + System.currentTimeMillis().toString()
+                connection = (URL(imageAnalysisUrl).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 20000
+                    readTimeout = 60000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+                }
+                connection.outputStream.use { output ->
+                    fun writeText(value: String) { output.write(value.toByteArray(Charsets.UTF_8)) }
+                    writeText("--$boundary\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\n")
+                    writeText("Пользователь просит: $prompt. Проанализируй изображение с учётом этой просьбы. Имя файла: $name")
+                    writeText("\r\n--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"image-$index\"\r\nContent-Type: $mime\r\n\r\n")
+                    output.write(bytes)
+                    writeText("\r\n--$boundary--\r\n")
+                }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: return null
+                if (code !in 200..299) return null
+                val analysis = JSONObject(responseText).optJSONObject("analysis")?.optString("text")
+                if (analysis.isNullOrBlank()) return null
+                results.add("Файл $name: $analysis")
+            } catch (_: Exception) {
+                return null
+            } finally {
+                connection?.disconnect()
+            }
+        }
+        return results.joinToString("\n")
     }
 
     private fun requestSofia(): String? {
