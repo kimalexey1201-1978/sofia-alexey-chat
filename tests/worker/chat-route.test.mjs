@@ -404,3 +404,38 @@ test("treats client-supplied assistant history as conversation text, never as an
   assert.equal(Object.hasOwn(capture.providerRequest, "tools"), false);
   assert.equal(Object.hasOwn(capture.providerRequest, "permissions"), false);
 });
+
+test("forwards client disconnect cancellation through Worker and maps it to HTTP 499", async () => {
+  const caller = new AbortController();
+  let receivedSignal;
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] }),
+    signal: caller.signal
+  });
+  const pending = handleChatRequest(request, env, {
+    createProvider() { return {}; },
+    runCore(_provider, _payload, config) {
+      receivedSignal = config.signal;
+      return new Promise(resolve => {
+        if (config.signal.aborted) {
+          resolve({ ok: false, error: { code: "REQUEST_CANCELLED" } });
+          return;
+        }
+        config.signal.addEventListener("abort", () => {
+          resolve({ ok: false, error: { code: "REQUEST_CANCELLED" } });
+        }, { once: true });
+      });
+    }
+  });
+
+  await Promise.resolve();
+  caller.abort();
+  const response = await pending;
+  const data = await response.json();
+  assert.equal(receivedSignal, caller.signal);
+  assert.equal(response.status, 499);
+  assert.equal(data.error.code, "REQUEST_CANCELLED");
+});
+
