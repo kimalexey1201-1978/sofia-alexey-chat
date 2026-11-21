@@ -53,6 +53,7 @@ class MainActivity : Activity() {
     private var wakeModeEnabled = false
     private var activityResumed = false
     private var voiceInputPending = false
+    private var voiceInputGeneration = 0L
     private lateinit var wakeButton: Button
     private val wakeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -144,6 +145,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        voiceInputGeneration++
         speechRecognizer?.destroy()
         executor.shutdown()
         super.onDestroy()
@@ -463,7 +465,12 @@ class MainActivity : Activity() {
     }
 
     private fun restartWakeListeningAfterCommand() {
-        if (!wakeModeEnabled) return
+        voiceInputGeneration++
+        if (!wakeModeEnabled) {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            return
+        }
         speechRecognizer?.destroy()
         speechRecognizer = null
         wakeListeningRequested = false
@@ -475,6 +482,7 @@ class MainActivity : Activity() {
     }
 
     private fun startVoiceInput() {
+        val generation = ++voiceInputGeneration
         voiceInputPending = false
         // The local wake-word engine and Android SpeechRecognizer must not
         // compete for the microphone. Keep the user's wake-mode preference.
@@ -495,16 +503,22 @@ class MainActivity : Activity() {
         try {
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
                 setRecognitionListener(object : RecognitionListener {
-                    override fun onReadyForSpeech(params: Bundle?) { status.text = "Слушаю…" }
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        if (generation == voiceInputGeneration) status.text = "Слушаю…"
+                    }
                     override fun onBeginningOfSpeech() {}
                     override fun onRmsChanged(rmsdB: Float) {}
                     override fun onBufferReceived(buffer: ByteArray?) {}
-                    override fun onEndOfSpeech() { status.text = "Распознаю речь…" }
+                    override fun onEndOfSpeech() {
+                        if (generation == voiceInputGeneration) status.text = "Распознаю речь…"
+                    }
                     override fun onError(error: Int) {
+                        if (generation != voiceInputGeneration) return
                         status.text = "Голос не распознан. Попробуй ещё раз."
                         restartWakeListeningAfterCommand()
                     }
                     override fun onResults(results: Bundle?) {
+                        if (generation != voiceInputGeneration) return
                         val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                         if (!phrase.isNullOrBlank()) {
                             input.setText(phrase)
@@ -526,8 +540,10 @@ class MainActivity : Activity() {
         } catch (error: Exception) {
             speechRecognizer?.destroy()
             speechRecognizer = null
-            status.text = "Не удалось запустить голосовой ввод: ${error.message ?: "ошибка Android"}"
-            restartWakeListeningAfterCommand()
+            if (generation == voiceInputGeneration) {
+                status.text = "Не удалось запустить голосовой ввод: ${error.message ?: "ошибка Android"}"
+                restartWakeListeningAfterCommand()
+            }
         }
     }
 
