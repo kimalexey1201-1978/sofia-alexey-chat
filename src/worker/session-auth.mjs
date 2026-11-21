@@ -12,17 +12,16 @@ function decodeB64url(value) {
   const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
   return Uint8Array.from(binary, c => c.charCodeAt(0));
 }
-function equal(a, b) {
-  if (typeof a !== "string" || typeof b !== "string" || a.length > 256 || b.length > 256) return false;
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < 256; i++) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return diff === 0;
+async function hmacKey(secret, usages) {
+  return crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, usages);
 }
 async function sign(data, secret) {
-  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await hmacKey(secret, ["sign"]);
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(data)));
+}
+async function verifySignature(data, signature, secret) {
+  const key = await hmacKey(secret, ["verify"]);
+  return crypto.subtle.verify("HMAC", key, signature, encoder.encode(data));
 }
 async function readBoundedJson(request) {
   const declaredLength = Number(request.headers.get("content-length"));
@@ -70,13 +69,18 @@ export async function issueOwnerSession(code, env, now = Math.floor(Date.now() /
 export async function verifyOwnerSession(request, env, now = Math.floor(Date.now() / 1000)) {
   const header = request.headers.get("authorization") || "";
   if (!header.startsWith("Bearer ")) return false;
+  if (header.length > 512) return false;
   const parts = header.slice(7).split(".");
-  if (parts.length !== 2 || typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string") return false;
+  if (parts.length !== 2 || parts[0].length > 256 || parts[1].length > 128 ||
+      !/^[A-Za-z0-9_-]+$/.test(parts[0]) || !/^[A-Za-z0-9_-]+$/.test(parts[1]) ||
+      typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string") return false;
   try {
-    if (!equal(parts[1], b64url(await sign(parts[0], env.SOFIA_SESSION_SIGNING_KEY)))) return false;
-    const payload = JSON.parse(new TextDecoder().decode(decodeB64url(parts[0])));
+    const valid = await verifySignature(parts[0], decodeB64url(parts[1]), env.SOFIA_SESSION_SIGNING_KEY);
+    if (!valid) return false;
+    const payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decodeB64url(parts[0])));
     return payload.sub === "owner" && Number.isInteger(payload.iat) && Number.isInteger(payload.exp) &&
-      payload.iat <= now + 60 && payload.exp > now && payload.exp - payload.iat <= TOKEN_TTL_SECONDS;
+      payload.iat <= now + 60 && payload.exp > now && payload.exp > payload.iat &&
+      payload.exp - payload.iat <= TOKEN_TTL_SECONDS;
   } catch { return false; }
 }
 export async function handleSessionRequest(request, env) {
