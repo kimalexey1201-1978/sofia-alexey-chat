@@ -407,3 +407,37 @@ test("cancelling one concurrent request does not abort its sibling", async () =>
   assert.equal(siblingResult.requestId, "keep-running");
   assert.equal(siblingResult.answer.text, "Соседний запрос завершён");
 });
+
+
+test("one request timing out does not abort a concurrent request", async () => {
+  const pending = new Map();
+  const provider = { generate(input) {
+    return new Promise((resolve, reject) => {
+      pending.set(input.requestId, { input, resolve });
+      input.signal.addEventListener("abort", () => reject(input.signal.reason), { once: true });
+    });
+  }};
+
+  const expiring = runSofiaCore(provider,
+    { messages: [{ role: "user", content: "Запрос с коротким сроком" }] },
+    { ...config, requestId: "short-deadline", timeoutMs: 10 });
+  const continuing = runSofiaCore(provider,
+    { messages: [{ role: "user", content: "Запрос с длинным сроком" }] },
+    { ...config, requestId: "long-deadline", timeoutMs: 1000 });
+
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pending.size, 2);
+
+  const expiredResult = await expiring;
+  assert.equal(expiredResult.error.code, "PROVIDER_TIMEOUT");
+  assert.equal(pending.get("short-deadline").input.signal.aborted, true);
+  assert.equal(pending.get("long-deadline").input.signal.aborted, false);
+
+  pending.get("long-deadline").resolve({
+    text: "Длинный запрос завершён успешно", providerId: "mock", modelId: "fixture"
+  });
+  const continuingResult = await continuing;
+  assert.equal(continuingResult.ok, true);
+  assert.equal(continuingResult.requestId, "long-deadline");
+  assert.equal(continuingResult.answer.text, "Длинный запрос завершён успешно");
+});
