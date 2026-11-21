@@ -433,16 +433,26 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != RESULT_OK || data == null) return
-        if (requestCode == 43) {
+        if (requestCode == 43 || requestCode == 44) {
             val treeUri = data.data ?: return
             val flags = data.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            if (flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION == 0) {
+                showMessage("Android не предоставил право записи в эту папку. Выбери другую.")
+                return
+            }
             try {
                 contentResolver.takePersistableUriPermission(treeUri, flags)
             } catch (_: SecurityException) {
                 showMessage("Android не разрешил сохранить доступ к выбранной папке.")
                 return
             }
-            copySelectedImagesToFolder(treeUri)
+            val treeId = try { DocumentsContract.getTreeDocumentId(treeUri) } catch (_: Exception) {
+                showMessage("Не удалось определить выбранную папку.")
+                return
+            }
+            val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeId)
+            if (requestCode == 43) copySelectedImagesToFolder(parentUri)
+            else showCreateFolderDialog(treeUri, parentUri)
             return
         }
         if (requestCode != 42) return
@@ -507,17 +517,23 @@ class MainActivity : Activity() {
             messages.addView(row)
         }
         val saveButton = Button(this).apply {
-            text = "Скопировать выбранное в папку"
+            text = "Скопировать в существующую папку"
             isEnabled = selectedImages.isNotEmpty()
-            setOnClickListener { chooseDestinationFolder() }
+            setOnClickListener { chooseDestinationFolder(43) }
         }
         messages.addView(saveButton)
+        val newFolderButton = Button(this).apply {
+            text = "Создать папку и сохранить"
+            isEnabled = selectedImages.isNotEmpty()
+            setOnClickListener { chooseDestinationFolder(44) }
+        }
+        messages.addView(newFolderButton)
         addBubble("assistant", "Исходные фотографии останутся на месте. При сохранении София создаст копии в выбранной папке.")
         input.setText("Работай с выбранными фотографиями.")
     }
 
 
-    private fun chooseDestinationFolder() {
+    private fun chooseDestinationFolder(requestCode: Int) {
         if (selectedImages.isEmpty()) {
             showMessage("Сначала выбери фотографии.")
             return
@@ -526,10 +542,48 @@ class MainActivity : Activity() {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
         try {
-            startActivityForResult(intent, 43)
+            startActivityForResult(intent, requestCode)
         } catch (_: Exception) {
             showMessage("Не удалось открыть выбор папки.")
         }
+    }
+
+    private fun showCreateFolderDialog(treeUri: Uri, parentUri: Uri) {
+        val nameField = EditText(this).apply {
+            hint = "Название новой папки"
+            setSingleLine(true)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Новая папка")
+            .setMessage("Укажи имя папки для выбранных фотографий.")
+            .setView(nameField)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Создать и сохранить") { _, _ ->
+                val folderName = nameField.text.toString().trim()
+                if (folderName.isBlank() || folderName == "." || folderName == ".." ||
+                    folderName.any { it == '/' || it == '\\' || it.isISOControl() }) {
+                    showMessage("Укажи корректное название папки без символов / и \\.")
+                    return@setPositiveButton
+                }
+                status.text = "Создаю папку…"
+                executor.execute {
+                    try {
+                        val folderUri = DocumentsContract.createDocument(
+                            contentResolver, parentUri,
+                            DocumentsContract.Document.MIME_TYPE_DIR, folderName
+                        ) ?: throw IllegalStateException("Провайдер не создал папку.")
+                        runOnUiThread {
+                            addBubble("assistant", "Папка «" + folderName + "» создана. Сохраняю фотографии.")
+                            copySelectedImagesToFolder(folderUri)
+                        }
+                    } catch (error: Exception) {
+                        runOnUiThread {
+                            status.text = "На связи"
+                            showMessage("Не удалось создать папку: " + (error.message ?: "ошибка доступа") + ".")
+                        }
+                    }
+                }
+            }.show()
     }
 
     private fun documentExists(directoryUri: Uri, displayName: String): Boolean {
@@ -559,15 +613,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun copySelectedImagesToFolder(treeUri: Uri) {
+    private fun copySelectedImagesToFolder(directoryUri: Uri) {
         val snapshot = selectedImages.toList()
         status.text = "Копирую фотографии…"
         executor.execute {
             var copied = 0
             val failures = mutableListOf<String>()
             try {
-                val treeId = DocumentsContract.getTreeDocumentId(treeUri)
-                val directoryUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeId)
                 for ((sourceUri, displayName) in snapshot) {
                     try {
                         val mime = contentResolver.getType(sourceUri)?.takeIf { it.startsWith("image/") }
@@ -584,13 +636,11 @@ class MainActivity : Activity() {
                         val targetUri = DocumentsContract.createDocument(contentResolver, directoryUri, mime, targetName)
                             ?: throw IllegalStateException("Не удалось создать файл назначения")
                         try {
-                            val inputStream = contentResolver.openInputStream(sourceUri)
-                                ?: throw IllegalStateException("Не удалось прочитать оригинал")
-                            val outputStream = contentResolver.openOutputStream(targetUri, "w")
-                                ?: throw IllegalStateException("Не удалось записать копию")
-                            inputStream.use { input ->
-                                outputStream.use { output -> input.copyTo(output) }
-                            }
+                            contentResolver.openInputStream(sourceUri)?.use { input ->
+                                contentResolver.openOutputStream(targetUri, "w")?.use { output ->
+                                    input.copyTo(output)
+                                } ?: throw IllegalStateException("Не удалось записать копию")
+                            } ?: throw IllegalStateException("Не удалось прочитать оригинал")
                             copied++
                         } catch (error: Exception) {
                             try { DocumentsContract.deleteDocument(contentResolver, targetUri) } catch (_: Exception) { }
