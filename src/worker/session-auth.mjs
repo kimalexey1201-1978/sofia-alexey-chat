@@ -94,6 +94,25 @@ export async function handleSessionRequest(request, env) {
     return Response.json({ error: { code: "INVALID_PAIRING_CODE" } }, { status: 400, headers });
   }
   try {
+    if (!env?.SOFIA_PAIRING_GUARD) {
+      return Response.json({ error: { code: "PAIRING_PROTECTION_NOT_CONFIGURED" } }, { status: 503, headers });
+    }
+    const guardId = env.SOFIA_PAIRING_GUARD.idFromName("sofia-owner-pairing");
+    const guard = env.SOFIA_PAIRING_GUARD.get(guardId);
+    const guardResponse = await guard.fetch("https://pairing-guard.internal/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pairingCode: body.pairingCode, expectedCode: env.SOFIA_OWNER_PAIRING_CODE })
+    });
+    if (guardResponse.status === 429) {
+      return Response.json({ error: { code: "PAIRING_TEMPORARILY_BLOCKED" } }, {
+        status: 429, headers: { ...headers, "Retry-After": guardResponse.headers.get("Retry-After") || "900" }
+      });
+    }
+    if (!guardResponse.ok) {
+      if (guardResponse.status === 401) return Response.json({ error: { code: "UNAUTHORIZED" } }, { status: 401, headers });
+      return Response.json({ error: { code: "PAIRING_PROTECTION_UNAVAILABLE" } }, { status: 503, headers });
+    }
     const session = await issueOwnerSession(body.pairingCode, env);
     if (!session) return Response.json({ error: { code: "UNAUTHORIZED" } }, { status: 401, headers });
     return Response.json({ ok: true, ...session }, { headers });

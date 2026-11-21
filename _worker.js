@@ -11,3 +11,5 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
+
+export { PairingGuard } from "./src/worker/pairing-guard.mjs";

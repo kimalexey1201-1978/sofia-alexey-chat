@@ -22,7 +22,10 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 
 ## Security limitations before deployment
 
-- The pairing endpoint now enforces a 4 KiB streaming request-body limit, JSON content type, and strict top-level field validation. Durable rate limiting / lockout protection against repeated guessing is still required.
+- The pairing endpoint enforces a 4 KiB streaming request-body limit, JSON content type, and strict top-level field validation.
+- Pairing verification is delegated to one named SQLite-backed Durable Object. It allows four failed attempts in a 15-minute window; the fifth failure starts a 15-minute lockout. The state is persisted transactionally and is shared across Cloudflare locations.
+- The Worker fails closed with HTTP 503 if the `SOFIA_PAIRING_GUARD` binding is absent or unavailable. The pairing code is passed only through the internal Worker-to-DO binding request and is never persisted by the Durable Object.
+- The Durable Object class, Worker export, and Wrangler `SOFIA_PAIRING_GUARD` binding with SQLite storage declaration are included in this branch. The CI `wrangler deploy --dry-run` validates the build/configuration only; it does not deploy the Worker or provision a Durable Object namespace.
 - Image uploads now enforce a streaming request-body limit of 5 MiB plus 64 KiB before multipart parsing, in addition to the 5 MiB file-size check.
 - The owner token is a first access gate, not device attestation. It does not prove that a request came from an untampered APK or a particular physical phone.
 - Do not enable file mutation, gallery-wide access, or other privileged actions on the basis of this token alone.
@@ -30,11 +33,12 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 ## Before enabling
 
 1. Configure both secrets in the intended Worker environment using Cloudflare secret storage.
-2. Complete request-size and pairing-rate-limit protections before exposing the endpoints.
-3. Review the pending pull request and confirm the Worker deployment target.
-4. Pair the Android app using the private pairing code.
-5. Verify that missing, invalid, and expired tokens receive HTTP 401 for both protected endpoints.
-6. Verify that valid owner sessions can chat and analyze a test image.
-7. Rotate both secrets immediately if either is exposed.
+2. Confirm the Preview target is a separate Worker script named `sofia-preview`, not the Production Worker named `sofia`. The repository uses the same Wrangler config and overrides the script name for Preview; the CI dry-run validates this target with `--name sofia-preview`.
+3. From the reviewed branch, make the first code deployment with `npx wrangler deploy --name sofia-preview`. Confirm the Cloudflare account and target script name in Wrangler output before proceeding. This first deployment provisions the SQLite-backed Durable Object namespace for the Preview script; it must not target Production.
+4. Add two independently generated Preview-only secrets using `npx wrangler secret put SOFIA_OWNER_PAIRING_CODE --name sofia-preview` and `npx wrangler secret put SOFIA_SESSION_SIGNING_KEY --name sofia-preview`. Each `secret put` creates and deploys a new Worker version, so use these commands only against the confirmed Preview script. Never copy Production secret values into Preview.
+5. Verify the fifth-failure lockout, persistence across object recreation, correct-code recovery after expiry, and fail-closed behavior.
+6. Verify that missing, invalid, and expired tokens receive HTTP 401 for both protected endpoints.
+7. Verify that valid Preview owner sessions can chat and analyze a harmless test image. Do not point the Android Production app at Preview.
+8. Review the pending pull requests and confirm the Production rollout plan separately. Rotate both secrets immediately if either is exposed.
 
 No secret values should be placed in this repository, APK resources, or chat messages.
