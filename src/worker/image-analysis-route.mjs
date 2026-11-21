@@ -93,7 +93,9 @@ export async function handleImageAnalysisRequest(request, env, dependencies = {}
 
   let credentialedFetch;
   try {
-    credentialedFetch = createOpenRouterCredentialPort(env, dependencies.fetchImpl ?? globalThis.fetch);
+    credentialedFetch = createOpenRouterCredentialPort(env, dependencies.fetchImpl ?? globalThis.fetch, {
+      mode: "vision", model: env.OPENROUTER_VISION_MODEL, maxTokens: 700, temperature: 0.2
+    });
   } catch {
     return json({ error: { code: "VISION_NOT_CONFIGURED", message: "Image analysis is not configured on the server" } }, 503);
   }
