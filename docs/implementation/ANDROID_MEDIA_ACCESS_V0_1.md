@@ -122,3 +122,61 @@ A follow-up such as “Family” resolves the pending destination only when ther
 Before Kotlin implementation, add or identify the Android Gradle application module, application ID, minimum/target SDK, manifest, dependency catalog, and existing UI entry point. This branch currently contains the web Worker/Core and architecture/contracts, but the inspected paths do not include an Android Gradle module or Android manifest. Do not invent a package namespace or modify the working web prototype to simulate native gallery access.
 
 The first code change after the Android module is available should be a small read-only adapter plus instrumentation tests for MediaStore permission scope and SAF grant persistence. Album writes follow only after those tests pass.
+
+
+## 10. Incoming selection handoff: Gallery → Share → Sofia
+
+This is the primary v0.1 workflow for acting on photos that the user has already selected in another Android gallery app. It is a bounded handoff of the selected items, not a grant to scan the entire gallery.
+
+### Intent entry points
+
+The Android application should expose an exported, appropriately filtered receiving activity for:
+- `ACTION_SEND` for one shared image;
+- `ACTION_SEND_MULTIPLE` for multiple shared images;
+- image MIME types (`image/*`) as the initial supported scope.
+
+The receiver must inspect both `Intent.EXTRA_STREAM` and `Intent.clipData` because source gallery applications differ in how they package shared items. Normalize the incoming values into a single ordered list of content URIs, remove duplicates, reject null or malformed entries, and enforce configurable item-count and aggregate-size limits before processing. Do not accept arbitrary filesystem paths as substitutes for content URIs.
+
+### URI access and intake
+
+- Require the source intent's read grant (`FLAG_GRANT_READ_URI_PERMISSION`) and handle missing or expired grants as an item-level intake failure.
+- Read metadata through `ContentResolver`; validate MIME type and, where practical, inspect a bounded file signature. Do not trust the filename extension alone.
+- Treat incoming URIs as temporary capabilities. Do not assume they remain readable after the share flow or process restart.
+- If Sofia needs durable access beyond the receiving session, copy the selected content into Sofia-controlled app storage after explaining the storage action and obtaining the necessary user authorization. Do not assume that a share URI can be persisted with SAF's persistable-grant mechanism.
+- Show the user a preview and exact received item count before any write operation. If some items cannot be read, identify the partial intake and do not silently omit them.
+
+### Command interpretation and destination
+
+After intake, bind the received URI list to one active operation/request ID in the current owner session. A command such as “перемести выбранные фотографии в папку Семья” must resolve only to this exact received selection.
+
+Before changing storage:
+1. Resolve whether “Семья” is an existing logical album or a physical folder. If ambiguous, ask.
+2. If the physical folder does not exist, ask whether Sofia may create it and obtain a valid destination tree/document-provider grant.
+3. Present the item count, destination, and exact operation (logical album assignment, copy, or physical move).
+4. Require explicit confirmation before copy or move. A direct command that clearly requests a move expresses intent, but the confirmation screen/voice confirmation is still the final execution gate for a potentially destructive cross-provider operation.
+
+### Physical move semantics and failure handling
+
+A physical move is not equivalent to adding references to a logical album. Implement provider-aware behavior:
+- Use SAF document-provider operations only when the selected source and destination provider support the required operation and the app has the necessary grants.
+- For MediaStore-managed items, use the platform's applicable user-consent/write-request flow for modifications or deletion (for example, `MediaStore.createWriteRequest` on supported Android versions) rather than attempting silent mutation.
+- Do not assume every provider supports atomic move or rename. If a true move cannot be performed safely, stop and explain the limitation; do not silently downgrade to copy or logical album assignment.
+- Where a provider requires copy-then-delete, first copy the item, verify the destination content (readability, size and available metadata/checksum), and only then request the required source deletion authorization. If verification or deletion fails, retain the source and report that the operation is partial.
+- Report per-item outcomes for multi-selection. Never report the whole batch as successful when any item failed or remains unverified.
+
+### In-Sofia selection path
+
+A second supported path is selecting items from Sofia's own media UI using the Android Photo Picker or a permission-scoped MediaStore browser. This is a Sofia-owned selection interface; it is not remote control of another gallery app. The resulting selection enters the same normalized intake and pending-operation pipeline as the Share handoff.
+
+### Acceptance tests — Share handoff
+
+13. A single-image `ACTION_SEND` intent is received and normalized to one image asset.
+14. A multi-image `ACTION_SEND_MULTIPLE` intent reads URIs from both supported payload locations, deduplicates them, and preserves stable selection order where the source provides it.
+15. Missing read grants, revoked access, malformed URIs, unsupported MIME types, and provider read errors fail closed and are reported per item.
+16. A share handoff exposes only the selected items; it does not trigger an unrestricted MediaStore scan.
+17. The received selection remains bound to one active owner-session operation and cannot be replaced by an unrelated later share or ambiguous voice reply.
+18. No copy, move, folder creation, or deletion occurs before destination resolution and explicit confirmation.
+19. A provider that cannot safely perform a physical move causes a clear refusal/limitation result; no silent copy fallback occurs.
+20. In copy-then-delete flows, source deletion is not requested until destination verification succeeds and the platform's required user-consent flow is completed.
+21. Batch results distinguish complete success, partial success, and failure, with an outcome for each selected item.
+22. The in-Sofia Photo Picker/MediaStore selection path enters the same downstream authorization and operation pipeline.
