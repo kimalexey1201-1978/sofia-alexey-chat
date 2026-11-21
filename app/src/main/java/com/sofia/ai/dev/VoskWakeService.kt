@@ -62,6 +62,7 @@ class VoskWakeService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            startGeneration++
             restartAfterStartup = false
             stopListening()
             stopSelf(startId)
@@ -111,7 +112,7 @@ class VoskWakeService : Service() {
                 }
                 if (!accepted) return@Thread
 
-                createdAudioService.startListening(createListener(generation))
+                createdAudioService.startListening(createListener(generation, startId))
             } catch (error: Exception) {
                 val shouldReportFailure = synchronized(this) {
                     generation == startGeneration && isRunning && !restartAfterStartup && !wakeHandled
@@ -146,7 +147,7 @@ class VoskWakeService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun createListener(generation: Long) = object : RecognitionListener {
+    private fun createListener(generation: Long, startId: Int) = object : RecognitionListener {
         override fun onPartialResult(hypothesis: String) = Unit
 
         override fun onResult(hypothesis: String) {
@@ -159,14 +160,20 @@ class VoskWakeService : Service() {
 
         override fun onError(exception: Exception) {
             val shouldReportFailure = synchronized(this@VoskWakeService) {
-                generation == startGeneration && isRunning && !wakeHandled
+                if (generation != startGeneration || !isRunning || wakeHandled) {
+                    false
+                } else {
+                    isRunning = false
+                    startGeneration++
+                    true
+                }
             }
             if (!shouldReportFailure) return
             val message = "Ошибка микрофона: ${exception.message ?: "неизвестная ошибка"}"
             sendStatus(message)
             postErrorNotification(message)
             stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            stopSelf(startId)
         }
 
         override fun onTimeout() = Unit
