@@ -472,35 +472,43 @@ class MainActivity : Activity() {
             return
         }
         speechRecognizer?.destroy()
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) { status.text = "Слушаю…" }
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() { status.text = "Распознаю речь…" }
-                override fun onError(error: Int) {
-                    status.text = "Голос не распознан. Попробуй ещё раз."
-                    restartWakeListeningAfterCommand()
-                }
-                override fun onResults(results: Bundle?) {
-                    val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                    if (!phrase.isNullOrBlank()) {
-                        input.setText(phrase)
-                        input.setSelection(phrase.length)
+        speechRecognizer = null
+        try {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) { status.text = "Слушаю…" }
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() { status.text = "Распознаю речь…" }
+                    override fun onError(error: Int) {
+                        status.text = "Голос не распознан. Попробуй ещё раз."
+                        restartWakeListeningAfterCommand()
                     }
-                    status.text = "На связи"
-                    restartWakeListeningAfterCommand()
+                    override fun onResults(results: Bundle?) {
+                        val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                        if (!phrase.isNullOrBlank()) {
+                            input.setText(phrase)
+                            input.setSelection(phrase.length)
+                        }
+                        status.text = "На связи"
+                        restartWakeListeningAfterCommand()
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {}
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+                val request = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Говори, я слушаю")
                 }
-                override fun onPartialResults(partialResults: Bundle?) {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            val request = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Говори, я слушаю")
+                startListening(request)
             }
-            startListening(request)
+        } catch (error: Exception) {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            status.text = "Не удалось запустить голосовой ввод: ${error.message ?: "ошибка Android"}"
+            restartWakeListeningAfterCommand()
         }
     }
 
@@ -510,6 +518,8 @@ class MainActivity : Activity() {
             toggleWakeListening()
         } else if (requestCode == 46) {
             Toast.makeText(this, "Для активации в свёрнутом приложении разреши уведомления Sofia в настройках Android.", Toast.LENGTH_LONG).show()
+        } else if (requestCode == 45) {
+            Toast.makeText(this, "Для голосовой активации нужно разрешение на микрофон.", Toast.LENGTH_LONG).show()
         } else if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             startVoiceInput()
         } else if (requestCode == 41) {
