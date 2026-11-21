@@ -32,12 +32,6 @@
       }
     ]
   },
-  "exports": {
-    "PairingGuard": {
-      "type": "durable-object",
-      "storage": "sqlite"
-    }
-  },
   "previews": {
     "durable_objects": {
       "bindings": [
