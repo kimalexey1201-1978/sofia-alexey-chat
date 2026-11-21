@@ -1,3 +1,5 @@
+import { verifyOwnerSession } from "./session-auth.mjs";
+
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -23,6 +25,7 @@ function toBase64(bytes) {
 export async function handleImageAnalysisRequest(request, env, dependencies = {}) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: HEADERS });
   if (request.method !== "POST") return json({ error: { code: "METHOD_NOT_ALLOWED", message: "Method not allowed" } }, 405);
+  if (!(await verifyOwnerSession(request, env))) return json({ error: { code: "UNAUTHORIZED", message: "Owner session is required" } }, 401);
   const type = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (type !== "multipart/form-data") return json({ error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Expected multipart image upload" } }, 415);
 
