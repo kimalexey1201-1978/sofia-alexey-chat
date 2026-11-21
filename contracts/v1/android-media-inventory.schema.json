@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/android-media-inventory.schema.json",
+  "title": "Sofia Android MediaStore Inventory Snapshot",
+  "description": "Metadata-only snapshot returned by the trusted Android host after an OS-authorized MediaStore query. It does not grant access or prove the caller's identity.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "scan_id",
+    "provider_id",
+    "permission_state",
+    "permission_scope",
+    "scanned_at",
+    "items"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "scan_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 160
+    },
+    "permission_state": {
+      "type": "string",
+      "enum": [
+        "granted",
+        "limited",
+        "denied",
+        "revoked"
+      ]
+    },
+    "permission_scope": {
+      "type": "string",
+      "enum": [
+        "images",
+        "videos",
+        "images_and_videos",
+        "user_selected_media",
+        "user_selected_folder",
+        "none"
+      ]
+    },
+    "scanned_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "continuation_token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "media_id",
+          "display_name",
+          "mime_type",
+          "size_bytes",
+          "content_reference"
+        ],
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 107374182400
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 604800000
+          },
+          "content_reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "content_hash_sha256": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "permission_state": {
+            "const": "denied"
+          }
+        },
+        "required": [
+          "permission_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "permission_scope": {
+            "const": "none"
+          },
+          "items": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "permission_state": {
+            "const": "revoked"
+          }
+        },
+        "required": [
+          "permission_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "permission_scope": {
+            "const": "none"
+          },
+          "items": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}
