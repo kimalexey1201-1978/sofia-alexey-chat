@@ -113,7 +113,7 @@ internal object VoskModelInstaller {
                     throw IllegalStateException("В архиве слишком много элементов.")
                 }
 
-                val normalizedName = entry.name.replace('\\\\', '/')
+                val normalizedName = entry.name.replace('\\', '/')
                 val prefix = "$MODEL_NAME/"
                 if (!normalizedName.startsWith(prefix) || normalizedName.contains("../") ||
                     normalizedName.startsWith("/") || normalizedName.contains("/..")) {
