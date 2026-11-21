@@ -7,7 +7,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/chat") return handleChatRequest(request, env);
     if (url.pathname === "/api/analyze-image") return handleImageAnalysisRequest(request, env);
-    if (url.pathname === "/api/session") return handleSessionRequest(request, env);
+    if (url.pathname === "/api/session" || url.pathname === "/api/session/challenge") return handleSessionRequest(request, env);
     return env.ASSETS.fetch(request);
   }
 };
