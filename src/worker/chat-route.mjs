@@ -20,7 +20,13 @@ function json(data, status = 200) {
   return Response.json(data, { status, headers: RESPONSE_HEADERS });
 }
 
+function requestCancelled() {
+  return { error: json({ error: { code: "REQUEST_CANCELLED", message: "Request was cancelled" } }, 499) };
+}
+
 async function readBoundedBody(request) {
+  if (request.signal?.aborted) return requestCancelled();
+
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
     return { error: json({ error: { code: "REQUEST_TOO_LARGE", message: "Request body exceeds the allowed size" } }, 413) };
@@ -29,10 +35,31 @@ async function readBoundedBody(request) {
 
   const reader = request.body.getReader();
   const chunks = [];
+  const signal = request.signal;
   let total = 0;
+  let abortHandler;
+  let abortPromise;
+  if (signal) {
+    abortPromise = new Promise(resolve => {
+      abortHandler = () => {
+        try { void reader.cancel(); } catch {}
+        resolve({ cancelled: true });
+      };
+      signal.addEventListener("abort", abortHandler, { once: true });
+      if (signal.aborted) abortHandler();
+    });
+  }
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const readPromise = reader.read();
+      const readResult = abortPromise
+        ? await Promise.race([readPromise, abortPromise])
+        : await readPromise;
+      if (readResult?.cancelled || signal?.aborted) {
+        await readPromise.catch(() => {});
+        return requestCancelled();
+      }
+      const { done, value } = readResult;
       if (done) break;
       total += value.byteLength;
       if (total > MAX_BODY_BYTES) {
@@ -42,9 +69,11 @@ async function readBoundedBody(request) {
       chunks.push(value);
     }
   } catch {
+    if (signal?.aborted) return requestCancelled();
     try { await reader.cancel(); } catch {}
     return { error: json({ error: { code: "INVALID_REQUEST", message: "Request body could not be read" } }, 400) };
   } finally {
+    if (abortHandler) signal.removeEventListener("abort", abortHandler);
     reader.releaseLock();
   }
   const bytes = new Uint8Array(total);
