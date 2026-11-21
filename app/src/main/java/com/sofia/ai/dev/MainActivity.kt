@@ -51,6 +51,8 @@ class MainActivity : Activity() {
     private var wakeReceiverRegistered = false
     private var wakeListeningRequested = false
     private var wakeModeEnabled = false
+    private var activityResumed = false
+    private var voiceInputPending = false
     private lateinit var wakeButton: Button
     private val wakeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -60,6 +62,7 @@ class MainActivity : Activity() {
                     wakeListeningRequested = false
                     wakeButton.text = "Активация: вкл"
                     status.text = "Услышала обращение. Слушаю команду…"
+                    voiceInputPending = true
                     startVoiceInput()
                 }
                 VoskWakeService.ACTION_STATUS -> {
@@ -104,6 +107,7 @@ class MainActivity : Activity() {
             if (::wakeButton.isInitialized) wakeButton.text = if (wakeModeEnabled) "Активация: вкл" else "Активация: выкл"
             if (::status.isInitialized) {
                 status.text = "Услышала обращение. Слушаю команду…"
+                voiceInputPending = true
                 status.post { startVoiceInput() }
             }
         }
@@ -111,6 +115,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        activityResumed = true
         if (!wakeReceiverRegistered) {
             val filter = IntentFilter().apply {
                 addAction(VoskWakeService.ACTION_WAKE_DETECTED)
@@ -124,9 +129,13 @@ class MainActivity : Activity() {
             }
             wakeReceiverRegistered = true
         }
+        if (wakeModeEnabled && !wakeListeningRequested && speechRecognizer == null && !voiceInputPending) {
+            startWakeService()
+        }
     }
 
     override fun onPause() {
+        activityResumed = false
         if (wakeReceiverRegistered) {
             unregisterReceiver(wakeReceiver)
             wakeReceiverRegistered = false
@@ -459,13 +468,14 @@ class MainActivity : Activity() {
         speechRecognizer = null
         wakeListeningRequested = false
         status.postDelayed({
-            if (wakeModeEnabled && !isFinishing && !isDestroyed) {
+            if (wakeModeEnabled && activityResumed && !isFinishing && !isDestroyed) {
                 startWakeService()
             }
         }, 700)
     }
 
     private fun startVoiceInput() {
+        voiceInputPending = false
         // The local wake-word engine and Android SpeechRecognizer must not
         // compete for the microphone. Keep the user's wake-mode preference.
         if (wakeModeEnabled && wakeListeningRequested) {
