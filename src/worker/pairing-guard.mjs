@@ -1,4 +1,5 @@
 const MAX_BODY_BYTES = 1024;
+const MAX_CHALLENGE_TTL_SECONDS = 120;
 
 async function equalSecret(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
@@ -14,14 +15,14 @@ async function equalSecret(a, b) {
 }
 
 /**
- * Stateless pairing verifier.
- *
- * Deliberately keeps no failed-attempt counter, lockout timestamp, or other
- * shared authentication state. An unauthenticated caller must never be able
- * to create a global lockout that prevents the owner from pairing.
+ * Verifies the owner pairing code and atomically consumes a valid challenge.
+ * Failed code attempts never create lockout state. Only successful proofs
+ * consume a nonce, and a consumed nonce cannot be used again.
  */
 export class PairingGuard {
-  constructor(_ctx) {}
+  constructor(ctx) {
+    this.storage = ctx?.storage;
+  }
 
   async fetch(request) {
     if (request.method !== "POST" || new URL(request.url).pathname !== "/verify") {
@@ -71,16 +72,39 @@ export class PairingGuard {
       return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
     }
     if (!body || Array.isArray(body) || typeof body !== "object" ||
-        Object.keys(body).length !== 2 ||
+        Object.keys(body).length !== 4 ||
         typeof body.pairingCode !== "string" || typeof body.expectedCode !== "string" ||
         body.pairingCode.length < 20 || body.pairingCode.length > 256 ||
-        body.expectedCode.length < 20 || body.expectedCode.length > 256) {
+        body.expectedCode.length < 20 || body.expectedCode.length > 256 ||
+        typeof body.challengeNonce !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(body.challengeNonce) ||
+        !Number.isInteger(body.challengeExpiresAt)) {
       return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
     }
 
     if (!(await equalSecret(body.pairingCode, body.expectedCode))) {
       return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
-    return Response.json({ valid: true });
+    if (!this.storage?.transaction) {
+      return Response.json({ error: "PAIRING_STORAGE_UNAVAILABLE" }, { status: 503 });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (body.challengeExpiresAt <= now || body.challengeExpiresAt > now + MAX_CHALLENGE_TTL_SECONDS) {
+      return Response.json({ error: "CHALLENGE_EXPIRED" }, { status: 401 });
+    }
+
+    try {
+      const consumed = await this.storage.transaction(async transaction => {
+        const key = "used-challenge:" + body.challengeNonce;
+        const existing = await transaction.get(key);
+        if (existing !== undefined) return false;
+        await transaction.put(key, { expiresAt: body.challengeExpiresAt });
+        return true;
+      });
+      if (!consumed) return Response.json({ error: "CHALLENGE_REPLAYED" }, { status: 401 });
+      return Response.json({ valid: true });
+    } catch {
+      return Response.json({ error: "PAIRING_STORAGE_UNAVAILABLE" }, { status: 503 });
+    }
   }
 }
