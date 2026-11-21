@@ -30,3 +30,23 @@ test("local cleanup is a separate approved phase, never implied by upload comple
   assert.ok(approvalGate.then.required.includes("cleanup_approved_at"));
   assert.ok(!schema.properties.state.enum.includes("delete_source_automatically"));
 });
+
+test("Android MediaStore inventory is metadata-only and explicitly scoped by OS permission state", async () => {
+  const schema = await load("android-media-inventory");
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(schema.required, [
+    "contract_version", "scan_id", "provider_id", "permission_state",
+    "permission_scope", "scanned_at", "items"
+  ]);
+  assert.ok(schema.properties.permission_scope.enum.includes("user_selected_media"));
+  assert.ok(schema.properties.permission_scope.enum.includes("user_selected_folder"));
+  assert.equal(schema.properties.items.maxItems, 10000);
+  assert.equal(schema.properties.items.items.additionalProperties, false);
+  assert.ok(schema.properties.items.items.properties.content_reference);
+  assert.ok(!schema.properties.items.items.properties.access_token);
+  assert.ok(!schema.properties.items.items.properties.raw_path);
+  assert.ok(schema.allOf.some(rule =>
+    rule.then?.properties?.permission_scope?.const === "none" &&
+    rule.then?.properties?.items?.maxItems === 0
+  ));
+});
