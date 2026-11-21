@@ -319,6 +319,51 @@ test("lease expiry during provider lookup prevents commit and preserves task sta
   }), true);
 });
 
+test("stale worker cannot commit after a successor acquires the expired lease", async () => {
+  const { durable, adapter, coordinator, setClock } = await setup();
+  let successorLease;
+  adapter.queryOperationStatus = async request => {
+    adapter.calls.push({ providerId: request.provider_id,
+      providerOperationRef: request.provider_operation_ref });
+    setClock(new Date("2026-11-20T15:00:31.000Z"));
+    successorLease = await durable.acquireLease({
+      taskId, owner: "successor-worker",
+      now: "2026-11-20T15:00:31.000Z", ttlMs: 30000
+    });
+    assert.ok(successorLease);
+    assert.equal(successorLease.fencing_token, 2);
+    return {
+      provider_id: "provider-x",
+      provider_operation_ref: "operation-123",
+      evidence_records: [evidence("CONFIRMED_APPLIED")]
+    };
+  };
+
+  const staleResult = await coordinator.reconcile({
+    taskId, owner: "stale-worker"
+  });
+
+  assert.equal(staleResult.reconciled, false);
+  assert.equal(staleResult.reasonCode, "ATOMIC_COMMIT_REJECTED");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal((await durable.getTask(taskId)).state, "outcome_uncertain");
+  assert.equal((await durable.getTask(taskId)).version, 1);
+  assert.equal((await durable.listEvidenceEntries(taskId)).length, 0);
+  assert.equal(durable.decisions.length, 0);
+  assert.equal(durable.outbox.length, 0);
+
+  // The stale worker's finally block must not release its successor's lease.
+  const blocked = await durable.acquireLease({
+    taskId, owner: "third-worker",
+    now: "2026-11-20T15:00:32.000Z", ttlMs: 30000
+  });
+  assert.equal(blocked, null);
+  assert.equal(await durable.releaseLease({
+    taskId, owner: "successor-worker",
+    fencingToken: successorLease.fencing_token
+  }), true);
+});
+
 test("repeated reconciliation after terminal resolution is idempotently refused", async () => {
   const { durable, adapter, coordinator } = await setup();
   const first = await coordinator.reconcile({ taskId, owner: "worker-first" });
