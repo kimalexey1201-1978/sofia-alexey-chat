@@ -39,9 +39,11 @@ test("preserves legacy chat response shape and replaces client system prompt", a
   assert.equal(data.choices[0].message.role, "assistant");
   assert.equal(data.choices[0].message.content, "Привет из Core");
   assert.equal(capture.providerRequest.systemInstruction.includes("CLIENT-CONTROLLED"), false);
-  assert.match(capture.providerRequest.systemInstruction, /любимый/);
+  assert.match(capture.providerRequest.systemInstruction, /Не используй по отношению к пользователю слово «любимый»/);
+  assert.match(capture.providerRequest.systemInstruction, /другие ласковые обращения допустимы/);
+  assert.doesNotMatch(capture.providerRequest.systemInstruction, /Обращайся к пользователю «любимый»/);
   assert.match(capture.providerRequest.systemInstruction, /не называй его по имени/);
-  assert.doesNotMatch(capture.providerRequest.systemInstruction, /дорогой|Алексей/);
+  assert.doesNotMatch(capture.providerRequest.systemInstruction, /Обращайся к пользователю «любимый»|Алексей/);
   assert.deepEqual(capture.providerRequest.messages, [{ role: "user", content: "Привет" }]);
   assert.equal(capture.providerConfig.model, "test/model");
   assert.equal(capture.providerConfig.apiKey, env.OPENROUTER_API_KEY);
