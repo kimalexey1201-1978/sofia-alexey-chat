@@ -43,6 +43,8 @@ test("preserves legacy chat response shape and replaces client system prompt", a
   assert.deepEqual(capture.providerRequest.messages, [{ role: "user", content: "Привет" }]);
   assert.equal(capture.providerConfig.model, "test/model");
   assert.equal(capture.providerConfig.apiKey, env.OPENROUTER_API_KEY);
+  assert.doesNotMatch(capture.providerRequest.systemInstruction, /дорогой|любимый|Алексей/i);
+  assert.match(capture.providerRequest.systemInstruction, /нейтральную форму/);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://kimalexey1201-1978.github.io");
 });
 
