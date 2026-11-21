@@ -1,0 +1,32 @@
+name: Sofia Android build
+
+on:
+  push:
+    branches:
+      - core/v0.1-storage-port
+    paths:
+      - "app/**"
+      - "*.gradle.kts"
+      - "settings.gradle.kts"
+      - ".github/workflows/android-build.yml"
+  pull_request:
+    branches:
+      - core/v0.1-storage-port
+
+jobs:
+  assemble-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Assemble Android debug APK
+        run: gradle --no-daemon :app:assembleDebug
