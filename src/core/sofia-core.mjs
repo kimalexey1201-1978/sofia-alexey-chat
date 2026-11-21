@@ -127,14 +127,16 @@ export async function runSofiaCore(provider, request, config = {}) {
 
   const controller = new AbortController();
   let rejectCallerCancellation;
+  let callerCancellationError;
+  let providerTimeoutError;
   const callerCancellation = config.signal
     ? new Promise((_, reject) => { rejectCallerCancellation = reject; })
     : null;
   const abortFromCaller = () => {
-    const error = new Error("Request cancelled by caller");
-    error.code = "SOFIA_REQUEST_CANCELLED";
-    controller.abort(config.signal?.reason ?? error);
-    rejectCallerCancellation?.(error);
+    callerCancellationError = new Error("Request cancelled by caller");
+    callerCancellationError.code = "SOFIA_REQUEST_CANCELLED";
+    controller.abort(config.signal?.reason ?? callerCancellationError);
+    rejectCallerCancellation?.(callerCancellationError);
   };
   config.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const providerRequest = {
@@ -151,10 +153,10 @@ export async function runSofiaCore(provider, request, config = {}) {
   try {
     const timeout = new Promise((_, reject) => {
       timer = setTimeout(() => {
-        const error = new Error("Provider deadline exceeded");
-        error.code = "SOFIA_PROVIDER_TIMEOUT";
-        controller.abort(error);
-        reject(error);
+        providerTimeoutError = new Error("Provider deadline exceeded");
+        providerTimeoutError.code = "SOFIA_PROVIDER_TIMEOUT";
+        controller.abort(providerTimeoutError);
+        reject(providerTimeoutError);
       }, timeoutMs);
     });
 
@@ -174,11 +176,11 @@ export async function runSofiaCore(provider, request, config = {}) {
       if (callerCancellation) competingResults.push(callerCancellation);
       rawResult = await Promise.race(competingResults);
     } catch (error) {
-      if (error?.code === "SOFIA_REQUEST_CANCELLED" ||
+      if (error === callerCancellationError ||
           (controller.signal.aborted && config.signal?.aborted)) {
         return failure("REQUEST_CANCELLED", "Request was cancelled");
       }
-      if (error?.code === "SOFIA_PROVIDER_TIMEOUT") {
+      if (error === providerTimeoutError) {
         return failure("PROVIDER_TIMEOUT", "The AI provider did not respond in time");
       }
       if (controller.signal.aborted && config.signal?.aborted) {
