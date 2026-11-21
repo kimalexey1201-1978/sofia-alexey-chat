@@ -20,14 +20,35 @@ function render(){let a=$('messages');a.replaceChildren();for(let m of chat){let
 if(!chat.length)chat=[{who:'sofia',text:'Привет, дорогой! ❤️ Это наш личный чат.',date:new Date().toISOString()}];render();
 let pendingMessages=null,isSending=false;
 const SESSION_KEY='sofia-owner-session-v1';
+function decodeBase64Url(value){
+  const normalized=value.replaceAll('-','+').replaceAll('_','/');
+  const binary=atob(normalized+'='.repeat((4-normalized.length%4)%4));
+  return Uint8Array.from(binary,c=>c.charCodeAt(0));
+}
+function encodeBase64Url(bytes){
+  let binary='';
+  for(const byte of bytes)binary+=String.fromCharCode(byte);
+  return btoa(binary).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
+}
+async function makePairingProof(code, salt, iterations){
+  const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(code),'PBKDF2',false,['deriveBits']);
+  const proof=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:decodeBase64Url(salt),iterations},material,256);
+  return encodeBase64Url(new Uint8Array(proof));
+}
 async function ensureOwnerSession(){
   const existing=sessionStorage.getItem(SESSION_KEY);
   if(existing)return existing;
   const code=prompt('Для доступа к Софии введи личный код владельца. Код не сохраняется.');
   if(!code)return null;
   try{
+    setConnection('Готовлю защищённую проверку доступа…');
+    const challengeResponse=await fetch(resolveApiUrl('/api/session/challenge'),{method:'GET',cache:'no-store'});
+    const challengeData=await challengeResponse.json();
+    if(!challengeResponse.ok||typeof challengeData.challenge!=='string'||typeof challengeData.salt!=='string'||!Number.isInteger(challengeData.iterations))throw new Error('CHALLENGE_FAILED');
+    const proof=await makePairingProof(code,challengeData.salt,challengeData.iterations);
     const response=await fetch(resolveApiUrl('/api/session'),{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairingCode:code})
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pairingCode:code,challenge:challengeData.challenge,proof})
     });
     const data=await response.json();
     if(!response.ok||typeof data.token!=='string')throw new Error('AUTH_FAILED');
