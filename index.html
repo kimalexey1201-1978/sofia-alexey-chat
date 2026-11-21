@@ -11,6 +11,7 @@
 <script type="module">
 import { applyAssistantResult, buildChatRequestMessages } from './src/client/chat-result.mjs';
 import { resolveApiUrl } from './src/client/api-url.mjs';
+import { makePairingProof } from './src/client/pairing-proof.mjs';
 const $=id=>document.getElementById(id),KEY='sofia-chat-v3',AVS='sofia-avatars-v1';let chat=[];try{chat=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}if(!Array.isArray(chat))chat=[];let avatars={sofia:'',alexey:'alexey-avatar.jpg'};try{avatars={...avatars,...JSON.parse(localStorage.getItem(AVS)||'{}')}}catch{}
 const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Не обращайся к пользователю по имени и не используй ласковые обращения; сохраняй нейтральную форму, если пользователь явно не попросил иначе. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.'};
 function save(){localStorage.setItem(KEY,JSON.stringify(chat))}
@@ -20,21 +21,6 @@ function render(){let a=$('messages');a.replaceChildren();for(let m of chat){let
 if(!chat.length)chat=[{who:'sofia',text:'Привет, дорогой! ❤️ Это наш личный чат.',date:new Date().toISOString()}];render();
 let pendingMessages=null,isSending=false;
 const SESSION_KEY='sofia-owner-session-v1';
-function encodeBase64Url(bytes){
-  let binary='';
-  for(const byte of bytes)binary+=String.fromCharCode(byte);
-  return btoa(binary).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
-}
-async function makePairingProof(code, nonce, difficulty){
-  if(difficulty!==16)throw new Error('UNSUPPORTED_PAIRING_DIFFICULTY');
-  const codeHash=encodeBase64Url(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(code))));
-  const encoder=new TextEncoder();
-  for(let counter=0;counter<0x7fffffff;counter++){
-    const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(nonce+'.'+codeHash+'.'+counter)));
-    if(digest[0]===0&&digest[1]===0)return String(counter);
-  }
-  throw new Error('PAIRING_PROOF_NOT_FOUND');
-}
 async function ensureOwnerSession(){
   const existing=sessionStorage.getItem(SESSION_KEY);
   if(existing)return existing;
