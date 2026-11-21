@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.DocumentsContract
 import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
@@ -431,7 +432,20 @@ class MainActivity : Activity() {
     @Deprecated("Use the Activity Result API when the UI is migrated")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 42 || resultCode != RESULT_OK || data == null) return
+        if (resultCode != RESULT_OK || data == null) return
+        if (requestCode == 43) {
+            val treeUri = data.data ?: return
+            val flags = data.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            try {
+                contentResolver.takePersistableUriPermission(treeUri, flags)
+            } catch (_: SecurityException) {
+                showMessage("Android не разрешил сохранить доступ к выбранной папке.")
+                return
+            }
+            copySelectedImagesToFolder(treeUri)
+            return
+        }
+        if (requestCode != 42) return
         val uris = linkedSetOf<Uri>()
         data.data?.let(uris::add)
         data.clipData?.let { clip ->
@@ -492,8 +506,72 @@ class MainActivity : Activity() {
             })
             messages.addView(row)
         }
-        addBubble("assistant", "Выбранные фотографии можно передать на визуальный анализ после авторизации владельца. Доступ действует ограниченное время. Никаких файловых изменений я не выполняю.")
+        val saveButton = Button(this).apply {
+            text = "Скопировать выбранное в папку"
+            isEnabled = selectedImages.isNotEmpty()
+            setOnClickListener { chooseDestinationFolder() }
+        }
+        messages.addView(saveButton)
+        addBubble("assistant", "Исходные фотографии останутся на месте. При сохранении София создаст копии в выбранной папке.")
         input.setText("Работай с выбранными фотографиями.")
+    }
+
+
+    private fun chooseDestinationFolder() {
+        if (selectedImages.isEmpty()) {
+            showMessage("Сначала выбери фотографии.")
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, 43)
+        } catch (_: Exception) {
+            showMessage("Не удалось открыть выбор папки.")
+        }
+    }
+
+    private fun copySelectedImagesToFolder(treeUri: Uri) {
+        val snapshot = selectedImages.toList()
+        status.text = "Копирую фотографии…"
+        executor.execute {
+            var copied = 0
+            val failures = mutableListOf<String>()
+            try {
+                val treeId = DocumentsContract.getTreeDocumentId(treeUri)
+                val directoryUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeId)
+                for ((sourceUri, displayName) in snapshot) {
+                    try {
+                        val mime = contentResolver.getType(sourceUri)?.takeIf { it.startsWith("image/") }
+                            ?: throw IllegalArgumentException("Неизвестный тип файла")
+                        val safeName = displayName.substringAfterLast('/').replace(':', '_').replace('?', '_')
+                            .replace('*', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+                            .ifBlank { "photo" }
+                        val targetUri = DocumentsContract.createDocument(contentResolver, directoryUri, mime, safeName)
+                            ?: throw IllegalStateException("Не удалось создать файл назначения")
+                        val inputStream = contentResolver.openInputStream(sourceUri)
+                            ?: throw IllegalStateException("Не удалось прочитать оригинал")
+                        val outputStream = contentResolver.openOutputStream(targetUri, "w")
+                            ?: throw IllegalStateException("Не удалось записать копию")
+                        inputStream.use { input ->
+                            outputStream.use { output -> input.copyTo(output) }
+                        }
+                        copied++
+                    } catch (error: Exception) {
+                        failures.add("$" + "{displayName}: " + "$" + "{error.message ?: "ошибка копирования"}")
+                    }
+                }
+            } catch (error: Exception) {
+                failures.add(error.message ?: "Ошибка доступа к папке")
+            }
+            runOnUiThread {
+                status.text = "Готово"
+                val summary = "Скопировано: $" + "{copied} из $" + "{snapshot.size}. Оригиналы не удалялись." +
+                    if (failures.isEmpty()) "" else "\nНе удалось скопировать:\n" + failures.take(5).joinToString("\n")
+                addBubble("assistant", summary)
+            }
+        }
     }
 
     private fun showMessage(message: String) {
