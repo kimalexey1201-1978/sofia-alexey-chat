@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sofia.ai/contracts/v1/file-transfer-job.schema.json",
+  "title": "Sofia File Transfer Job",
+  "description": "Resumable, auditable transfer between authorized storage providers with integrity verification and a guarded local-cleanup phase.",
+  "schema_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transfer_id", "file_id", "source_provider_id", "destination_provider_id", "direction", "state", "size_bytes", "integrity_algorithm", "created_at", "updated_at"],
+  "properties": {
+    "transfer_id": { "type": "string", "format": "uuid" },
+    "file_id": { "type": "string", "format": "uuid" },
+    "source_provider_id": { "type": "string", "minLength": 8, "maxLength": 160 },
+    "destination_provider_id": { "type": "string", "minLength": 8, "maxLength": 160 },
+    "direction": { "type": "string", "enum": ["device_to_cloud", "cloud_to_device", "provider_to_provider"] },
+    "state": { "type": "string", "enum": ["queued", "preflight", "checking_duplicates", "transferring", "paused", "verifying", "completed", "failed", "cancelled", "cleanup_pending", "cleanup_approved", "cleanup_completed", "cleanup_blocked"] },
+    "size_bytes": { "type": "integer", "minimum": 0, "maximum": 1099511627776 },
+    "bytes_transferred": { "type": "integer", "minimum": 0, "maximum": 1099511627776 },
+    "chunk_size_bytes": { "type": "integer", "minimum": 262144, "maximum": 67108864 },
+    "completed_chunks": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 0 } },
+    "source_hash_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "destination_hash_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "integrity_algorithm": { "type": "string", "const": "sha-256" },
+    "duplicate_match": { "type": "string", "enum": ["not_checked", "no_match", "exact_match", "possible_visual_match", "provider_checksum_unavailable"] },
+    "destination_object_ref": { "type": "string", "maxLength": 2048 },
+    "destination_verified_at": { "type": "string", "format": "date-time" },
+    "cleanup_approval_ref": { "type": "string", "maxLength": 256 },
+    "cleanup_approved_at": { "type": "string", "format": "date-time" },
+    "last_error_code": { "type": "string", "maxLength": 128 },
+    "retry_count": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "enum": ["completed", "cleanup_pending", "cleanup_approved", "cleanup_completed"] } }, "required": ["state"] },
+      "then": { "required": ["source_hash_sha256", "destination_hash_sha256", "destination_object_ref", "destination_verified_at"] }
+    },
+    {
+      "if": { "properties": { "state": { "enum": ["cleanup_approved", "cleanup_completed"] } }, "required": ["state"] },
+      "then": { "required": ["cleanup_approval_ref", "cleanup_approved_at"] }
+    },
+    {
+      "if": { "properties": { "state": { "const": "cleanup_completed" } }, "required": ["state"] },
+      "then": { "required": ["cleanup_approval_ref", "destination_verified_at"] }
+    }
+  ]
+}
