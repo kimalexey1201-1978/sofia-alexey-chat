@@ -1,12 +1,13 @@
 import { runSofiaCore } from "../core/sofia-core.mjs";
 import { createOpenRouterProvider } from "../providers/openrouter-provider.mjs";
+import { verifyOwnerSession } from "./session-auth.mjs";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const SYSTEM_INSTRUCTION = "Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Обращайся «дорогой», когда уместно. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "https://kimalexey1201-1978.github.io",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
+  "Access-Control-Allow-Headers": "Content-Type, Authorization"
 };
 
 const RESPONSE_HEADERS = {
@@ -109,6 +110,17 @@ export async function handleChatRequest(request, env, dependencies = {}) {
     if (message.role !== "user" && message.role !== "assistant") {
       return json({ error: { code: "UNSUPPORTED_ROLE", message: "Message role is not supported" } }, 400);
     }
+  }
+
+  const verifySession = dependencies.verifyOwnerSession ?? verifyOwnerSession;
+  let authorized = false;
+  try {
+    authorized = await verifySession(request, env);
+  } catch {
+    authorized = false;
+  }
+  if (!authorized) {
+    return json({ error: { code: "UNAUTHORIZED", message: "Owner authorization is required" } }, 401);
   }
 
   const createProvider = dependencies.createProvider ?? createOpenRouterProvider;
