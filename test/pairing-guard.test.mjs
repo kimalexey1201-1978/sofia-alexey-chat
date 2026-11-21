@@ -50,3 +50,29 @@ test("does not expose the expected pairing code in responses", async () => {
   const response = await request("z".repeat(32));
   assert.equal((await response.text()).includes(expectedCode), false);
 });
+
+test("persists the lockout across object recreation and permits pairing after expiry", async () => {
+  const { storage, request, expectedCode } = setup();
+  const originalNow = Date.now;
+  let now = 1_000_000;
+  Date.now = () => now;
+  try {
+    for (let i = 0; i < 5; i++) await request("z".repeat(32));
+    const restartedGuard = new PairingGuard({ storage });
+    const blockedAfterRestart = await restartedGuard.fetch(new Request("https://guard.internal/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pairingCode: expectedCode, expectedCode })
+    }));
+    assert.equal(blockedAfterRestart.status, 429);
+    now += 15 * 60 * 1000 + 1;
+    const allowedAfterExpiry = await restartedGuard.fetch(new Request("https://guard.internal/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pairingCode: expectedCode, expectedCode })
+    }));
+    assert.equal(allowedAfterExpiry.status, 200);
+  } finally {
+    Date.now = originalNow;
+  }
+});
