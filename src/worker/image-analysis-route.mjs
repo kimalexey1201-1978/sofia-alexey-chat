@@ -6,7 +6,7 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/g
 const HEADERS = {
   "Access-Control-Allow-Origin": "https://kimalexey1201-1978.github.io",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer"
@@ -29,17 +29,53 @@ export async function handleImageAnalysisRequest(request, env, dependencies = {}
   const type = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (type !== "multipart/form-data") return json({ error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Expected multipart image upload" } }, 415);
 
+  const maxRequestBytes = MAX_IMAGE_BYTES + 64 * 1024;
   const declared = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES + 64 * 1024) {
-    return json({ error: { code: "IMAGE_TOO_LARGE", message: "Image exceeds the 5 MB limit" } }, 413);
+  if (Number.isFinite(declared) && declared > maxRequestBytes) {
+    return json({ error: { code: "IMAGE_TOO_LARGE", message: "Image upload exceeds the request size limit" } }, 413);
   }
   if (!env?.OPENROUTER_API_KEY || !env?.OPENROUTER_VISION_MODEL) {
     return json({ error: { code: "VISION_NOT_CONFIGURED", message: "Image analysis is not configured on the server" } }, 503);
   }
 
+  // Enforce the cap while consuming the stream, before multipart parsing can allocate its buffers.
+  if (!request.body) return json({ error: { code: "INVALID_MULTIPART", message: "Image upload could not be read" } }, 400);
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxRequestBytes) {
+        try { await reader.cancel(); } catch {}
+        return json({ error: { code: "IMAGE_TOO_LARGE", message: "Image upload exceeds the request size limit" } }, 413);
+      }
+      chunks.push(value);
+    }
+  } catch {
+    try { await reader.cancel(); } catch {}
+    return json({ error: { code: "INVALID_MULTIPART", message: "Image upload could not be read" } }, 400);
+  } finally {
+    reader.releaseLock();
+  }
+  const bodyBytes = new Uint8Array(total);
+  let bodyOffset = 0;
+  for (const chunk of chunks) {
+    bodyBytes.set(chunk, bodyOffset);
+    bodyOffset += chunk.byteLength;
+  }
+
   let form;
-  try { form = await request.formData(); }
-  catch { return json({ error: { code: "INVALID_MULTIPART", message: "Image upload could not be read" } }, 400); }
+  try {
+    const boundedRequest = new Request(request.url, {
+      method: "POST",
+      headers: request.headers,
+      body: bodyBytes
+    });
+    form = await boundedRequest.formData();
+  } catch { return json({ error: { code: "INVALID_MULTIPART", message: "Image upload could not be read" } }, 400); }
   const file = form.get("image");
   const prompt = form.get("prompt");
   if (!(file instanceof File)) return json({ error: { code: "IMAGE_REQUIRED", message: "One image file is required" } }, 400);

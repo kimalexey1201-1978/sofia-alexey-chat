@@ -10,8 +10,9 @@
 <div class="overlay" id="overlay"><section class="sheet"><h2>Наши профили</h2><div class="profile-row"><div class="avatar" id="sofiaProfile">🌷</div><span><b>София</b><br><small>Фото Софии</small></span><button id="sofiaPick">Выбрать фото</button><input hidden type="file" id="sofiaFile" accept="image/*"></div><div class="profile-row"><div class="avatar" id="alexeyProfile">👤</div><span><b>Алексей</b><br><small>Твоё фото</small></span><button id="alexeyPick">Выбрать фото</button><input hidden type="file" id="alexeyFile" accept="image/*"></div><button class="close" id="closeSheet">Готово</button></section></div>
 <script type="module">
 import { applyAssistantResult, buildChatRequestMessages } from './src/client/chat-result.mjs';
+import { resolveApiUrl } from './src/client/api-url.mjs';
 const $=id=>document.getElementById(id),KEY='sofia-chat-v3',AVS='sofia-avatars-v1';let chat=[];try{chat=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}if(!Array.isArray(chat))chat=[];let avatars={sofia:'',alexey:'alexey-avatar.jpg'};try{avatars={...avatars,...JSON.parse(localStorage.getItem(AVS)||'{}')}}catch{}
-const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Обращайся «дорогой», когда уместно. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.'};
+const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, в женском роде. Не обращайся к пользователю по имени и не используй ласковые обращения; сохраняй нейтральную форму, если пользователь явно не попросил иначе. При переводе с русского на корейский дай корейский текст и русскую транскрипцию. При переводе с корейского на русский дай русский перевод. Будь внимательной и точной.'};
 function save(){localStorage.setItem(KEY,JSON.stringify(chat))}
 function avatar(who,cls){let e=document.createElement('div');e.className=cls;let src=avatars[who];if(src){let im=document.createElement('img');im.src=src;im.onerror=()=>e.textContent=who==='sofia'?'🌷':'👤';e.append(im)}else e.textContent=who==='sofia'?'🌷':'👤';return e}
 function paint(id,who){let e=$(id);e.replaceChildren();let src=avatars[who];if(src){let im=document.createElement('img');im.src=src;im.onerror=()=>e.textContent=who==='sofia'?'🌷':'👤';e.append(im)}else e.textContent=who==='sofia'?'🌷':'👤'}
@@ -25,7 +26,7 @@ async function ensureOwnerSession(){
   const code=prompt('Для доступа к Софии введи личный код владельца. Код не сохраняется.');
   if(!code)return null;
   try{
-    const response=await fetch('https://sofia.kim-alexey1201.workers.dev/api/session',{
+    const response=await fetch(resolveApiUrl('/api/session'),{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairingCode:code})
     });
     const data=await response.json();
@@ -61,7 +62,7 @@ async function attemptPending(){
     const token=await ensureOwnerSession();
     if(!token)throw new Error('OWNER_AUTH_REQUIRED');
     setConnection('София печатает…');
-    const res=await fetch('https://sofia.kim-alexey1201.workers.dev/api/chat',{
+    const res=await fetch(resolveApiUrl('/api/chat'),{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body:JSON.stringify({messages:requestSnapshot})
