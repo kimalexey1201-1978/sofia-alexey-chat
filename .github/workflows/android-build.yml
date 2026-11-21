@@ -6,6 +6,9 @@ on:
       - core/v0.1-storage-port
     paths:
       - "app/**"
+      - "src/**"
+      - "test/**"
+      - "_worker.js"
       - "*.gradle.kts"
       - "settings.gradle.kts"
       - ".github/workflows/android-build.yml"
@@ -14,6 +17,18 @@ on:
       - core/v0.1-storage-port
 
 jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run core and image intake tests
+        run: node --test test/media-share-intake.test.mjs test/image-analysis-route.test.mjs
+
   assemble-debug:
     runs-on: ubuntu-latest
     steps:
