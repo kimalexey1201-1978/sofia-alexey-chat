@@ -8,6 +8,8 @@ on:
       - "app/**"
       - "src/**"
       - "test/**"
+      - "tests/worker/**"
+      - "index.html"
       - "_worker.js"
       - "*.gradle.kts"
       - "settings.gradle.kts"
@@ -27,7 +29,7 @@ jobs:
         with:
           node-version: "22"
       - name: Run core and image intake tests
-        run: node --test test/media-share-intake.test.mjs test/image-analysis-route.test.mjs test/session-auth.test.mjs
+        run: node --test test/media-share-intake.test.mjs test/image-analysis-route.test.mjs test/session-auth.test.mjs tests/worker/chat-route.test.mjs tests/worker/worker-entry.test.mjs
 
   assemble-debug:
     runs-on: ubuntu-latest
