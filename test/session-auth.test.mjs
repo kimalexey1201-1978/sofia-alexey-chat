@@ -113,10 +113,11 @@ test("requires JSON content type for pairing requests", async () => {
 
 test("fails closed when durable pairing protection is not configured", async () => {
   const { SOFIA_PAIRING_GUARD, ...unprotectedEnv } = env;
+  const payload = await pairingPayload(env.SOFIA_OWNER_PAIRING_CODE);
   const response = await handleSessionRequest(new Request("https://x.test/api/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pairingCode: env.SOFIA_OWNER_PAIRING_CODE })
+    body: JSON.stringify(payload)
   }), unprotectedEnv);
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error.code, "PAIRING_PROTECTION_NOT_CONFIGURED");
