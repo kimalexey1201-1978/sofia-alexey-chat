@@ -78,10 +78,51 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        restoreConversation()
         renderChat()
+        conversation.forEach { (role, text) -> addBubble(role, text) }
         handleShareIntent(intent)
         handleWakeIntent(intent)
-        if (conversation.isEmpty()) addBubble("assistant", "Привет! Я София. Можешь написать мне или воспользоваться голосовым вводом.")
+        if (conversation.isEmpty()) {
+            appendConversation("assistant", "Привет! Я София. Можешь написать мне или воспользоваться голосовым вводом.")
+        }
+    }
+
+    private fun restoreConversation() {
+        val stored = getSharedPreferences("sofia_local_chat", Context.MODE_PRIVATE)
+            .getString("messages", null) ?: return
+        try {
+            val array = JSONArray(stored)
+            val restored = mutableListOf<Pair<String, String>>()
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val role = item.optString("role")
+                val text = item.optString("text")
+                if ((role == "user" || role == "assistant") && text.isNotBlank()) {
+                    restored.add(role to text)
+                }
+            }
+            conversation.addAll(restored.takeLast(200))
+        } catch (_: Exception) {
+            conversation.clear()
+        }
+    }
+
+    private fun persistConversation() {
+        val array = JSONArray()
+        conversation.takeLast(200).forEach { (role, text) ->
+            array.put(JSONObject().put("role", role).put("text", text))
+        }
+        getSharedPreferences("sofia_local_chat", Context.MODE_PRIVATE)
+            .edit()
+            .putString("messages", array.toString())
+            .apply()
+    }
+
+    private fun appendConversation(role: String, text: String) {
+        conversation.add(role to text)
+        while (conversation.size > 200) conversation.removeAt(0)
+        persistConversation()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -262,18 +303,18 @@ class MainActivity : Activity() {
         if (selectedImages.isNotEmpty()) {
             addBubble("user", "К сообщению выбрано изображений: ${selectedImages.size}.")
         }
-        conversation.add("user" to text)
+        appendConversation("user", text)
         addBubble("user", text)
         setBusy(true)
         executor.execute {
             val imageContext = if (selectedImages.isNotEmpty()) analyzeSharedImages(text) else ""
             val answer = if (selectedImages.isNotEmpty() && imageContext == null) null else {
-                if (!imageContext.isNullOrBlank()) conversation.add("user" to "Результаты анализа переданных изображений:\n$imageContext")
+                if (!imageContext.isNullOrBlank()) appendConversation("user", "Результаты анализа переданных изображений:\n$imageContext")
                 requestSofia()
             }
             runOnUiThread {
                 if (answer != null) {
-                    conversation.add("assistant" to answer)
+                    appendConversation("assistant", answer)
                     addBubble("assistant", answer)
                     if (selectedImages.isNotEmpty()) selectedImages.clear()
                     status.text = "София на связи"
@@ -287,7 +328,7 @@ class MainActivity : Activity() {
                                 val retryAnswer = requestSofia()
                                 runOnUiThread {
                                     if (retryAnswer != null) {
-                                        conversation.add("assistant" to retryAnswer)
+                                        appendConversation("assistant", retryAnswer)
                                         addBubble("assistant", retryAnswer)
                                         status.text = "София на связи"
                                     } else status.text = "Сервис пока недоступен."
