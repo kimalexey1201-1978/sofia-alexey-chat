@@ -54,3 +54,32 @@ test("does not expose provider failure details", async () => {
   assert.equal(body.error.code, "VISION_PROVIDER_UNAVAILABLE");
   assert.equal(JSON.stringify(body).includes("private upstream detail"), false);
 });
+
+test("rejects oversized streamed multipart body before parsing or provider invocation", async () => {
+  let providerCalled = false;
+  const chunk = new Uint8Array(1024 * 1024);
+  const request = new Request("https://example.test/api/analyze-image", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "multipart/form-data; boundary=sofia-test-boundary"
+    },
+    body: new ReadableStream({
+      start(controller) {
+        for (let i = 0; i < 5; i++) controller.enqueue(chunk);
+        controller.enqueue(new Uint8Array(128 * 1024));
+        controller.close();
+      }
+    }),
+    duplex: "half"
+  });
+  const response = await handleImageAnalysisRequest(request, env, {
+    fetchImpl: async () => {
+      providerCalled = true;
+      throw new Error("provider must not be called for oversized upload");
+    }
+  });
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error.code, "IMAGE_TOO_LARGE");
+  assert.equal(providerCalled, false);
+});
