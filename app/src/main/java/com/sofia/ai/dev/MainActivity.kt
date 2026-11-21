@@ -78,6 +78,11 @@ class MainActivity : Activity() {
             setPadding(0, 4, 0, 12)
         }
         root.addView(status)
+        val galleryButton = Button(this).apply {
+            text = "Открыть галерею"
+            setOnClickListener { openGalleryPicker() }
+        }
+        root.addView(galleryButton)
         val scroll = ScrollView(this)
         messages = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -400,6 +405,56 @@ class MainActivity : Activity() {
         val key = action + ":" + uris.joinToString("|") { it.toString() }
         if (key == lastIntakeKey) return
         lastIntakeKey = key
+        addSelectedImages(uris)
+    }
+
+    private fun openGalleryPicker() {
+        val picker = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            Intent(android.provider.MediaStore.ACTION_PICK_IMAGES).apply {
+                type = "image/*"
+                putExtra(android.provider.MediaStore.EXTRA_PICK_IMAGES_MAX, maxItems)
+            }
+        } else {
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+        }
+        try {
+            startActivityForResult(picker, 42)
+        } catch (_: Exception) {
+            showMessage("Не удалось открыть системную галерею на этом устройстве.")
+        }
+    }
+
+    @Deprecated("Use the Activity Result API when the UI is migrated")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 42 || resultCode != RESULT_OK || data == null) return
+        val uris = linkedSetOf<Uri>()
+        data.data?.let(uris::add)
+        data.clipData?.let { clip ->
+            for (index in 0 until clip.itemCount) clip.getItemAt(index).uri?.let(uris::add)
+        }
+        if (uris.isEmpty() || uris.size > maxItems) {
+            showMessage(if (uris.isEmpty()) "Не выбраны фотографии." else "За один раз можно выбрать не более $maxItems фотографий.")
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT < 33) {
+            try {
+                data.data?.let { contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                data.clipData?.let { clip ->
+                    for (index in 0 until clip.itemCount) {
+                        contentResolver.takePersistableUriPermission(clip.getItemAt(index).uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                }
+            } catch (_: SecurityException) { }
+        }
+        addSelectedImages(uris)
+    }
+
+    private fun addSelectedImages(uris: Set<Uri>) {
         selectedImages.clear()
         uris.forEach { uri ->
             try {
