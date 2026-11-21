@@ -1,6 +1,64 @@
 const encoder = new TextEncoder();
 const TOKEN_TTL_SECONDS = 43200;
 const MAX_SESSION_BODY_BYTES = 4096;
+const PAIRING_CHALLENGE_TTL_SECONDS = 120;
+const PAIRING_KDF_ITERATIONS = 120000;
+const PAIRING_PROOF_BYTES = 32;
+
+async function derivePairingProof(code, salt, iterations = PAIRING_KDF_ITERATIONS) {
+  const material = await crypto.subtle.importKey("raw", encoder.encode(code), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    material,
+    PAIRING_PROOF_BYTES * 8
+  ));
+}
+async function issuePairingChallenge(env, now = Math.floor(Date.now() / 1000)) {
+  if (typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string" || env.SOFIA_SESSION_SIGNING_KEY.length < 32) {
+    throw new Error("AUTH_NOT_CONFIGURED");
+  }
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const payload = b64url(encoder.encode(JSON.stringify({
+    sub: "pairing-challenge",
+    salt: b64url(salt),
+    iat: now,
+    exp: now + PAIRING_CHALLENGE_TTL_SECONDS,
+    iterations: PAIRING_KDF_ITERATIONS
+  })));
+  return {
+    challenge: payload + "." + b64url(await sign(payload, env.SOFIA_SESSION_SIGNING_KEY)),
+    salt: b64url(salt),
+    iterations: PAIRING_KDF_ITERATIONS,
+    expiresAt: now + PAIRING_CHALLENGE_TTL_SECONDS
+  };
+}
+async function verifyPairingProof(code, challenge, proof, env, now = Math.floor(Date.now() / 1000)) {
+  if (typeof code !== "string" || code.length < 20 || code.length > 256 ||
+      typeof challenge !== "string" || challenge.length > 512 ||
+      typeof proof !== "string" || proof.length > 64 ||
+      !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(challenge) ||
+      !/^[A-Za-z0-9_-]+$/.test(proof) ||
+      typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string") return false;
+  try {
+    const [payloadPart, signaturePart] = challenge.split(".");
+    const validSignature = await verifySignature(payloadPart, decodeB64url(signaturePart), env.SOFIA_SESSION_SIGNING_KEY);
+    if (!validSignature) return false;
+    const payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decodeB64url(payloadPart)));
+    if (payload.sub !== "pairing-challenge" || !Number.isInteger(payload.iat) ||
+        !Number.isInteger(payload.exp) || payload.iat > now + 30 ||
+        payload.exp <= now || payload.exp <= payload.iat ||
+        payload.exp - payload.iat > PAIRING_CHALLENGE_TTL_SECONDS ||
+        payload.iterations !== PAIRING_KDF_ITERATIONS ||
+        typeof payload.salt !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(payload.salt)) return false;
+    const supplied = decodeB64url(proof);
+    if (supplied.length !== PAIRING_PROOF_BYTES) return false;
+    const expected = await derivePairingProof(code, decodeB64url(payload.salt), payload.iterations);
+    let difference = 0;
+    for (let i = 0; i < PAIRING_PROOF_BYTES; i++) difference |= supplied[i] ^ expected[i];
+    return difference === 0;
+  } catch { return false; }
+}
+
 
 function b64url(bytes) {
   let binary = "";
@@ -96,8 +154,15 @@ export async function verifyOwnerSession(request, env, now = Math.floor(Date.now
   } catch { return false; }
 }
 export async function handleSessionRequest(request, env) {
-  const headers = { "Access-Control-Allow-Origin": "https://kimalexey1201-1978.github.io", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
+  const headers = { "Access-Control-Allow-Origin": "https://kimalexey1201-1978.github.io", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
+  if (request.method === "GET" && new URL(request.url).pathname.endsWith("/challenge")) {
+    try {
+      return Response.json(await issuePairingChallenge(env), { headers });
+    } catch {
+      return Response.json({ error: { code: "SESSION_AUTH_NOT_CONFIGURED" } }, { status: 503, headers });
+    }
+  }
   if (request.method !== "POST") return Response.json({ error: { code: "METHOD_NOT_ALLOWED" } }, { status: 405, headers });
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
     return Response.json({ error: { code: "UNSUPPORTED_MEDIA_TYPE" } }, { status: 415, headers });
@@ -107,11 +172,16 @@ export async function handleSessionRequest(request, env) {
   if (parsed.error) return Response.json({ error: { code: "INVALID_JSON" } }, { status: 400, headers });
   const body = parsed.body;
   if (!body || typeof body !== "object" || Array.isArray(body) ||
-      Object.keys(body).some(key => key !== "pairingCode") ||
-      typeof body.pairingCode !== "string" || body.pairingCode.length < 20 || body.pairingCode.length > 256) {
+      Object.keys(body).length !== 3 ||
+      Object.keys(body).some(key => !["pairingCode", "challenge", "proof"].includes(key)) ||
+      typeof body.pairingCode !== "string" || body.pairingCode.length < 20 || body.pairingCode.length > 256 ||
+      typeof body.challenge !== "string" || typeof body.proof !== "string") {
     return Response.json({ error: { code: "INVALID_PAIRING_CODE" } }, { status: 400, headers });
   }
   try {
+    if (!(await verifyPairingProof(body.pairingCode, body.challenge, body.proof, env))) {
+      return Response.json({ error: { code: "INVALID_PAIRING_PROOF" } }, { status: 401, headers });
+    }
     if (!env?.SOFIA_PAIRING_GUARD) {
       return Response.json({ error: { code: "PAIRING_PROTECTION_NOT_CONFIGURED" } }, { status: 503, headers });
     }
