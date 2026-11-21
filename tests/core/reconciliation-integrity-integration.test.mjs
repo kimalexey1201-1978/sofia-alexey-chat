@@ -108,6 +108,7 @@ function createFakeDurableStore() {
 }
 async function setup(records = [evidence()]) {
   const key = await makeKey();
+  let currentTime = now;
   const durable = createFakeDurableStore();
   let keyAvailable = true;
   const protectedStore = createIntegrityProtectedReconciliationStore({
@@ -131,12 +132,13 @@ async function setup(records = [evidence()]) {
         return { authenticated: true, evidenceRecords: input.response.evidence_records };
       }
     },
-    clock: () => now,
+    clock: () => currentTime,
     createId: prefix => `${prefix}-${String(++id).padStart(4, "0")}`,
     policy: { version: "integration-test-1", freshnessWindowMs: 300000, leaseTtlMs: 30000 }
   });
   return { durable, protectedStore, adapter, coordinator,
-    setKeyAvailable(value) { keyAvailable = value; } };
+    setKeyAvailable(value) { keyAvailable = value; },
+    setClock(value) { currentTime = value; } };
 }
 
 test("end-to-end coordinator uses protected storage for verified read and atomic sealed commit", async () => {
@@ -273,6 +275,47 @@ test("lease release outage leaves only an expiring lease and preserves fencing",
   assert.equal(await durable.releaseLease({
     taskId, owner: "worker-after-expiry",
     fencingToken: afterExpiry.fencing_token
+  }), true);
+});
+
+test("lease expiry during provider lookup prevents commit and preserves task state", async () => {
+  const { durable, adapter, coordinator, setClock } = await setup();
+  adapter.queryOperationStatus = async request => {
+    adapter.calls.push({ providerId: request.provider_id,
+      providerOperationRef: request.provider_operation_ref });
+    // The lease expires while the external provider call is in progress.
+    setClock(new Date("2026-11-20T15:00:31.000Z"));
+    return {
+      provider_id: "provider-x",
+      provider_operation_ref: "operation-123",
+      evidence_records: [evidence("CONFIRMED_APPLIED")]
+    };
+  };
+
+  const result = await coordinator.reconcile({
+    taskId, owner: "worker-expired-during-query"
+  });
+
+  assert.equal(result.reconciled, false);
+  assert.equal(result.reasonCode, "ATOMIC_COMMIT_REJECTED");
+  assert.equal(result.taskState, "outcome_uncertain");
+  assert.equal(adapter.calls.length, 1);
+  assert.equal(durable.atomicCommitCalls, 1);
+  assert.equal((await durable.getTask(taskId)).state, "outcome_uncertain");
+  assert.equal((await durable.getTask(taskId)).version, 1);
+  assert.equal((await durable.listEvidenceEntries(taskId)).length, 0);
+  assert.equal(durable.decisions.length, 0);
+  assert.equal(durable.outbox.length, 0);
+
+  const recoveredLease = await durable.acquireLease({
+    taskId, owner: "worker-after-expiry",
+    now: "2026-11-20T15:00:31.001Z", ttlMs: 30000
+  });
+  assert.ok(recoveredLease);
+  assert.equal(recoveredLease.fencing_token, 2);
+  assert.equal(await durable.releaseLease({
+    taskId, owner: "worker-after-expiry",
+    fencingToken: recoveredLease.fencing_token
   }), true);
 });
 
