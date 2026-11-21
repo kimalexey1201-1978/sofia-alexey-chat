@@ -22,16 +22,19 @@ async function pairingPayload(code) {
   const challengeResponse = await handleSessionRequest(new Request("https://x.test/api/session/challenge", { method: "GET" }), env);
   assert.equal(challengeResponse.status, 200);
   const challenge = await challengeResponse.json();
-  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveBits"]);
-  const proofBytes = new Uint8Array(await crypto.subtle.deriveBits({
-    name: "PBKDF2", hash: "SHA-256",
-    salt: Uint8Array.from(atob(challenge.salt.replaceAll("-", "+").replaceAll("_", "/") + "=="), c => c.charCodeAt(0)),
-    iterations: challenge.iterations
-  }, material, 256));
+  const codeHashBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code)));
   let binary = "";
-  for (const byte of proofBytes) binary += String.fromCharCode(byte);
-  const proof = btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-  return { pairingCode: code, challenge: challenge.challenge, proof };
+  for (const byte of codeHashBytes) binary += String.fromCharCode(byte);
+  const codeHash = btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  let proofCounter = null;
+  for (let counter = 0; counter < 0x7fffffff; counter++) {
+    const digest = new Uint8Array(await crypto.subtle.digest(
+      "SHA-256", new TextEncoder().encode(challenge.nonce + "." + codeHash + "." + counter)
+    ));
+    if (digest[0] === 0 && digest[1] === 0) { proofCounter = String(counter); break; }
+  }
+  assert.notEqual(proofCounter, null);
+  return { pairingCode: code, challenge: challenge.challenge, proofCounter };
 }
 async function postPairing(code) {
   const body = await pairingPayload(code);
@@ -55,7 +58,7 @@ test("issues a signed challenge and accepts a matching PBKDF2 pairing proof", as
   const challengeResponse = await handleSessionRequest(new Request("https://x.test/api/session/challenge", { method: "GET" }), env);
   const challenge = await challengeResponse.json();
   assert.equal(challengeResponse.status, 200);
-  assert.equal(challenge.iterations, 120000);
+  assert.equal(challenge.difficulty, 16);
   assert.equal(typeof challenge.challenge, "string");
   assert.equal(typeof challenge.salt, "string");
   const response = await postPairing(env.SOFIA_OWNER_PAIRING_CODE);
@@ -64,7 +67,7 @@ test("issues a signed challenge and accepts a matching PBKDF2 pairing proof", as
   assert.equal(typeof body.token, "string");
   assert.equal(JSON.stringify(body).includes(env.SOFIA_OWNER_PAIRING_CODE), false);
 });
-test("rejects a proof computed for a different pairing code", async () => {
+test("rejects a work proof computed for a different pairing code", async () => {
   const payload = await pairingPayload("wrong-code-".padEnd(32, "z"));
   payload.pairingCode = env.SOFIA_OWNER_PAIRING_CODE;
   const response = await handleSessionRequest(new Request("https://x.test/api/session", {
