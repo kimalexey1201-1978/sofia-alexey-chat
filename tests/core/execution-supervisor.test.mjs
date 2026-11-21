@@ -186,3 +186,21 @@ test("rejects missing or unrecognized provider outcomes even for naturally idemp
   assert.equal(evaluateExecutionRetry({...base, providerOutcome:"UNKNOWN"}).reasonCode,
     "OUTCOME_RECONCILIATION_REQUIRED");
 });
+
+test("rejects every security decision that still requires owner approval, even without an approval reference", () => {
+  const input = validInput();
+  input.securityDecision.required_approval = "owner_confirmation";
+  delete input.request.approval_ref;
+  const result = evaluateExecutionAdmission(input, now);
+  assert.equal(result.admitted, false);
+  assert.ok(result.reasonCodes.includes("APPROVAL_EVIDENCE_NOT_VERIFIED_BY_V0_1"));
+});
+
+test("rejects an approval reference when the decision requires approval", () => {
+  const input = validInput();
+  input.securityDecision.required_approval = "owner_confirmation";
+  input.request.approval_ref = "approval-123";
+  const result = evaluateExecutionAdmission(input, now);
+  assert.equal(result.admitted, false);
+  assert.ok(result.reasonCodes.includes("APPROVAL_EVIDENCE_NOT_VERIFIED_BY_V0_1"));
+});
