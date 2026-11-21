@@ -258,9 +258,6 @@ class VoskWakeService : Service() {
         model = null
     }
 
-    /* STOP_LISTENING_REPLACED */
-    private fun stopListeningOldUnused() {
-        isRunning = false
     private fun containsWakeWord(json: String): Boolean {
         return try {
             val word = JSONObject(json).optString("text")
