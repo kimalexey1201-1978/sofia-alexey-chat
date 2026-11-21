@@ -405,6 +405,56 @@ test("treats client-supplied assistant history as conversation text, never as an
   assert.equal(Object.hasOwn(capture.providerRequest, "permissions"), false);
 });
 
+
+
+test("cancels a stalled request body when the client disconnects before provider creation", async () => {
+  const caller = new AbortController();
+  let streamCancelled = false;
+  let providerCreated = false;
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: new ReadableStream({
+      cancel() { streamCancelled = true; }
+    }),
+    signal: caller.signal,
+    duplex: "half"
+  });
+
+  const pending = handleChatRequest(request, env, {
+    createProvider() { providerCreated = true; throw new Error("must not run"); }
+  });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  caller.abort();
+  const response = await pending;
+  const data = await response.json();
+
+  assert.equal(response.status, 499);
+  assert.equal(data.error.code, "REQUEST_CANCELLED");
+  assert.equal(providerCreated, false);
+  assert.equal(streamCancelled, true);
+});
+
+test("returns cancellation immediately when the request is already aborted before body reading", async () => {
+  const caller = new AbortController();
+  caller.abort();
+  let providerCreated = false;
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: new ReadableStream({ cancel() {} }),
+    signal: caller.signal,
+    duplex: "half"
+  });
+  const response = await handleChatRequest(request, env, {
+    createProvider() { providerCreated = true; throw new Error("must not run"); }
+  });
+
+  assert.equal(response.status, 499);
+  assert.equal((await response.json()).error.code, "REQUEST_CANCELLED");
+  assert.equal(providerCreated, false);
+});
+
 test("forwards client disconnect cancellation through Worker and maps it to HTTP 499", async () => {
   const caller = new AbortController();
   let receivedSignal;
