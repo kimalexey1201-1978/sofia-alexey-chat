@@ -88,6 +88,15 @@ class MainActivity : Activity() {
     }
 
     private fun handleWakeIntent(incoming: Intent?) {
+        val wakeError = incoming?.getStringExtra(VoskWakeService.EXTRA_STATUS)
+        if (!wakeError.isNullOrBlank()) {
+            incoming.removeExtra(VoskWakeService.EXTRA_STATUS)
+            getSystemService(NotificationManager::class.java).cancel(VoskWakeService.ERROR_NOTIFICATION_ID)
+            wakeListeningRequested = false
+            wakeModeEnabled = false
+            if (::wakeButton.isInitialized) wakeButton.text = "Активация: выкл"
+            if (::status.isInitialized) status.text = wakeError
+        }
         if (incoming?.getBooleanExtra(VoskWakeService.EXTRA_START_VOICE, false) == true) {
             incoming.removeExtra(VoskWakeService.EXTRA_START_VOICE)
             getSystemService(NotificationManager::class.java).cancel(VoskWakeService.WAKE_NOTIFICATION_ID)
