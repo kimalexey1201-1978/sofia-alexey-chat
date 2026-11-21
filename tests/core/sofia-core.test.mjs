@@ -271,3 +271,20 @@ test("a new Core request succeeds after a previous request was cancelled", async
   assert.equal(calls, 2);
 });
 
+test("does not trust provider-supplied Core cancellation or timeout error codes", async () => {
+  const cancellationSpoof = new Error("provider internal error");
+  cancellationSpoof.code = "SOFIA_REQUEST_CANCELLED";
+  const timeoutSpoof = new Error("provider internal error");
+  timeoutSpoof.code = "SOFIA_PROVIDER_TIMEOUT";
+
+  const cancelled = await runSofiaCore({
+    async generate() { throw cancellationSpoof; }
+  }, request, config);
+  const timedOut = await runSofiaCore({
+    async generate() { throw timeoutSpoof; }
+  }, request, config);
+
+  assert.equal(cancelled.error.code, "PROVIDER_UNAVAILABLE");
+  assert.equal(timedOut.error.code, "PROVIDER_UNAVAILABLE");
+});
+
