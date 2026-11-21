@@ -33,9 +33,9 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 ## Before enabling
 
 1. Configure both secrets in the intended Worker environment using Cloudflare secret storage.
-2. Confirm the Preview target is a separate Worker script (for example, a separately named `sofia-preview` script), not the Production Worker. The current `wrangler.jsonc` does not define a dedicated `env.preview` block or Preview script name.
-3. Configure separate Preview-only secrets and verify that the Preview script has its own `SOFIA_PAIRING_GUARD` Durable Object binding. Never copy Production secret values into Preview merely for convenience.
-4. Only after the separate target and secrets are confirmed, deploy the branch to Preview. The first deployment provisions the SQLite-backed Durable Object namespace for that Worker script; it must not target the Production script.
+2. Confirm the Preview target is a separate Worker script named `sofia-preview`, not the Production Worker named `sofia`. The repository uses the same Wrangler config and overrides the script name for Preview; the CI dry-run validates this target with `--name sofia-preview`.
+3. After the Preview script is created by its first code deployment, add two independently generated Preview-only secrets using `npx wrangler secret put SOFIA_OWNER_PAIRING_CODE --name sofia-preview` and `npx wrangler secret put SOFIA_SESSION_SIGNING_KEY --name sofia-preview`. Each `secret put` creates and deploys a new Worker version, so use these commands only against the confirmed Preview script. Never copy Production secret values into Preview.
+4. Deploy the branch with `npx wrangler deploy --name sofia-preview`. Confirm the account and target script name in Wrangler output before proceeding. The first deployment provisions the SQLite-backed Durable Object namespace for that Worker script; it must not target the Production script.
 5. Verify the fifth-failure lockout, persistence across object recreation, correct-code recovery after expiry, and fail-closed behavior.
 6. Verify that missing, invalid, and expired tokens receive HTTP 401 for both protected endpoints.
 7. Verify that valid Preview owner sessions can chat and analyze a harmless test image. Do not point the Android Production app at Preview.
