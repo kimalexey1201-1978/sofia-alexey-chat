@@ -11,6 +11,8 @@ Configure these secrets for each Worker environment that serves Sofia:
 
 Use Cloudflare Worker secret storage (not plaintext variables, source files, GitHub commits, or APK resources). Do not send either secret in chat or email.
 
+Provider credentials follow the separate [Sofia Core secret-boundary policy](./CORE_SECRET_BOUNDARY.md): provider adapters receive a scoped, fixed-destination request capability and never receive the raw API key or Worker environment.
+
 ## Session behavior
 
 - `GET /api/session/challenge` issues a short-lived HMAC-signed challenge with a random nonce and a 16-bit Hashcash difficulty. The client searches for a counter whose SHA-256 digest over the nonce, SHA-256 hash of the candidate code, and counter has 16 leading zero bits; `POST /api/session` verifies this proof with one SHA-256 operation before checking the code and issuing an HMAC-SHA256 bearer token.
