@@ -164,3 +164,27 @@ test("removes Core abort listener after successful upstream response", async () 
   assert.equal(added, 1);
   assert.equal(removed, 1);
 });
+
+test("removes Core abort listener after cancelled upstream request", async () => {
+  const coreController = new AbortController();
+  let added = 0;
+  let removed = 0;
+  const add = coreController.signal.addEventListener.bind(coreController.signal);
+  const remove = coreController.signal.removeEventListener.bind(coreController.signal);
+  coreController.signal.addEventListener = (...args) => { added++; return add(...args); };
+  coreController.signal.removeEventListener = (...args) => { removed++; return remove(...args); };
+  const provider = createOpenRouterProvider({
+    apiKey: "test-secret",
+    fetchImpl: (_url, options) => new Promise((_, reject) => {
+      options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    })
+  });
+
+  const pending = provider.generate({ ...providerRequest, signal: coreController.signal });
+  await Promise.resolve();
+  coreController.abort();
+  await assert.rejects(pending, /OpenRouter provider unavailable/);
+  assert.equal(added, 1);
+  assert.equal(removed, 1);
+});
+
