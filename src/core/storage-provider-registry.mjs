@@ -28,6 +28,31 @@ function validDate(value) {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+const SENSITIVE_METADATA_KEY =
+  /(?:token|secret|password|credential|private.?key|api.?key|authorization|cookie|session|endpoint|url|uri|permission|grant)/i;
+
+function isSafeProviderMetadata(value, depth = 0) {
+  if (depth > 4) return false;
+  if (value === null || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "string") {
+    return value.length <= 512 && !/^(?:https?:|ftp:|file:|content:|data:)/i.test(value);
+  }
+  if (Array.isArray(value)) {
+    return value.length <= 32 &&
+      value.every(item => isSafeProviderMetadata(item, depth + 1));
+  }
+  if (typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) {
+    return false;
+  }
+  const entries = Object.entries(value);
+  return entries.length <= 32 && entries.every(([key, item]) =>
+    key.length > 0 && key.length <= 64 &&
+    !SENSITIVE_METADATA_KEY.test(key) &&
+    isSafeProviderMetadata(item, depth + 1)
+  );
+}
+
 /**
  * Validate provider metadata before it enters the runtime registry.
  * Credentials, tokens, endpoints and arbitrary permission grants are not
@@ -73,7 +98,7 @@ export function validateStorageProvider(record) {
   if (record.provider_metadata !== undefined &&
       (!record.provider_metadata || typeof record.provider_metadata !== "object" ||
        Array.isArray(record.provider_metadata) ||
-       Object.keys(record.provider_metadata).length > 32)) {
+       !isSafeProviderMetadata(record.provider_metadata))) {
     return { ok: false, code: "PROVIDER_METADATA_INVALID" };
   }
   for (const field of ["last_verified_at", "updated_at"]) {
