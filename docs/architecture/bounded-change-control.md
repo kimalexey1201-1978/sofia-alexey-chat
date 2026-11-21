@@ -21,4 +21,4 @@ Report separately: confirmed, changed, tested, deployed, and still unverified. A
 
 ## Runtime guard
 
-`src/core/change-control-policy.mjs` provides a deterministic, side-effect-free guard for change proposals. The caller must persist the issue identifier, scope digests, attempt number, prior change digests, and evidence digests. The guard does not apply changes or authenticate owner approval; those remain responsibilities of trusted host services.
+`src/core/change-control-policy.mjs` provides a deterministic, side-effect-free guard. `src/core/change-control-coordinator.mjs` coordinates proposals against a host-provided atomic store, freezes the original scope and acceptance criteria, serializes per-issue attempt accounting, enforces the three-attempt ceiling, and closes issues only when the host supplies verification evidence. The coordinator deliberately has no in-memory or non-durable production fallback: a trusted host must supply an atomic persistent store. The current v0.1 chat route does not yet invoke this coordinator, so this is a tested Core capability and policy foundation, not a claim that all live Sofia tasks are already governed by it.
