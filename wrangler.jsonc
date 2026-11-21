@@ -23,5 +23,19 @@
     "issues": {
       "enabled": false
     }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SOFIA_PAIRING_GUARD",
+        "class_name": "PairingGuard"
+      }
+    ]
+  },
+  "exports": {
+    "PairingGuard": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
   }
 }
