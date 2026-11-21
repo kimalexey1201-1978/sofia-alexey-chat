@@ -10,6 +10,8 @@
 <div class="overlay" id="overlay"><section class="sheet"><h2>Наши профили</h2><div class="profile-row"><div class="avatar" id="sofiaProfile">🌷</div><span><b>София</b><br><small>Фото Софии</small></span><button id="sofiaPick">Выбрать фото</button><input hidden type="file" id="sofiaFile" accept="image/*"></div><div class="profile-row"><div class="avatar" id="alexeyProfile">👤</div><span><b>Ты</b><br><small>Твоё фото</small></span><button id="alexeyPick">Выбрать фото</button><input hidden type="file" id="alexeyFile" accept="image/*"></div><button class="close" id="closeSheet">Готово</button></section></div>
 <script type="module">
 import { applyAssistantResult, buildChatRequestMessages } from './src/client/chat-result.mjs';
+import { resolveChatApiUrl } from './src/client/chat-api-url.mjs';
+const CHAT_API_URL=resolveChatApiUrl(window.location);
 const $=id=>document.getElementById(id),KEY='sofia-chat-v3',AVS='sofia-avatars-v1';let chat=[];try{chat=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}if(!Array.isArray(chat))chat=[];let avatars={sofia:'',alexey:'alexey-avatar.jpg'};try{avatars={...avatars,...JSON.parse(localStorage.getItem(AVS)||'{}')}}catch{}
 const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, используя женский род. Обращайся к пользователю «любимый»; не называй его по имени. При переводе с русского на корейский предоставляй корейский текст и русскую транскрипцию. При переводе с корейского на русский предоставляй только русский перевод. Будь внимательной, точной и честно обозначай неопределённость.'};
 function save(){localStorage.setItem(KEY,JSON.stringify(chat))}
@@ -39,7 +41,7 @@ async function attemptPending(){
   setConnection('София печатает…');
   let result;
   try {
-    const res=await fetch('https://sofia.kim-alexey1201.workers.dev/api/chat',{
+    const res=await fetch(CHAT_API_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({messages:requestSnapshot})
