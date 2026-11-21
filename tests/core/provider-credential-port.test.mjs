@@ -34,7 +34,7 @@ test("credential port injects the secret only at the fixed upstream boundary", a
   assert.equal(sent.init.cache, "no-store");
   assert.equal(sent.init.credentials, "omit");
   assert.equal(sent.init.referrerPolicy, "no-referrer");
-  assert.equal(JSON.stringify(requestOpenRouter).includes("private-test-credential"), false);
+  assert.equal(requestOpenRouter.toString().includes("private-test-credential"), false);
 });
 
 test("credential port refuses arbitrary destinations and methods before network access", async () => {
