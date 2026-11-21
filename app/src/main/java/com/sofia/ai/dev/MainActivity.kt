@@ -3,6 +3,7 @@ package com.sofia.ai.dev
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
@@ -54,6 +55,7 @@ class MainActivity : Activity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 VoskWakeService.ACTION_WAKE_DETECTED -> {
+                    getSystemService(NotificationManager::class.java).cancel(VoskWakeService.WAKE_NOTIFICATION_ID)
                     wakeListeningRequested = false
                     wakeButton.text = "Активация: выкл"
                     status.text = "Услышала обращение. Слушаю команду…"
@@ -72,6 +74,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         renderChat()
         handleShareIntent(intent)
+        handleWakeIntent(intent)
         if (conversation.isEmpty()) addBubble("assistant", "Привет! Я София. Можешь написать мне или воспользоваться голосовым вводом.")
     }
 
@@ -79,6 +82,20 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleShareIntent(intent)
+        handleWakeIntent(intent)
+    }
+
+    private fun handleWakeIntent(incoming: Intent?) {
+        if (incoming?.getBooleanExtra(VoskWakeService.EXTRA_START_VOICE, false) == true) {
+            incoming.removeExtra(VoskWakeService.EXTRA_START_VOICE)
+            getSystemService(NotificationManager::class.java).cancel(VoskWakeService.WAKE_NOTIFICATION_ID)
+            wakeListeningRequested = false
+            if (::wakeButton.isInitialized) wakeButton.text = "Активация: выкл"
+            if (::status.isInitialized) {
+                status.text = "Услышала обращение. Слушаю команду…"
+                status.post { startVoiceInput() }
+            }
+        }
     }
 
     override fun onResume() {
@@ -383,6 +400,10 @@ class MainActivity : Activity() {
             status.text = "Ожидание обращения остановлено."
             return
         }
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 46)
+            return
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 45)
             return
@@ -446,7 +467,10 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 45 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+        if ((requestCode == 45 || requestCode == 46) && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            toggleWakeListening()
+        } else if (requestCode == 46) {
+            Toast.makeText(this, "Без уведомлений активация при свёрнутом приложении может потребовать ручного открытия.", Toast.LENGTH_LONG).show()
             toggleWakeListening()
         } else if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             startVoiceInput()
