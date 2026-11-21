@@ -65,7 +65,7 @@ export function resolveMediaSearchIntent(text) {
     return { ok: false, code: "SEARCH_QUERY_REQUIRED" };
   }
   const query = text.toLocaleLowerCase();
-  const identityTerms = /(?:удостоверени[ея]\s+личност[и]|удостоверени[ея]\s+личности|личн(?:ое|ого)\s+удостоверени[ея]|паспорт|id\s*card|identity\s+card|passport)/i;
+  const identityTerms = /(?:удостоверени[ея]\s+(?:моей\s+)?личност[ьи]|личн(?:ое|ого)\s+удостоверени[ея]|документ\s*,?\s*удостоверяющий\s+личность|паспорт|id\s*card|identity\s+card|passport)/i;
   const screenshotTerms = /(?:скриншот|скриншоты|screenshot|screenshots)/i;
   const photoTerms = /(?:фотографи[яию]|фото|снимок|снимки|photo|picture)/i;
 
