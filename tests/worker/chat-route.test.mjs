@@ -42,7 +42,7 @@ test("preserves legacy chat response shape and replaces client system prompt", a
   assert.match(capture.providerRequest.systemInstruction, /Не используй по отношению к пользователю слово «любимый»/);
   assert.match(capture.providerRequest.systemInstruction, /другие ласковые обращения допустимы/);
   assert.doesNotMatch(capture.providerRequest.systemInstruction, /Обращайся к пользователю «любимый»/);
-  assert.match(capture.providerRequest.systemInstruction, /не называй его по имени/);
+  assert.match(capture.providerRequest.systemInstruction, /Не называй пользователя по имени без необходимости/);
   assert.doesNotMatch(capture.providerRequest.systemInstruction, /Обращайся к пользователю «любимый»|Алексей/);
   assert.deepEqual(capture.providerRequest.messages, [{ role: "user", content: "Привет" }]);
   assert.equal(capture.providerConfig.model, "test/model");
