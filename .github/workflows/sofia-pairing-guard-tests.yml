@@ -6,6 +6,7 @@ on:
       - security/durable-pairing-guard-20261121
       - security/no-global-owner-lockout-20261121
       - fix/cloudflare-preview-build-config-20261121
+      - security/core-secret-boundary-20261122
 
 jobs:
   pairing-guard:
@@ -20,4 +21,4 @@ jobs:
       - name: Validate Cloudflare Worker and Durable Object configuration
         run: npx --yes wrangler@4 deploy --dry-run --name sofia-preview --outdir .wrangler/deploy
       - name: Run Worker and pairing security tests
-        run: node --test test/*.test.mjs tests/client/*.test.mjs tests/worker/*.test.mjs
+        run: node --test test/*.test.mjs tests/client/*.test.mjs tests/worker/*.test.mjs tests/providers/openrouter-provider.test.mjs tests/core/provider-credential-port.test.mjs tests/integration/worker-core-openrouter.integration.test.mjs
