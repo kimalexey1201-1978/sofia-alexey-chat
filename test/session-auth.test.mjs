@@ -26,3 +26,29 @@ test("rejects incorrect pairing codes", async () => {
   const response = await handleSessionRequest(new Request("https://x.test/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pairingCode: "z".repeat(32) }) }), env);
   assert.equal(response.status, 401);
 });
+
+test("rejects oversized pairing requests before parsing JSON", async () => {
+  const response = await handleSessionRequest(new Request("https://x.test/api/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pairingCode: env.SOFIA_OWNER_PAIRING_CODE, extra: "x".repeat(5000) })
+  }), env);
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error.code, "REQUEST_TOO_LARGE");
+});
+test("rejects unsupported top-level session fields", async () => {
+  const response = await handleSessionRequest(new Request("https://x.test/api/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pairingCode: env.SOFIA_OWNER_PAIRING_CODE, role: "owner" })
+  }), env);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error.code, "INVALID_PAIRING_CODE");
+});
+test("requires JSON content type for pairing requests", async () => {
+  const response = await handleSessionRequest(new Request("https://x.test/api/session", {
+    method: "POST", headers: { "Content-Type": "text/plain" }, body: "anything"
+  }), env);
+  assert.equal(response.status, 415);
+  assert.equal((await response.json()).error.code, "UNSUPPORTED_MEDIA_TYPE");
+});
