@@ -137,6 +137,17 @@ The Android application should expose an exported, appropriately filtered receiv
 
 The receiver must inspect both `Intent.EXTRA_STREAM` and `Intent.clipData` because source gallery applications differ in how they package shared items. Normalize the incoming values into a single ordered list of content URIs, remove duplicates, reject null or malformed entries, and enforce configurable item-count and aggregate-size limits before processing. Do not accept arbitrary filesystem paths as substitutes for content URIs.
 
+
+### Manifest and activity hardening
+
+The eventual Android manifest must declare separate intent filters for the supported combinations:
+- `ACTION_SEND` + `CATEGORY_DEFAULT` + `image/*`;
+- `ACTION_SEND_MULTIPLE` + `CATEGORY_DEFAULT` + `image/*`.
+
+The receiving activity must be `android:exported="true"` because other apps need to launch it through the Sharesheet. This makes runtime validation mandatory: intent filters are routing declarations, not an authorization boundary. Validate the action, MIME type, URI scheme, read grant, item count, and each provider read even when the incoming intent matched the filter. Never execute a file operation merely because the activity was launched.
+
+On Android 12 and later, explicitly declare `android:exported` for components with intent filters. Handle both the initial `onCreate` intent and subsequent `onNewIntent` deliveries according to the activity launch mode; deduplicate deliveries by an intake/request identifier so the same share is not processed twice. Perform provider I/O and image decoding off the main thread. Avoid accepting `*/*` in the initial release: the app is an image intake target, not a general-purpose file receiver.
+
 ### URI access and intake
 
 - Require the source intent's read grant (`FLAG_GRANT_READ_URI_PERMISSION`) and handle missing or expired grants as an item-level intake failure.
