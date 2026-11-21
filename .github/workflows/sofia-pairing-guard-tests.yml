@@ -7,6 +7,7 @@ on:
       - security/no-global-owner-lockout-20261121
       - fix/cloudflare-preview-build-config-20261121
       - security/core-secret-boundary-20261122
+      - security/single-use-pairing-challenge-20261122
 
 jobs:
   pairing-guard:
