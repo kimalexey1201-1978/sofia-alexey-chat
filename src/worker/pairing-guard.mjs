@@ -30,13 +30,36 @@ export class PairingGuard {
     if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
       return Response.json({ error: "REQUEST_TOO_LARGE" }, { status: 413 });
     }
+    if (!request.body) return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
+    const reader = request.body.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_BODY_BYTES) {
+          try { await reader.cancel(); } catch {}
+          return Response.json({ error: "REQUEST_TOO_LARGE" }, { status: 413 });
+        }
+        chunks.push(value);
+      }
+    } catch {
+      try { await reader.cancel(); } catch {}
+      return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
     let body;
     try {
-      const raw = await request.text();
-      if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
-        return Response.json({ error: "REQUEST_TOO_LARGE" }, { status: 413 });
-      }
-      body = JSON.parse(raw);
+      body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
     } catch {
       return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
     }
@@ -51,10 +74,11 @@ export class PairingGuard {
     const now = Date.now();
     const result = await this.storage.transaction(async txn => {
       let state = await txn.get("pairing-state");
+      // Check the active lockout before expiring the rolling failure window.
+      if (state?.lockedUntil > now) return { status: 429 };
       if (!state || now - state.windowStartedAt >= FAILURE_WINDOW_MS) {
         state = { windowStartedAt: now, failedAttempts: 0, lockedUntil: 0 };
       }
-      if (state.lockedUntil > now) return { status: 429 };
       if (equalConstantTime(body.pairingCode, body.expectedCode)) {
         await txn.delete("pairing-state");
         return { status: 200 };
