@@ -2,42 +2,38 @@ const encoder = new TextEncoder();
 const TOKEN_TTL_SECONDS = 43200;
 const MAX_SESSION_BODY_BYTES = 4096;
 const PAIRING_CHALLENGE_TTL_SECONDS = 120;
-const PAIRING_KDF_ITERATIONS = 120000;
-const PAIRING_PROOF_BYTES = 32;
+const PAIRING_WORK_DIFFICULTY_BITS = 16;
 
-async function derivePairingProof(code, salt, iterations = PAIRING_KDF_ITERATIONS) {
-  const material = await crypto.subtle.importKey("raw", encoder.encode(code), "PBKDF2", false, ["deriveBits"]);
-  return new Uint8Array(await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
-    material,
-    PAIRING_PROOF_BYTES * 8
-  ));
+function hasLeadingZeroBits(bytes, bits) {
+  const wholeBytes = Math.floor(bits / 8);
+  const remainingBits = bits % 8;
+  for (let i = 0; i < wholeBytes; i++) if (bytes[i] !== 0) return false;
+  return remainingBits === 0 || (bytes[wholeBytes] >>> (8 - remainingBits)) === 0;
 }
 async function issuePairingChallenge(env, now = Math.floor(Date.now() / 1000)) {
   if (typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string" || env.SOFIA_SESSION_SIGNING_KEY.length < 32) {
     throw new Error("AUTH_NOT_CONFIGURED");
   }
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const nonce = crypto.getRandomValues(new Uint8Array(16));
   const payload = b64url(encoder.encode(JSON.stringify({
     sub: "pairing-challenge",
-    salt: b64url(salt),
+    nonce: b64url(nonce),
     iat: now,
     exp: now + PAIRING_CHALLENGE_TTL_SECONDS,
-    iterations: PAIRING_KDF_ITERATIONS
+    difficulty: PAIRING_WORK_DIFFICULTY_BITS
   })));
   return {
     challenge: payload + "." + b64url(await sign(payload, env.SOFIA_SESSION_SIGNING_KEY)),
-    salt: b64url(salt),
-    iterations: PAIRING_KDF_ITERATIONS,
+    nonce: b64url(nonce),
+    difficulty: PAIRING_WORK_DIFFICULTY_BITS,
     expiresAt: now + PAIRING_CHALLENGE_TTL_SECONDS
   };
 }
-async function verifyPairingProof(code, challenge, proof, env, now = Math.floor(Date.now() / 1000)) {
+async function verifyPairingProof(code, challenge, proofCounter, env, now = Math.floor(Date.now() / 1000)) {
   if (typeof code !== "string" || code.length < 20 || code.length > 256 ||
       typeof challenge !== "string" || challenge.length > 512 ||
-      typeof proof !== "string" || proof.length > 64 ||
-      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(challenge) ||
-      !/^[A-Za-z0-9_-]+$/.test(proof) ||
+      typeof proofCounter !== "string" || !/^(0|[1-9][0-9]{0,15})$/.test(proofCounter) ||
+      !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(challenge) ||
       typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string") return false;
   try {
     const [payloadPart, signaturePart] = challenge.split(".");
@@ -48,51 +44,15 @@ async function verifyPairingProof(code, challenge, proof, env, now = Math.floor(
         !Number.isInteger(payload.exp) || payload.iat > now + 30 ||
         payload.exp <= now || payload.exp <= payload.iat ||
         payload.exp - payload.iat > PAIRING_CHALLENGE_TTL_SECONDS ||
-        payload.iterations !== PAIRING_KDF_ITERATIONS ||
-        typeof payload.salt !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(payload.salt)) return false;
-    const supplied = decodeB64url(proof);
-    if (supplied.length !== PAIRING_PROOF_BYTES) return false;
-    const expected = await derivePairingProof(code, decodeB64url(payload.salt), payload.iterations);
-    let difference = 0;
-    for (let i = 0; i < PAIRING_PROOF_BYTES; i++) difference |= supplied[i] ^ expected[i];
-    return difference === 0;
+        payload.difficulty !== PAIRING_WORK_DIFFICULTY_BITS ||
+        typeof payload.nonce !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(payload.nonce)) return false;
+    const codeDigest = b64url(await crypto.subtle.digest("SHA-256", encoder.encode(code)));
+    const workInput = encoder.encode(payload.nonce + "." + codeDigest + "." + proofCounter);
+    const workDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", workInput));
+    return hasLeadingZeroBits(workDigest, payload.difficulty);
   } catch { return false; }
 }
 
-
-function b64url(bytes) {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).split("=").join("").replaceAll("+", "-").replaceAll("/", "_");
-}
-function decodeB64url(value) {
-  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
-  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
-  return Uint8Array.from(binary, c => c.charCodeAt(0));
-}
-async function hmacKey(secret, usages) {
-  return crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, usages);
-}
-async function sign(data, secret) {
-  const key = await hmacKey(secret, ["sign"]);
-  return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(data)));
-}
-async function verifySignature(data, signature, secret) {
-  const key = await hmacKey(secret, ["verify"]);
-  return crypto.subtle.verify("HMAC", key, signature, encoder.encode(data));
-}
-async function equalSecret(a, b) {
-  if (typeof a !== "string" || typeof b !== "string" || a.length > 256 || b.length > 256) return false;
-  const [left, right] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(a)),
-    crypto.subtle.digest("SHA-256", encoder.encode(b))
-  ]);
-  const x = new Uint8Array(left);
-  const y = new Uint8Array(right);
-  let difference = 0;
-  for (let i = 0; i < 32; i++) difference |= x[i] ^ y[i];
-  return difference === 0;
-}
 async function readBoundedJson(request) {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_SESSION_BODY_BYTES) return { error: "TOO_LARGE" };
@@ -173,13 +133,13 @@ export async function handleSessionRequest(request, env) {
   const body = parsed.body;
   if (!body || typeof body !== "object" || Array.isArray(body) ||
       Object.keys(body).length !== 3 ||
-      Object.keys(body).some(key => !["pairingCode", "challenge", "proof"].includes(key)) ||
+      Object.keys(body).some(key => !["pairingCode", "challenge", "proofCounter"].includes(key)) ||
       typeof body.pairingCode !== "string" || body.pairingCode.length < 20 || body.pairingCode.length > 256 ||
-      typeof body.challenge !== "string" || typeof body.proof !== "string") {
+      typeof body.challenge !== "string" || typeof body.proofCounter !== "string") {
     return Response.json({ error: { code: "INVALID_PAIRING_CODE" } }, { status: 400, headers });
   }
   try {
-    if (!(await verifyPairingProof(body.pairingCode, body.challenge, body.proof, env))) {
+    if (!(await verifyPairingProof(body.pairingCode, body.challenge, body.proofCounter, env))) {
       return Response.json({ error: { code: "INVALID_PAIRING_PROOF" } }, { status: 401, headers });
     }
     if (!env?.SOFIA_PAIRING_GUARD) {
