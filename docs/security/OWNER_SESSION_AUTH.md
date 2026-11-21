@@ -13,7 +13,7 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 
 ## Session behavior
 
-- `GET /api/session/challenge` issues a short-lived HMAC-signed challenge with a random salt. The client derives a 256-bit PBKDF2-HMAC-SHA256 proof (120,000 iterations) from the pairing code and challenge salt; `POST /api/session` verifies the proof before checking the code and issuing an HMAC-SHA256 bearer token.
+- `GET /api/session/challenge` issues a short-lived HMAC-signed challenge with a random nonce and a 16-bit Hashcash difficulty. The client searches for a counter whose SHA-256 digest over the nonce, SHA-256 hash of the candidate code, and counter has 16 leading zero bits; `POST /api/session` verifies this proof with one SHA-256 operation before checking the code and issuing an HMAC-SHA256 bearer token.
 - Tokens identify the owner and expire after 12 hours.
 - The Android app holds its token in memory. The web client holds its token in `sessionStorage`; clearing the browser tab session requires pairing again.
 - `POST /api/chat` and `POST /api/analyze-image` both require a valid, unexpired owner token.
@@ -22,7 +22,7 @@ Use Cloudflare Worker secret storage (not plaintext variables, source files, Git
 
 ## Security limitations before deployment
 
-- The pairing endpoint enforces a 4 KiB streaming request-body limit, JSON content type, strict top-level field validation, a two-minute signed challenge, and a 120,000-iteration PBKDF2-HMAC-SHA256 proof bound to the candidate code. This raises the cost of each guess without storing failed-attempt counters or locking out the owner. It is not a strict rate limit and does not replace a high-entropy random pairing code; distributed attackers with substantial compute can still make guesses.
+- The pairing endpoint enforces a 4 KiB streaming request-body limit, JSON content type, strict top-level field validation, a two-minute signed challenge, and a code-bound 16-bit Hashcash proof. This imposes roughly 65,536 SHA-256 trials per candidate while server-side proof verification requires only one hash. It stores no failed-attempt counters and cannot lock out the owner. It is an abuse-friction layer, not a strict rate limit, and does not replace a high-entropy random pairing code. It is not a strict rate limit and does not replace a high-entropy random pairing code; distributed attackers with substantial compute can still make guesses.
 - Pairing verification is delegated to a named Durable Object, but the verifier is stateless: it stores no failed-attempt counter, lockout timestamp, or shared authentication state. Any number of incorrect attempts returns HTTP 401 and cannot create a global owner lockout. This intentionally removes the denial-of-service risk created by a shared lockout counter.
 - The Worker fails closed with HTTP 503 if the `SOFIA_PAIRING_GUARD` binding is absent or unavailable. The pairing code is passed only through the internal Worker-to-DO binding request and is never persisted by the Durable Object.
 - The Durable Object class, Worker export, and Wrangler `SOFIA_PAIRING_GUARD` binding are included in this branch. The class is stateless and is registered as a standard Durable Object (`new_classes`); it does not require SQLite storage. The CI `wrangler deploy --dry-run` validates the build/configuration only; it does not deploy the Worker or provision a Durable Object namespace.
