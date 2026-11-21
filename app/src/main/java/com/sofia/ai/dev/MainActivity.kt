@@ -110,9 +110,10 @@ class MainActivity : Activity() {
 
     private fun persistConversation() {
         val array = JSONArray()
-        conversation.takeLast(200).forEach { (role, text) ->
-            array.put(JSONObject().put("role", role).put("text", text))
-        }
+        conversation.filterNot { it.second.startsWith("Результаты анализа переданных изображений:\\n") }
+            .takeLast(200).forEach { (role, text) ->
+                array.put(JSONObject().put("role", role).put("text", text))
+            }
         getSharedPreferences("sofia_local_chat", Context.MODE_PRIVATE)
             .edit()
             .putString("messages", array.toString())
@@ -324,7 +325,7 @@ class MainActivity : Activity() {
                     if (selectedImages.isNotEmpty()) selectedImages.clear()
                     status.text = "София на связи"
                 } else {
-                    status.text = "Не удалось получить ответ. Проверь соединение и повтори."
+                    status.text = if (ownerSessionToken == null) "Сессия истекла или доступ не подтверждён. Нажми «Доступ» и подключись снова." else "Не удалось получить ответ. Проверь соединение и повтори."
                     val retry = Button(this).apply {
                         this.text = "Повторить"
                         setOnClickListener {
@@ -462,9 +463,9 @@ class MainActivity : Activity() {
             val body = JSONObject().put("messages", payload).toString().toByteArray(Charsets.UTF_8)
             connection.outputStream.use { it.write(body) }
             val code = connection.responseCode
+            if (code == 401) ownerSessionToken = null
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: return null
-            if (code == 401) ownerSessionToken = null
             if (code !in 200..299) return null
             val response = JSONObject(responseText)
             response.optJSONArray("choices")?.optJSONObject(0)
