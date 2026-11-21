@@ -76,3 +76,46 @@ test("persists the lockout across object recreation and permits pairing after ex
     Date.now = originalNow;
   }
 });
+
+test("does not let the failure-window reset bypass an active lockout", async () => {
+  const { storage, expectedCode } = setup();
+  const guard = new PairingGuard({ storage });
+  const originalNow = Date.now;
+  let now = 1_000_000;
+  Date.now = () => now;
+  const send = pairingCode => guard.fetch(new Request("https://guard.internal/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pairingCode, expectedCode })
+  }));
+  try {
+    for (let i = 0; i < 4; i++) assert.equal((await send("z".repeat(32))).status, 401);
+    now += 14 * 60 * 1000;
+    assert.equal((await send("z".repeat(32))).status, 429);
+    now += 2 * 60 * 1000; // Original failure window has elapsed; lockout has not.
+    assert.equal((await send(expectedCode)).status, 429);
+    now += 13 * 60 * 1000 + 1;
+    assert.equal((await send(expectedCode)).status, 200);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("bounds streamed internal requests before fully consuming them", async () => {
+  const { storage } = setup();
+  const guard = new PairingGuard({ storage });
+  const response = await guard.fetch(new Request("https://guard.internal/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(2048));
+        controller.enqueue(new Uint8Array(2048));
+        controller.close();
+      }
+    }),
+    duplex: "half"
+  }));
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error, "REQUEST_TOO_LARGE");
+});
