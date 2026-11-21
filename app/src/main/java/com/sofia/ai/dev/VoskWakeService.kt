@@ -91,24 +91,27 @@ class VoskWakeService : Service() {
             var ownershipTransferred = false
             try {
                 val modelDirectory = VoskModelInstaller.ensureInstalled(applicationContext)
-                loadedModel = Model(modelDirectory.absolutePath)
-                wakeRecognizer = Recognizer(loadedModel, SAMPLE_RATE, WAKE_GRAMMAR)
-                audioService = SpeechService(wakeRecognizer, SAMPLE_RATE)
+                val createdModel = Model(modelDirectory.absolutePath)
+                loadedModel = createdModel
+                val createdRecognizer = Recognizer(createdModel, SAMPLE_RATE, WAKE_GRAMMAR)
+                wakeRecognizer = createdRecognizer
+                val createdAudioService = SpeechService(createdRecognizer, SAMPLE_RATE)
+                audioService = createdAudioService
 
                 val accepted = synchronized(this) {
                     if (generation != startGeneration || wakeHandled || !isRunning) {
                         false
                     } else {
-                        model = loadedModel
-                        recognizer = wakeRecognizer
-                        speechService = audioService
+                        model = createdModel
+                        recognizer = createdRecognizer
+                        speechService = createdAudioService
                         ownershipTransferred = true
                         true
                     }
                 }
                 if (!accepted) return@Thread
 
-                audioService.startListening(createListener(generation))
+                createdAudioService.startListening(createListener(generation))
             } catch (error: Exception) {
                 val shouldReportFailure = synchronized(this) {
                     generation == startGeneration && isRunning && !restartAfterStartup && !wakeHandled
