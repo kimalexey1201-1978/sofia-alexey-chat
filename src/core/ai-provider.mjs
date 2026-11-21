@@ -18,7 +18,7 @@
  * @property {string} text
  * @property {string} providerId
  * @property {string} modelId
- * @property {Record<string, number>=} usage
+ * @property {{inputTokens?: number, outputTokens?: number}=} usage
  */
 
 /**
@@ -40,6 +40,11 @@ export function validateProviderResult(result) {
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     throw new TypeError("Invalid provider result");
   }
+  const allowedResultKeys = new Set(["text", "providerId", "modelId", "usage"]);
+  if (Object.keys(result).some(key => !allowedResultKeys.has(key))) {
+    throw new TypeError("Provider result contains unsupported fields");
+  }
+
   const { text, providerId, modelId, usage } = result;
   if (typeof text !== "string" || text.trim().length === 0) {
     throw new TypeError("Provider result text must be a non-empty string");
@@ -54,13 +59,22 @@ export function validateProviderResult(result) {
     if (!usage || typeof usage !== "object" || Array.isArray(usage)) {
       throw new TypeError("Provider result usage must be an object");
     }
+    const allowedUsageKeys = new Set(["inputTokens", "outputTokens"]);
+    if (Object.keys(usage).some(key => !allowedUsageKeys.has(key))) {
+      throw new TypeError("Provider result usage contains unsupported fields");
+    }
     for (const [key, value] of Object.entries(usage)) {
-      if (!key || !Number.isFinite(value) || value < 0) {
-        throw new TypeError("Provider result usage values must be finite non-negative numbers");
+      if (!Number.isSafeInteger(value) || value < 0) {
+        throw new TypeError("Provider result usage values must be non-negative safe integers");
       }
     }
   }
-  return { text, providerId, modelId, ...(usage === undefined ? {} : { usage }) };
+  return {
+    text,
+    providerId,
+    modelId,
+    ...(usage === undefined ? {} : { usage: { ...usage } })
+  };
 }
 
 /** @param {ProviderResult} result @returns {AIProvider} */
