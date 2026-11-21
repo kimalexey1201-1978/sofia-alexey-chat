@@ -121,6 +121,43 @@
           "content_hash_sha256": {
             "type": "string",
             "pattern": "^[a-fA-F0-9]{64}$"
+          },
+          "relative_path": {
+            "type": "string",
+            "maxLength": 1024,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).*$"
+          },
+          "bucket_display_name": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "media_category": {
+            "type": "string",
+            "enum": [
+              "screenshot",
+              "photo",
+              "unclassified_image",
+              "video",
+              "other"
+            ]
+          },
+          "classification_method": {
+            "type": "string",
+            "enum": [
+              "android_media_metadata",
+              "on_device_content_analysis",
+              "user_confirmed",
+              "not_applicable"
+            ]
+          },
+          "classification_confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "none"
+            ]
           }
         }
       }
