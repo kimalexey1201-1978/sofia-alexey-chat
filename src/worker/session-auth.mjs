@@ -36,7 +36,7 @@ async function verifyPairingProof(code, challenge, proof, env, now = Math.floor(
   if (typeof code !== "string" || code.length < 20 || code.length > 256 ||
       typeof challenge !== "string" || challenge.length > 512 ||
       typeof proof !== "string" || proof.length > 64 ||
-      !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(challenge) ||
+      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(challenge) ||
       !/^[A-Za-z0-9_-]+$/.test(proof) ||
       typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string") return false;
   try {
