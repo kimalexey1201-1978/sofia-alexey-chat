@@ -34,6 +34,7 @@ test("sends image as multimodal content and returns analysis without storing it"
   let sent;
   const response = await handleImageAnalysisRequest(request(new File(["abc"], "a.jpg", { type: "image/jpeg" })), env, {
     fetchImpl: async (_url, options) => {
+      assert.equal(options.headers.get("Authorization"), "Bearer test-key");
       sent = JSON.parse(options.body);
       return Response.json({ model: "vision-test", choices: [{ message: { content: "На фото изображён пейзаж." } }] });
     }
