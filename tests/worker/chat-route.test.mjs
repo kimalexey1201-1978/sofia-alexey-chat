@@ -42,7 +42,8 @@ test("preserves legacy chat response shape and replaces client system prompt", a
   assert.equal(capture.providerRequest.systemInstruction.includes("CLIENT-CONTROLLED"), false);
   assert.deepEqual(capture.providerRequest.messages, [{ role: "user", content: "Привет" }]);
   assert.equal(capture.providerConfig.model, "test/model");
-  assert.equal(capture.providerConfig.apiKey, env.OPENROUTER_API_KEY);
+  assert.equal(capture.providerConfig.apiKey, undefined);
+  assert.equal(typeof capture.providerConfig.fetchImpl, "function");
   assert.doesNotMatch(capture.providerRequest.systemInstruction, /дорогой|любимый|Алексей/i);
   assert.match(capture.providerRequest.systemInstruction, /нейтральную форму/);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://kimalexey1201-1978.github.io");
@@ -91,7 +92,7 @@ test("returns stable method and provider configuration errors", async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: [{ role: "user", content: "Hi" }] })
-    }), {}
+    }), {}, { verifyOwnerSession: async () => true }
   );
   assert.equal(getResponse.status, 405);
   assert.equal((await getResponse.json()).error.code, "METHOD_NOT_ALLOWED");
