@@ -52,7 +52,7 @@ class VoskWakeService : Service() {
             try {
                 val modelDirectory = VoskModelInstaller.ensureInstalled(applicationContext)
                 val loadedModel = Model(modelDirectory.absolutePath)
-                val wakeRecognizer = Recognizer(loadedModel, SAMPLE_RATE, WAKE_GRAMMAR)
+        private const val WAKE_GRAMMAR = "[\"софия\", \"софья\", \"[unk]\"]"
                 val audioService = SpeechService(wakeRecognizer, SAMPLE_RATE)
 
                 synchronized(this) {
