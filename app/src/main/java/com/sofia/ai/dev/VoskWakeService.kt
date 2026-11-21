@@ -31,6 +31,9 @@ class VoskWakeService : Service() {
     @Volatile
     private var isStarting = false
 
+    @Volatile
+    private var restartAfterStartup = false
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -53,14 +56,24 @@ class VoskWakeService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            restartAfterStartup = false
             stopListening()
-            stopSelf()
+            stopSelf(startId)
             return START_NOT_STICKY
         }
-        if (speechService != null || isStarting) return START_STICKY
+        if (speechService != null) return START_STICKY
+        if (isStarting) {
+            // A quick stop/start can arrive while the model is still loading.
+            // Let the current worker finish or abort, then honor the new request.
+            isRunning = true
+            wakeHandled = false
+            restartAfterStartup = true
+            return START_STICKY
+        }
 
         isRunning = true
         wakeHandled = false
+        restartAfterStartup = false
         isStarting = true
 
         Thread {
@@ -90,7 +103,17 @@ class VoskWakeService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             } finally {
-                isStarting = false
+                val shouldRestart = synchronized(this) {
+                    isStarting = false
+                    val restart = restartAfterStartup && isRunning && !wakeHandled
+                    restartAfterStartup = false
+                    restart
+                }
+                if (shouldRestart) {
+                    onStartCommand(Intent(this, VoskWakeService::class.java).apply {
+                        action = ACTION_START
+                    }, 0, 0)
+                }
             }
         }.start()
         return START_NOT_STICKY
