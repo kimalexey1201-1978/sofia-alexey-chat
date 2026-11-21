@@ -470,8 +470,7 @@ class MainActivity : Activity() {
         if ((requestCode == 45 || requestCode == 46) && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             toggleWakeListening()
         } else if (requestCode == 46) {
-            Toast.makeText(this, "Без уведомлений активация при свёрнутом приложении может потребовать ручного открытия.", Toast.LENGTH_LONG).show()
-            toggleWakeListening()
+            Toast.makeText(this, "Для активации в свёрнутом приложении разреши уведомления Sofia в настройках Android.", Toast.LENGTH_LONG).show()
         } else if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             startVoiceInput()
         } else if (requestCode == 41) {
