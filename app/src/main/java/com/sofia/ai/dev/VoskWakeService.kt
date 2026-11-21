@@ -24,6 +24,12 @@ class VoskWakeService : Service() {
     private var speechService: SpeechService? = null
     private var wakeHandled = false
 
+    @Volatile
+    private var isRunning = true
+
+    @Volatile
+    private var isStarting = false
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -34,7 +40,11 @@ class VoskWakeService : Service() {
             .setOngoing(true)
             .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            )
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -46,13 +56,17 @@ class VoskWakeService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (speechService != null) return START_STICKY
+        if (speechService != null || isStarting) return START_STICKY
+
+        isRunning = true
+        wakeHandled = false
+        isStarting = true
 
         Thread {
             try {
                 val modelDirectory = VoskModelInstaller.ensureInstalled(applicationContext)
                 val loadedModel = Model(modelDirectory.absolutePath)
-        private const val WAKE_GRAMMAR = "[\"софия\", \"софья\", \"[unk]\"]"
+                val wakeRecognizer = Recognizer(loadedModel, SAMPLE_RATE, WAKE_GRAMMAR)
                 val audioService = SpeechService(wakeRecognizer, SAMPLE_RATE)
 
                 synchronized(this) {
@@ -69,14 +83,16 @@ class VoskWakeService : Service() {
 
                 audioService.startListening(listener)
             } catch (error: Exception) {
-                sendStatus("Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}")
+                sendStatus(
+                    "Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}"
+                )
                 stopSelf()
+            } finally {
+                isStarting = false
             }
         }.start()
         return START_NOT_STICKY
     }
-
-    @Volatile private var isRunning = true
 
     private val listener = object : RecognitionListener {
         override fun onPartialResult(hypothesis: String) = Unit
@@ -107,11 +123,18 @@ class VoskWakeService : Service() {
         try {
             activeSpeechService?.cancel()
             activeSpeechService?.shutdown()
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
 
-        try { recognizer?.close() } catch (_: Exception) { }
+        try {
+            recognizer?.close()
+        } catch (_: Exception) {
+        }
         recognizer = null
-        try { model?.close() } catch (_: Exception) { }
+        try {
+            model?.close()
+        } catch (_: Exception) {
+        }
         model = null
 
         sendBroadcast(Intent(ACTION_WAKE_DETECTED).setPackage(packageName))
@@ -127,10 +150,17 @@ class VoskWakeService : Service() {
         try {
             activeSpeechService?.cancel()
             activeSpeechService?.shutdown()
-        } catch (_: Exception) { }
-        try { recognizer?.close() } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
+        try {
+            recognizer?.close()
+        } catch (_: Exception) {
+        }
         recognizer = null
-        try { model?.close() } catch (_: Exception) { }
+        try {
+            model?.close()
+        } catch (_: Exception) {
+        }
         model = null
     }
 
@@ -148,15 +178,22 @@ class VoskWakeService : Service() {
     }
 
     private fun sendStatus(message: String) {
-        sendBroadcast(Intent(ACTION_STATUS).setPackage(packageName).putExtra(EXTRA_STATUS, message))
+        sendBroadcast(
+            Intent(ACTION_STATUS)
+                .setPackage(packageName)
+                .putExtra(EXTRA_STATUS, message)
+        )
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "Голосовая активация Софии", NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID,
+                "Голосовая активация Софии",
+                NotificationManager.IMPORTANCE_LOW
             )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
         }
     }
 
@@ -176,6 +213,6 @@ class VoskWakeService : Service() {
         private const val CHANNEL_ID = "sofia_wake_listener"
         private const val NOTIFICATION_ID = 7101
         private const val SAMPLE_RATE = 16000.0f
-        private const val WAKE_GRAMMAR = "[\\"софия\\", \\"софья\\", \\"[unk]\\"]"
+        private const val WAKE_GRAMMAR = """["софия", "софья", "[unk]"]"""
     }
 }
