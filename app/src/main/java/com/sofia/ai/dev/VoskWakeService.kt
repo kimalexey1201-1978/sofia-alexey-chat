@@ -97,11 +97,16 @@ class VoskWakeService : Service() {
 
                 audioService.startListening(listener)
             } catch (error: Exception) {
-                val message = "Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}"
-                sendStatus(message)
-                postErrorNotification(message)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                val shouldReportFailure = synchronized(this) {
+                    isRunning && !restartAfterStartup && !wakeHandled
+                }
+                if (shouldReportFailure) {
+                    val message = "Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}"
+                    sendStatus(message)
+                    postErrorNotification(message)
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf(startId)
+                }
             } finally {
                 val shouldRestart = synchronized(this) {
                     isStarting = false
@@ -131,6 +136,10 @@ class VoskWakeService : Service() {
         }
 
         override fun onError(exception: Exception) {
+            val shouldReportFailure = synchronized(this@VoskWakeService) {
+                isRunning && !wakeHandled
+            }
+            if (!shouldReportFailure) return
             val message = "Ошибка микрофона: ${exception.message ?: "неизвестная ошибка"}"
             sendStatus(message)
             postErrorNotification(message)
