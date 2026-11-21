@@ -3,6 +3,9 @@ package com.sofia.ai.dev
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.provider.DocumentsContract
 import android.net.Uri
@@ -44,6 +47,26 @@ class MainActivity : Activity() {
     private lateinit var sendButton: Button
     private lateinit var status: TextView
     private var speechRecognizer: SpeechRecognizer? = null
+    private var wakeReceiverRegistered = false
+    private var wakeListeningRequested = false
+    private lateinit var wakeButton: Button
+    private val wakeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                VoskWakeService.ACTION_WAKE_DETECTED -> {
+                    wakeListeningRequested = false
+                    wakeButton.text = "Активация: выкл"
+                    status.text = "Услышала обращение. Слушаю команду…"
+                    startVoiceInput()
+                }
+                VoskWakeService.ACTION_STATUS -> {
+                    wakeListeningRequested = false
+                    wakeButton.text = "Активация: выкл"
+                    status.text = intent.getStringExtra(VoskWakeService.EXTRA_STATUS) ?: "Ошибка голосовой активации."
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +79,31 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleShareIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!wakeReceiverRegistered) {
+            val filter = IntentFilter().apply {
+                addAction(VoskWakeService.ACTION_WAKE_DETECTED)
+                addAction(VoskWakeService.ACTION_STATUS)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(wakeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(wakeReceiver, filter)
+            }
+            wakeReceiverRegistered = true
+        }
+    }
+
+    override fun onPause() {
+        if (wakeReceiverRegistered) {
+            unregisterReceiver(wakeReceiver)
+            wakeReceiverRegistered = false
+        }
+        super.onPause()
     }
 
     override fun onDestroy() {
@@ -84,6 +132,11 @@ class MainActivity : Activity() {
             setOnClickListener { openGalleryPicker() }
         }
         root.addView(galleryButton)
+        wakeButton = Button(this).apply {
+            text = "Активация: выкл"
+            setOnClickListener { toggleWakeListening() }
+        }
+        root.addView(wakeButton)
         val scroll = ScrollView(this)
         messages = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -320,6 +373,39 @@ class MainActivity : Activity() {
         status.text = if (busy) "София думает…" else "На связи"
     }
 
+    private fun toggleWakeListening() {
+        if (wakeListeningRequested) {
+            startService(Intent(this, VoskWakeService::class.java).apply {
+                action = VoskWakeService.ACTION_STOP
+            })
+            wakeListeningRequested = false
+            wakeButton.text = "Активация: выкл"
+            status.text = "Ожидание обращения остановлено."
+            return
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 45)
+            return
+        }
+        val serviceIntent = Intent(this, VoskWakeService::class.java).apply {
+            action = VoskWakeService.ACTION_START
+        }
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            wakeListeningRequested = true
+            wakeButton.text = "Активация: вкл"
+            status.text = "Загружаю локальную модель и запускаю ожидание…"
+        } catch (error: Exception) {
+            wakeListeningRequested = false
+            wakeButton.text = "Активация: выкл"
+            status.text = "Не удалось включить активацию: ${error.message ?: "ошибка Android"}"
+        }
+    }
+
     private fun startVoiceInput() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             Toast.makeText(this, "Голосовой ввод на этом устройстве недоступен.", Toast.LENGTH_LONG).show()
@@ -360,7 +446,9 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == 45 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            toggleWakeListening()
+        } else if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             startVoiceInput()
         } else if (requestCode == 41) {
             Toast.makeText(this, "Для голосового ввода нужно разрешение на микрофон.", Toast.LENGTH_LONG).show()
