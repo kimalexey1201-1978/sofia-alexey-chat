@@ -29,6 +29,9 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import android.util.Base64
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
@@ -383,14 +386,43 @@ class MainActivity : Activity() {
     private fun exchangePairingCode(code: String): String? {
         var connection: HttpURLConnection? = null
         return try {
+            connection = (URL("$sessionUrl/challenge").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 15000
+                readTimeout = 20000
+                setRequestProperty("Cache-Control", "no-store")
+            }
+            if (connection.responseCode !in 200..299) return null
+            val challengeData = JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+            val challenge = challengeData.optString("challenge")
+            val saltText = challengeData.optString("salt")
+            val iterations = challengeData.optInt("iterations", 0)
+            if (challenge.count { it == '.' } != 1 || saltText.isBlank() || iterations !in 100000..150000) return null
+            connection.disconnect()
+            connection = null
+
+            val salt = Base64.decode(saltText, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+            val spec = PBEKeySpec(code.toCharArray(), salt, iterations, 256)
+            val proofBytes = try {
+                SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            } finally {
+                spec.clearPassword()
+            }
+            val proof = Base64.encodeToString(proofBytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+
             connection = (URL(sessionUrl).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
                 readTimeout = 20000
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("Cache-Control", "no-store")
             }
-            val body = JSONObject().put("pairingCode", code).toString().toByteArray(Charsets.UTF_8)
+            val body = JSONObject()
+                .put("pairingCode", code)
+                .put("challenge", challenge)
+                .put("proof", proof)
+                .toString().toByteArray(Charsets.UTF_8)
             connection.outputStream.use { it.write(body) }
             if (connection.responseCode !in 200..299) return null
             JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
