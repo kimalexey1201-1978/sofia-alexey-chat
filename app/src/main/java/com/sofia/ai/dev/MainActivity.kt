@@ -153,7 +153,7 @@ class MainActivity : Activity() {
                 } else {
                     status.text = "Не удалось получить ответ. Проверь соединение и повтори."
                     val retry = Button(this).apply {
-                        text = "Повторить"
+                        this.text = "Повторить"
                         setOnClickListener {
                             setBusy(true)
                             executor.execute {
