@@ -334,3 +334,76 @@ test("rejects unsupported and unsafe token usage metadata", async () => {
     assert.equal(result.error.code, "VERIFIER_REJECTED");
   }
 });
+
+
+test("isolates concurrent requests when provider responses resolve out of order", async () => {
+  const pending = new Map();
+  const provider = { generate(input) {
+    return new Promise(resolve => pending.set(input.requestId, { input, resolve }));
+  }};
+
+  const first = runSofiaCore(provider,
+    { messages: [{ role: "user", content: "Первый запрос" }] },
+    { ...config, requestId: "parallel-1" });
+  const second = runSofiaCore(provider,
+    { messages: [{ role: "user", content: "Второй запрос" }] },
+    { ...config, requestId: "parallel-2" });
+
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pending.size, 2);
+  assert.equal(pending.get("parallel-1").input.messages[0].content, "Первый запрос");
+  assert.equal(pending.get("parallel-2").input.messages[0].content, "Второй запрос");
+  assert.notEqual(pending.get("parallel-1").input.signal, pending.get("parallel-2").input.signal);
+
+  pending.get("parallel-2").resolve({
+    text: "Ответ на второй запрос", providerId: "mock", modelId: "fixture"
+  });
+  pending.get("parallel-1").resolve({
+    text: "Ответ на первый запрос", providerId: "mock", modelId: "fixture"
+  });
+
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  assert.equal(firstResult.ok, true);
+  assert.equal(secondResult.ok, true);
+  assert.equal(firstResult.requestId, "parallel-1");
+  assert.equal(secondResult.requestId, "parallel-2");
+  assert.equal(firstResult.taskPlan.owner_goal, "Первый запрос");
+  assert.equal(secondResult.taskPlan.owner_goal, "Второй запрос");
+  assert.equal(firstResult.answer.text, "Ответ на первый запрос");
+  assert.equal(secondResult.answer.text, "Ответ на второй запрос");
+});
+
+test("cancelling one concurrent request does not abort its sibling", async () => {
+  const callerToCancel = new AbortController();
+  const pending = new Map();
+  const provider = { generate(input) {
+    return new Promise((resolve, reject) => {
+      pending.set(input.requestId, { input, resolve });
+      input.signal.addEventListener("abort", () => reject(input.signal.reason), { once: true });
+    });
+  }};
+
+  const cancelled = runSofiaCore(provider,
+    { messages: [{ role: "user", content: "Отменяемый запрос" }] },
+    { ...config, requestId: "cancel-me", signal: callerToCancel.signal, timeoutMs: 10000 });
+  const sibling = runSofiaCore(provider,
+    { messages: [{ role: "user", content: "Независимый запрос" }] },
+    { ...config, requestId: "keep-running", timeoutMs: 10000 });
+
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pending.size, 2);
+  callerToCancel.abort(new Error("caller cancelled only this request"));
+
+  const cancelledResult = await cancelled;
+  assert.equal(cancelledResult.error.code, "REQUEST_CANCELLED");
+  assert.equal(pending.get("cancel-me").input.signal.aborted, true);
+  assert.equal(pending.get("keep-running").input.signal.aborted, false);
+
+  pending.get("keep-running").resolve({
+    text: "Соседний запрос завершён", providerId: "mock", modelId: "fixture"
+  });
+  const siblingResult = await sibling;
+  assert.equal(siblingResult.ok, true);
+  assert.equal(siblingResult.requestId, "keep-running");
+  assert.equal(siblingResult.answer.text, "Соседний запрос завершён");
+});
