@@ -532,6 +532,33 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun documentExists(directoryUri: Uri, displayName: String): Boolean {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            directoryUri, DocumentsContract.getDocumentId(directoryUri)
+        )
+        return try {
+            contentResolver.query(
+                childrenUri,
+                arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                null, null, null
+            )?.use { cursor ->
+                val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                if (nameColumn < 0) false else {
+                    var found = false
+                    while (cursor.moveToNext()) {
+                        if (cursor.getString(nameColumn) == displayName) {
+                            found = true
+                            break
+                        }
+                    }
+                    found
+                }
+            } ?: false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun copySelectedImagesToFolder(treeUri: Uri) {
         val snapshot = selectedImages.toList()
         status.text = "Копирую фотографии…"
@@ -545,19 +572,30 @@ class MainActivity : Activity() {
                     try {
                         val mime = contentResolver.getType(sourceUri)?.takeIf { it.startsWith("image/") }
                             ?: throw IllegalArgumentException("Неизвестный тип файла")
-                        val safeName = displayName.substringAfterLast('/').replace(':', '_').replace('?', '_')
+                        val rawName = displayName.substringAfterLast('/').replace(':', '_').replace('?', '_')
                             .replace('*', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
                             .ifBlank { "photo" }
-                        val targetUri = DocumentsContract.createDocument(contentResolver, directoryUri, mime, safeName)
+                        val dot = rawName.lastIndexOf('.').takeIf { it > 0 } ?: rawName.length
+                        val base = rawName.substring(0, dot)
+                        val extension = rawName.substring(dot)
+                        val targetName = generateSequence(0) { it + 1 }.map { suffix ->
+                            if (suffix == 0) rawName else "$base ($suffix)$extension"
+                        }.first { candidate -> !documentExists(directoryUri, candidate) }
+                        val targetUri = DocumentsContract.createDocument(contentResolver, directoryUri, mime, targetName)
                             ?: throw IllegalStateException("Не удалось создать файл назначения")
-                        val inputStream = contentResolver.openInputStream(sourceUri)
-                            ?: throw IllegalStateException("Не удалось прочитать оригинал")
-                        val outputStream = contentResolver.openOutputStream(targetUri, "w")
-                            ?: throw IllegalStateException("Не удалось записать копию")
-                        inputStream.use { input ->
-                            outputStream.use { output -> input.copyTo(output) }
+                        try {
+                            val inputStream = contentResolver.openInputStream(sourceUri)
+                                ?: throw IllegalStateException("Не удалось прочитать оригинал")
+                            val outputStream = contentResolver.openOutputStream(targetUri, "w")
+                                ?: throw IllegalStateException("Не удалось записать копию")
+                            inputStream.use { input ->
+                                outputStream.use { output -> input.copyTo(output) }
+                            }
+                            copied++
+                        } catch (error: Exception) {
+                            try { DocumentsContract.deleteDocument(contentResolver, targetUri) } catch (_: Exception) { }
+                            throw error
                         }
-                        copied++
                     } catch (error: Exception) {
                         failures.add("${displayName}: ${error.message ?: "ошибка копирования"}")
                     }
