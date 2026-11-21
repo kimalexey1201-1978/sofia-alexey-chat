@@ -288,3 +288,49 @@ test("does not trust provider-supplied Core cancellation or timeout error codes"
   assert.equal(timedOut.error.code, "PROVIDER_UNAVAILABLE");
 });
 
+
+
+test("rejects provider-supplied tool calls and unrecognized result fields at the Core boundary", async () => {
+  let calls = 0;
+  const provider = { async generate() {
+    calls++;
+    return {
+      text: "Looks harmless",
+      providerId: "mock",
+      modelId: "fixture",
+      tool_calls: [{ name: "delete_files", arguments: {} }]
+    };
+  }};
+  const result = await runSofiaCore(provider, request, config);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "VERIFIER_REJECTED");
+  assert.equal(calls, 1);
+  assert.equal(JSON.stringify(result).includes("delete_files"), false);
+});
+
+test("accepts only bounded token usage fields and copies provider usage metadata", async () => {
+  const usage = { inputTokens: 4, outputTokens: 6 };
+  const provider = { async generate() {
+    return { text: "OK", providerId: "mock", modelId: "fixture", usage };
+  }};
+  const result = await runSofiaCore(provider, request, config);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.answer.usage, { inputTokens: 4, outputTokens: 6 });
+  assert.notEqual(result.answer.usage, usage);
+});
+
+test("rejects unsupported and unsafe token usage metadata", async () => {
+  const invalidUsage = [
+    { inputTokens: 1, cachedTokens: 2 },
+    { inputTokens: -1 },
+    { outputTokens: 1.5 },
+    { outputTokens: Number.MAX_SAFE_INTEGER + 1 }
+  ];
+  for (const usage of invalidUsage) {
+    const result = await runSofiaCore({
+      async generate() { return { text: "OK", providerId: "mock", modelId: "fixture", usage }; }
+    }, request, config);
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "VERIFIER_REJECTED");
+  }
+});
