@@ -1,14 +1,19 @@
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
-/** @param {{apiKey:string, model?:string, siteUrl?:string, appName?:string, fetchImpl?:typeof fetch}} config */
+/**
+ * OpenRouter adapter.
+ *
+ * It receives a narrowly scoped credential capability, never an API key or
+ * the Worker environment. The capability is created by Sofia Core's trusted
+ * provider credential port.
+ * @param {{fetchImpl: typeof fetch, model?: string, siteUrl?: string, appName?: string}} config
+ */
 export function createOpenRouterProvider(config = {}) {
-  const apiKey = config.apiKey;
   const model = config.model || "openrouter/free";
-  const fetchImpl = config.fetchImpl || globalThis.fetch;
-  if (typeof apiKey !== "string" || !apiKey.trim()) {
-    throw new TypeError("OpenRouter server configuration is missing");
+  const fetchImpl = config.fetchImpl;
+  if (typeof fetchImpl !== "function") {
+    throw new TypeError("OpenRouter credential capability is required");
   }
-  if (typeof fetchImpl !== "function") throw new TypeError("Fetch implementation is unavailable");
 
   return {
     async generate(request) {
@@ -40,7 +45,6 @@ export function createOpenRouterProvider(config = {}) {
         ...request.messages.map(message => ({ role: message.role, content: message.content }))
       ];
       const headers = {
-        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         "X-Title": config.appName || "Sofia AI"
       };
@@ -84,7 +88,6 @@ export function createOpenRouterProvider(config = {}) {
           timeoutError.code = "SOFIA_PROVIDER_TIMEOUT";
           throw timeoutError;
         }
-        // Do not propagate upstream body, headers, credentials, or raw error details.
         throw new Error("OpenRouter provider unavailable");
       } finally {
         clearTimeout(timer);

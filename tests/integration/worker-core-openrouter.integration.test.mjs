@@ -29,7 +29,7 @@ test("runs the complete Worker route -> Core -> OpenRouter adapter -> legacy res
   const response = await handleChatRequest(request, {
     OPENROUTER_API_KEY: "test-secret-never-return-this",
     OPENROUTER_MODEL: "openrouter/test-model"
-  }, { fetchImpl });
+  }, { fetchImpl, verifyOwnerSession: async () => true });
 
   const payload = await response.json();
   assert.equal(response.status, 200);
@@ -38,7 +38,7 @@ test("runs the complete Worker route -> Core -> OpenRouter adapter -> legacy res
 
   assert.equal(upstreamRequest.url, "https://openrouter.ai/api/v1/chat/completions");
   assert.equal(upstreamRequest.init.method, "POST");
-  assert.equal(upstreamRequest.init.headers.Authorization, "Bearer test-secret-never-return-this");
+  assert.equal(upstreamRequest.init.headers.get("Authorization"), "Bearer test-secret-never-return-this");
   assert.equal(upstreamRequest.body.model, "openrouter/test-model");
   assert.equal(upstreamRequest.body.messages[0].role, "system");
   assert.equal(upstreamRequest.body.messages[0].content.includes("UNTRUSTED CLIENT SYSTEM PROMPT"), false);
@@ -69,7 +69,7 @@ test("uses the server-side FREE_ONLY default model and rejects client model sele
   });
   const rejected = await handleChatRequest(invalidRequest, {
     OPENROUTER_API_KEY: "test-secret"
-  }, { fetchImpl });
+  }, { fetchImpl, verifyOwnerSession: async () => true });
   assert.equal(rejected.status, 400);
   assert.equal(upstreamRequest, undefined);
 
@@ -82,10 +82,10 @@ test("uses the server-side FREE_ONLY default model and rejects client model sele
   });
   const response = await handleChatRequest(validRequest, {
     OPENROUTER_API_KEY: "test-secret"
-  }, { fetchImpl });
+  }, { fetchImpl, verifyOwnerSession: async () => true });
   assert.equal(response.status, 200);
   assert.equal(upstreamRequest.body.model, "openrouter/free");
-  assert.equal(upstreamRequest.init.headers.Authorization, "Bearer test-secret");
+  assert.equal(upstreamRequest.init.headers.get("Authorization"), "Bearer test-secret");
   assert.equal(JSON.stringify(await response.json()).includes("test-secret"), false);
 });
 
@@ -120,7 +120,7 @@ test("propagates caller abort from Worker Request through Core to OpenRouter fet
 
   const responsePromise = handleChatRequest(request, {
     OPENROUTER_API_KEY: "test-secret"
-  }, { fetchImpl });
+  }, { fetchImpl, verifyOwnerSession: async () => true });
 
   await started;
   assert.ok(upstreamSignal);
@@ -163,6 +163,7 @@ test("enforces the Core deadline across Worker and OpenRouter and returns a safe
     OPENROUTER_API_KEY: "test-secret"
   }, {
     fetchImpl,
+    verifyOwnerSession: async () => true,
     runCore: (provider, input, config) =>
       runSofiaCore(provider, input, { ...config, timeoutMs: 10 })
   });

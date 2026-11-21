@@ -11,10 +11,10 @@ const providerRequest = {
 };
 function jsonResponse(payload, ok = true) { return { ok, async json() { return payload; } }; }
 
-test("maps OpenRouter response to the AIProvider result contract", async () => {
+test("maps OpenRouter response to the AIProvider result contract without receiving a credential", async () => {
   let sent;
   const provider = createOpenRouterProvider({
-    apiKey: "test-secret", model: "openrouter/free", siteUrl: "https://example.test",
+    model: "openrouter/free", siteUrl: "https://example.test",
     fetchImpl: async (url, options) => {
       sent = { url, options, body: JSON.parse(options.body) };
       return jsonResponse({ model: "vendor/model-v1",
@@ -26,7 +26,8 @@ test("maps OpenRouter response to the AIProvider result contract", async () => {
   assert.deepEqual(result, { text: "Hello from mock", providerId: "openrouter",
     modelId: "vendor/model-v1", usage: { inputTokens: 5, outputTokens: 7 } });
   assert.equal(sent.url, "https://openrouter.ai/api/v1/chat/completions");
-  assert.equal(sent.options.headers.Authorization, "Bearer test-secret");
+  assert.equal(sent.options.headers.Authorization, undefined);
+  assert.equal(sent.options.headers["Content-Type"], "application/json");
   assert.equal(sent.options.headers["HTTP-Referer"], "https://example.test");
   assert.deepEqual(sent.body.messages, [
     { role: "system", content: "Server-owned instruction" },
@@ -37,17 +38,17 @@ test("maps OpenRouter response to the AIProvider result contract", async () => {
 
 test("uses only server-configured model and output token limit", async () => {
   let body;
-  const provider = createOpenRouterProvider({ apiKey: "test-secret", model: "server/model",
+  const provider = createOpenRouterProvider({ model: "server/model",
     fetchImpl: async (_url, options) => { body = JSON.parse(options.body); return jsonResponse({ choices: [{ message: { content: "ok" } }] }); } });
   await provider.generate({ ...providerRequest, model: "client/model", maxOutputTokens: 55 });
   assert.equal(body.model, "server/model");
   assert.equal(body.max_tokens, 55);
 });
 
-test("propagates Core cancellation to the upstream fetch signal", async () => {
+test("propagates Core cancellation to the credential capability", async () => {
   const coreController = new AbortController();
   let upstreamSignal;
-  const provider = createOpenRouterProvider({ apiKey: "test-secret",
+  const provider = createOpenRouterProvider({
     fetchImpl: (_url, options) => {
       upstreamSignal = options.signal;
       return new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
@@ -59,25 +60,25 @@ test("propagates Core cancellation to the upstream fetch signal", async () => {
   assert.equal(upstreamSignal.aborted, true);
 });
 
-test("rejects missing server API key without making a request", () => {
-  assert.throws(() => createOpenRouterProvider({}), /server configuration is missing/);
+test("rejects missing credential capability without making a request", () => {
+  assert.throws(() => createOpenRouterProvider({}), /credential capability is required/);
 });
 
 test("maps upstream HTTP failure to a generic error without leaking response body", async () => {
-  const provider = createOpenRouterProvider({ apiKey: "test-secret",
+  const provider = createOpenRouterProvider({
     fetchImpl: async () => jsonResponse({ error: "private upstream diagnostic" }, false) });
   await assert.rejects(provider.generate(providerRequest), error =>
     error.message === "OpenRouter provider unavailable" && !error.message.includes("private upstream"));
 });
 
 test("rejects malformed completion payload", async () => {
-  const provider = createOpenRouterProvider({ apiKey: "test-secret",
+  const provider = createOpenRouterProvider({
     fetchImpl: async () => jsonResponse({ choices: [{ message: { content: null } }] }) });
   await assert.rejects(provider.generate(providerRequest), /OpenRouter provider unavailable/);
 });
 
 test("maps provider deadline to a stable timeout code", async () => {
-  const provider = createOpenRouterProvider({ apiKey: "test-secret",
+  const provider = createOpenRouterProvider({
     fetchImpl: (_url, options) => new Promise((_, reject) => {
       options.signal.addEventListener("abort", () => { const error = new Error("aborted"); error.name = "AbortError"; reject(error); });
     }) });
@@ -85,12 +86,11 @@ test("maps provider deadline to a stable timeout code", async () => {
     error => error.code === "SOFIA_PROVIDER_TIMEOUT");
 });
 
-test("does not invoke upstream fetch when Core cancellation is already signaled", async () => {
+test("does not invoke the credential capability when Core cancellation is already signaled", async () => {
   const coreController = new AbortController();
   coreController.abort(new Error("request already cancelled"));
   let fetchCalled = false;
   const provider = createOpenRouterProvider({
-    apiKey: "test-secret",
     fetchImpl: async () => {
       fetchCalled = true;
       return jsonResponse({ choices: [{ message: { content: "must not happen" } }] });
@@ -105,24 +105,23 @@ test("does not invoke upstream fetch when Core cancellation is already signaled"
 });
 
 test("does not leak cancellation reason or credentials through adapter errors", async () => {
-  const secret = "sensitive-upstream-token";
+  const marker = "sensitive-upstream-token";
   const coreController = new AbortController();
   let upstreamSignal;
   const provider = createOpenRouterProvider({
-    apiKey: secret,
     fetchImpl: (_url, options) => {
       upstreamSignal = options.signal;
       return new Promise((_, reject) => options.signal.addEventListener("abort", () => {
-        reject(new Error(secret + " private cancellation detail"));
+        reject(new Error(marker + " private cancellation detail"));
       }, { once: true }));
     }
   });
   const pending = provider.generate({ ...providerRequest, signal: coreController.signal });
   await Promise.resolve();
-  coreController.abort(new Error(secret + " owner cancellation reason"));
+  coreController.abort(new Error(marker + " owner cancellation reason"));
   await assert.rejects(pending, error =>
     error.message === "OpenRouter provider unavailable" &&
-    !error.message.includes(secret)
+    !error.message.includes(marker)
   );
   assert.equal(upstreamSignal.aborted, true);
 });
@@ -130,7 +129,6 @@ test("does not leak cancellation reason or credentials through adapter errors", 
 test("rejects malformed cancellation signal before upstream dispatch", async () => {
   let fetchCalled = false;
   const provider = createOpenRouterProvider({
-    apiKey: "test-secret",
     fetchImpl: async () => {
       fetchCalled = true;
       return jsonResponse({ choices: [{ message: { content: "unexpected" } }] });
@@ -153,7 +151,6 @@ test("removes Core abort listener after successful upstream response", async () 
   coreController.signal.removeEventListener = (...args) => { removed++; return remove(...args); };
 
   const provider = createOpenRouterProvider({
-    apiKey: "test-secret",
     fetchImpl: async () => jsonResponse({ choices: [{ message: { content: "success" } }] })
   });
   const result = await provider.generate({
