@@ -84,9 +84,10 @@ class VoskWakeService : Service() {
 
                 audioService.startListening(listener)
             } catch (error: Exception) {
-                sendStatus(
-                    "Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}"
-                )
+                val message = "Ошибка запуска локального распознавания: ${error.message ?: "неизвестная ошибка"}"
+                sendStatus(message)
+                postErrorNotification(message)
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             } finally {
                 isStarting = false
@@ -107,7 +108,10 @@ class VoskWakeService : Service() {
         }
 
         override fun onError(exception: Exception) {
-            sendStatus("Ошибка микрофона: ${exception.message ?: "неизвестная ошибка"}")
+            val message = "Ошибка микрофона: ${exception.message ?: "неизвестная ошибка"}"
+            sendStatus(message)
+            postErrorNotification(message)
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
 
@@ -194,6 +198,26 @@ class VoskWakeService : Service() {
         }
     }
 
+    private fun postErrorNotification(message: String) {
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_STATUS, message)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, ERROR_NOTIFICATION_ID, openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("Голосовая активация остановлена")
+            .setContentText(message)
+            .setStyle(Notification.BigTextStyle().bigText(message))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(ERROR_NOTIFICATION_ID, notification)
+    }
+
     private fun sendStatus(message: String) {
         sendBroadcast(
             Intent(ACTION_STATUS)
@@ -229,6 +253,7 @@ class VoskWakeService : Service() {
         const val EXTRA_STATUS = "status"
         const val EXTRA_START_VOICE = "start_voice_after_wake"
         const val WAKE_NOTIFICATION_ID = 7102
+        const val ERROR_NOTIFICATION_ID = 7103
         private const val CHANNEL_ID = "sofia_wake_listener"
         private const val NOTIFICATION_ID = 7101
         private const val SAMPLE_RATE = 16000.0f
