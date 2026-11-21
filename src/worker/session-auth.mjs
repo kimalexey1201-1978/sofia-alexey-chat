@@ -23,6 +23,18 @@ async function verifySignature(data, signature, secret) {
   const key = await hmacKey(secret, ["verify"]);
   return crypto.subtle.verify("HMAC", key, signature, encoder.encode(data));
 }
+async function equalSecret(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length > 256 || b.length > 256) return false;
+  const [left, right] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(a)),
+    crypto.subtle.digest("SHA-256", encoder.encode(b))
+  ]);
+  const x = new Uint8Array(left);
+  const y = new Uint8Array(right);
+  let difference = 0;
+  for (let i = 0; i < 32; i++) difference |= x[i] ^ y[i];
+  return difference === 0;
+}
 async function readBoundedJson(request) {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_SESSION_BODY_BYTES) return { error: "TOO_LARGE" };
@@ -62,7 +74,7 @@ async function readBoundedJson(request) {
 export async function issueOwnerSession(code, env, now = Math.floor(Date.now() / 1000)) {
   if (typeof env?.SOFIA_OWNER_PAIRING_CODE !== "string" || env.SOFIA_OWNER_PAIRING_CODE.length < 20 ||
       typeof env?.SOFIA_SESSION_SIGNING_KEY !== "string" || env.SOFIA_SESSION_SIGNING_KEY.length < 32) throw new Error("AUTH_NOT_CONFIGURED");
-  if (!equal(code, env.SOFIA_OWNER_PAIRING_CODE)) return null;
+  if (!(await equalSecret(code, env.SOFIA_OWNER_PAIRING_CODE))) return null;
   const payload = b64url(encoder.encode(JSON.stringify({ sub: "owner", iat: now, exp: now + TOKEN_TTL_SECONDS })));
   return { token: payload + "." + b64url(await sign(payload, env.SOFIA_SESSION_SIGNING_KEY)), expiresAt: now + TOKEN_TTL_SECONDS };
 }
