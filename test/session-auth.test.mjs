@@ -2,7 +2,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handleSessionRequest, issueOwnerSession, verifyOwnerSession } from "../src/worker/session-auth.mjs";
 
-const env = { SOFIA_OWNER_PAIRING_CODE: "owner-code-".padEnd(32, "x"), SOFIA_SESSION_SIGNING_KEY: "signing-key-".padEnd(48, "y") };
+const env = {
+  SOFIA_OWNER_PAIRING_CODE: "owner-code-".padEnd(32, "x"),
+  SOFIA_SESSION_SIGNING_KEY: "signing-key-".padEnd(48, "y"),
+  SOFIA_PAIRING_GUARD: {
+    idFromName: () => "owner-pairing",
+    get: () => ({
+      fetch: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        return body.pairingCode === body.expectedCode
+          ? Response.json({ valid: true })
+          : Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
+      }
+    })
+  }
+};
 test("issues a signed short-lived session for the owner pairing code", async () => {
   const result = await issueOwnerSession(env.SOFIA_OWNER_PAIRING_CODE, env, 1000);
   assert.equal(result.expiresAt, 1000 + 43200);
@@ -51,4 +65,15 @@ test("requires JSON content type for pairing requests", async () => {
   }), env);
   assert.equal(response.status, 415);
   assert.equal((await response.json()).error.code, "UNSUPPORTED_MEDIA_TYPE");
+});
+
+test("fails closed when durable pairing protection is not configured", async () => {
+  const { SOFIA_PAIRING_GUARD, ...unprotectedEnv } = env;
+  const response = await handleSessionRequest(new Request("https://x.test/api/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pairingCode: env.SOFIA_OWNER_PAIRING_CODE })
+  }), unprotectedEnv);
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error.code, "PAIRING_PROTECTION_NOT_CONFIGURED");
 });
