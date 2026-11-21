@@ -10,13 +10,15 @@
 <div class="overlay" id="overlay"><section class="sheet"><h2>Наши профили</h2><div class="profile-row"><div class="avatar" id="sofiaProfile">🌷</div><span><b>София</b><br><small>Фото Софии</small></span><button id="sofiaPick">Выбрать фото</button><input hidden type="file" id="sofiaFile" accept="image/*"></div><div class="profile-row"><div class="avatar" id="alexeyProfile">👤</div><span><b>Ты</b><br><small>Твоё фото</small></span><button id="alexeyPick">Выбрать фото</button><input hidden type="file" id="alexeyFile" accept="image/*"></div><button class="close" id="closeSheet">Готово</button></section></div>
 <script type="module">
 import { applyAssistantResult, buildChatRequestMessages } from './src/client/chat-result.mjs';
+import { resolveChatApiUrl } from './src/client/chat-api-url.mjs';
+const CHAT_API_URL=resolveChatApiUrl(window.location);
 const $=id=>document.getElementById(id),KEY='sofia-chat-v3',AVS='sofia-avatars-v1';let chat=[];try{chat=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}if(!Array.isArray(chat))chat=[];let avatars={sofia:'',alexey:'alexey-avatar.jpg'};try{avatars={...avatars,...JSON.parse(localStorage.getItem(AVS)||'{}')}}catch{}
-const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, используя женский род. Обращайся к пользователю «любимый»; не называй его по имени. При переводе с русского на корейский предоставляй корейский текст и русскую транскрипцию. При переводе с корейского на русский предоставляй только русский перевод. Будь внимательной, точной и честно обозначай неопределённость.'};
+const system={role:'system',content:'Ты София, личный ИИ-собеседник. Отвечай по-русски, используя женский род. Не обращайся к пользователю словом «любимый». Другие ласковые обращения допустимы. При переводе с русского на корейский предоставляй корейский текст и русскую транскрипцию. При переводе с корейского на русский предоставляй только русский перевод. Будь внимательной, точной и честно обозначай неопределённость. Точно следуй запросу пользователя: не добавляй неуказанные ограничения, требования или предположения. Если существенная неоднозначность мешает безопасно выполнить задачу, задай один конкретный уточняющий вопрос. Перед изменением назови проверяемый результат и критерии приёмки. Вноси минимальное изменение, подтверждённое данными. Не повторяй прежнее исправление без новых фактов. На одну проблему допускается не более трёх попыток всего: первоначальная и две корректировки; после этого остановись, сообщи точную причину и запроси решение владельца. Если критерии приёмки выполнены и подтверждены проверкой, закрой задачу и не меняй её повторно без новых данных или нового указания владельца. Всегда разделяй подтверждённое, выполненное, проверенное и ещё не проверенное.'};
 function save(){localStorage.setItem(KEY,JSON.stringify(chat))}
 function avatar(who,cls){let e=document.createElement('div');e.className=cls;let src=avatars[who];if(src){let im=document.createElement('img');im.src=src;im.onerror=()=>e.textContent=who==='sofia'?'🌷':'👤';e.append(im)}else e.textContent=who==='sofia'?'🌷':'👤';return e}
 function paint(id,who){let e=$(id);e.replaceChildren();let src=avatars[who];if(src){let im=document.createElement('img');im.src=src;im.onerror=()=>e.textContent=who==='sofia'?'🌷':'👤';e.append(im)}else e.textContent=who==='sofia'?'🌷':'👤'}
 function render(){let a=$('messages');a.replaceChildren();for(let m of chat){let r=document.createElement('div');r.className='row '+(m.who==='me'?'me':'');let b=document.createElement('div');b.className='bubble';let t=document.createElement('div');t.textContent=m.text;let s=document.createElement('div');s.className='stamp';s.textContent=new Date(m.date).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});b.append(t,s);if(m.who==='me')r.append(b,avatar('alexey','mini-avatar'));else r.append(avatar('sofia','mini-avatar'),b);a.append(r)}a.scrollTop=a.scrollHeight;save();paint('sofiaHead','sofia');paint('sofiaProfile','sofia');paint('alexeyProfile','alexey')}
-if(!chat.length)chat=[{who:'sofia',text:'Привет, любимый! ❤️ Это наш личный чат.',date:new Date().toISOString()}];render();
+if(!chat.length)chat=[{who:'sofia',text:'Привет, дорогой! ❤️ Это наш личный чат.',date:new Date().toISOString()}];render();
 let pendingMessages=null,isSending=false;
 function setConnection(message, retryable=false){
   const status=$('connection');
@@ -39,7 +41,7 @@ async function attemptPending(){
   setConnection('София печатает…');
   let result;
   try {
-    const res=await fetch('https://sofia.kim-alexey1201.workers.dev/api/chat',{
+    const res=await fetch(CHAT_API_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({messages:requestSnapshot})

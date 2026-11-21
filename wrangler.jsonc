@@ -2,6 +2,7 @@
   "name": "sofia",
   "main": "./_worker.js",
   "compatibility_date": "2026-11-18",
+  "previews": {},
   "assets": {
     "directory": ".",
     "binding": "ASSETS",

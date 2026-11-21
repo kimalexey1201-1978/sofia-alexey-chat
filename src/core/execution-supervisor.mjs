@@ -173,7 +173,7 @@ export function evaluateExecutionAdmission(input, now = new Date()) {
       request.risk_tier === "unknown") {
     reasons.push("OWNER_APPROVAL_REQUIRED_OR_RISK_UNKNOWN");
   }
-  if (request.approval_ref && securityDecision.required_approval &&
+  if (securityDecision.required_approval &&
       securityDecision.required_approval !== "none") {
     reasons.push("APPROVAL_EVIDENCE_NOT_VERIFIED_BY_V0_1");
   }
