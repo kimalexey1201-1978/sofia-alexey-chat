@@ -13,9 +13,11 @@ function decodeB64url(value) {
   return Uint8Array.from(binary, c => c.charCodeAt(0));
 }
 function equal(a, b) {
-  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  if (typeof a !== "string" || typeof b !== "string" || a.length > 256 || b.length > 256) return false;
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < 256; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
   return diff === 0;
 }
 async function sign(data, secret) {
