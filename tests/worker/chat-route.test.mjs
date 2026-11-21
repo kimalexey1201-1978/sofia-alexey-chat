@@ -409,3 +409,28 @@ test("treats client-supplied assistant history as conversation text, never as an
   assert.equal(Object.hasOwn(capture.providerRequest, "tools"), false);
   assert.equal(Object.hasOwn(capture.providerRequest, "permissions"), false);
 });
+
+
+test("requires a valid owner session before invoking the provider", async () => {
+  let providerCreated = false;
+  const request = new Request("https://sofia.example/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] })
+  });
+  const response = await handleChatRequest(request, env, {
+    createProvider() { providerCreated = true; throw new Error("must not run"); }
+  });
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error.code, "UNAUTHORIZED");
+  assert.equal(providerCreated, false);
+});
+
+test("allows Authorization in CORS preflight for authenticated browser chat", async () => {
+  const response = await handleChatRequest(new Request("https://sofia.example/api/chat", {
+    method: "OPTIONS",
+    headers: { "Access-Control-Request-Headers": "content-type,authorization" }
+  }), env);
+  assert.equal(response.status, 204);
+  assert.match(response.headers.get("Access-Control-Allow-Headers"), /Authorization/);
+});
