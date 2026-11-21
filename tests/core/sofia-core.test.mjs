@@ -142,6 +142,28 @@ test("propagates caller cancellation through Core to the provider and returns a 
   assert.equal(providerSignal.aborted, true);
 });
 
+test("returns caller cancellation promptly when provider ignores AbortSignal", async () => {
+  const caller = new AbortController();
+  let calls = 0;
+  let providerSignal;
+  const provider = { generate(input) {
+    calls++;
+    providerSignal = input.signal;
+    // Simulate a provider adapter that cannot cancel its underlying operation.
+    return new Promise(() => {});
+  }};
+
+  const pending = runSofiaCore(provider, request, { ...config, timeoutMs: 10000, signal: caller.signal });
+  await Promise.resolve();
+  caller.abort(new Error("caller disconnected"));
+
+  const result = await pending;
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "REQUEST_CANCELLED");
+  assert.equal(calls, 1);
+  assert.equal(providerSignal.aborted, true);
+});
+
 test("does not invoke provider when caller cancellation predates Core execution", async () => {
   const caller = new AbortController();
   caller.abort();
