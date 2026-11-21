@@ -77,3 +77,27 @@ test("fails closed when durable pairing protection is not configured", async () 
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error.code, "PAIRING_PROTECTION_NOT_CONFIGURED");
 });
+
+test("rejects oversized bearer headers before HMAC verification", async () => {
+  const request = new Request("https://x.test", {
+    headers: { Authorization: "Bearer " + "a".repeat(600) }
+  });
+  assert.equal(await verifyOwnerSession(request, env, 1001), false);
+});
+
+test("rejects bearer tokens with extra segments or invalid base64url characters", async () => {
+  assert.equal(await verifyOwnerSession(new Request("https://x.test", {
+    headers: { Authorization: "Bearer a.b.c" }
+  }), env, 1001), false);
+  assert.equal(await verifyOwnerSession(new Request("https://x.test", {
+    headers: { Authorization: "Bearer a*.b*" }
+  }), env, 1001), false);
+});
+
+test("rejects sessions with a future issue time beyond clock tolerance", async () => {
+  const result = await issueOwnerSession(env.SOFIA_OWNER_PAIRING_CODE, env, 2000);
+  const request = new Request("https://x.test", {
+    headers: { Authorization: "Bearer " + result.token }
+  });
+  assert.equal(await verifyOwnerSession(request, env, 1900), false);
+});
