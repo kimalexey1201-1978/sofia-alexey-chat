@@ -47,5 +47,13 @@
         }
       ]
     }
-  }
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "PairingGuard"
+      ]
+    }
+  ]
 }
