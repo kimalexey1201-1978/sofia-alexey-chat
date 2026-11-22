@@ -94,7 +94,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   } else if(text!="софия") sendCommand(raw)
  }
  private fun sendCommand(command:String) {
-  waiting=false;status("Выполняю команду")
+  waiting=false;stopRecognition();status("Выполняю команду")
   io.execute {
    try {
     val msgs=JSONArray().put(JSONObject().put("role","system").put("content","Ты София, личный помощник. Отвечай по-русски кратко и естественно.")).put(JSONObject().put("role","user").put("content",command))
