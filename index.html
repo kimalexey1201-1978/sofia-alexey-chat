@@ -22,5 +22,42 @@ $('menuBtn').onclick=()=>$('menu').classList.toggle('open');$('profileBtn').oncl
 function pick(w){let f=$(w+'File').files[0];if(!f)return;let rd=new FileReader();rd.onload=()=>{let im=new Image();im.onload=()=>{let c=document.createElement('canvas'),z=Math.min(1,500/Math.max(im.width,im.height));c.width=im.width*z;c.height=im.height*z;c.getContext('2d').drawImage(im,0,0,c.width,c.height);avatars[w]=c.toDataURL('image/jpeg',.82);localStorage.setItem(AVS,JSON.stringify(avatars));render()};im.src=rd.result};rd.readAsDataURL(f)}
 $('sofiaPick').onclick=()=>$('sofiaFile').click();$('alexeyPick').onclick=()=>$('alexeyFile').click();$('sofiaFile').onchange=()=>pick('sofia');$('alexeyFile').onchange=()=>pick('alexey');
 $('exportBtn').onclick=()=>{let txt=chat.map(m=>new Date(m.date).toLocaleString('ru-RU')+' '+(m.who==='me'?'Алексей':'София')+': '+m.text).join('\\n\\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));a.download='Переписка.txt';a.click();$('menu').classList.remove('open')};$('clearBtn').onclick=()=>{if(confirm('Удалить всю переписку?')){chat=[];render()}$('menu').classList.remove('open')};
-let rec=null;$('voiceBtn').onclick=()=>{let SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){$('voiceStatus').textContent='Используй микрофон клавиатуры Samsung.';return}rec=new SR();rec.lang='ru-RU';rec.onresult=e=>$('input').value=e.results[0][0].transcript;rec.onend=()=>{$('voiceStatus').textContent='Голосовой ввод завершён';rec=null};$('voiceStatus').textContent='Слушаю…';rec.start()};
+let rec=null;
+$('voiceBtn').onclick=()=>{
+  if(rec){try{rec.stop()}catch{}return}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){$('voiceStatus').textContent='Распознавание речи не поддерживается этим браузером. Используй микрофон клавиатуры Samsung.';return}
+  rec=new SR();
+  rec.lang='ru-RU';
+  rec.continuous=false;
+  rec.interimResults=true;
+  rec.maxAlternatives=1;
+  rec.onstart=()=>{$('voiceStatus').textContent='Слушаю… Говори сейчас';$('voiceBtn').textContent='■'};
+  rec.onresult=e=>{
+    let transcript='';
+    for(let i=e.resultIndex;i<e.results.length;i++) transcript+=e.results[i][0].transcript;
+    $('input').value=transcript.trim();
+    const finalResult=Array.from(e.results).some(x=>x.isFinal);
+    $('voiceStatus').textContent=finalResult?'Распознано. Проверь текст и нажми отправить.':'Распознаю речь…';
+  };
+  rec.onnomatch=()=>{$('voiceStatus').textContent='Речь не распознана. Попробуй произнести фразу ещё раз.'};
+  rec.onerror=e=>{
+    const messages={
+      'not-allowed':'Нет разрешения на микрофон. Разреши доступ сайту в настройках браузера.',
+      'service-not-allowed':'Браузер запретил службу распознавания речи.',
+      'no-speech':'Не услышала речь. Нажми микрофон и попробуй ещё раз.',
+      'audio-capture':'Не удалось получить звук с микрофона.',
+      'network':'Ошибка сетевого сервиса распознавания речи.',
+      'aborted':'Распознавание остановлено.'
+    };
+    $('voiceStatus').textContent=messages[e.error]||('Ошибка распознавания: '+e.error);
+  };
+  rec.onend=()=>{
+    if($('voiceStatus').textContent==='Слушаю… Говори сейчас'||$('voiceStatus').textContent==='Распознаю речь…') $('voiceStatus').textContent='Прослушивание завершено. Если текста нет, попробуй ещё раз.';
+    $('voiceBtn').textContent='🎙';
+    rec=null;
+  };
+  $('voiceStatus').textContent='Запускаю микрофон…';
+  try{rec.start()}catch(e){$('voiceStatus').textContent='Не удалось запустить микрофон: '+e.message;rec=null;$('voiceBtn').textContent='🎙'}
+};
 </script></body></html>
