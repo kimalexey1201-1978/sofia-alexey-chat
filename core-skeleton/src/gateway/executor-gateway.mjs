@@ -3,10 +3,15 @@ export class ExecutorGateway {
     if (!entry?.executor || typeof entry.executor.execute !== "function") {
       throw new TypeError("A valid registered executor is required");
     }
-    if (signal?.aborted) throw new Error("Execution cancelled");
+    if (signal?.aborted) throw new Error("EXECUTION_CANCELLED");
 
     const controller = new AbortController();
-    const relayAbort = () => controller.abort(signal.reason);
+    let rejectCancellation;
+    const cancellation = new Promise((_, reject) => { rejectCancellation = reject; });
+    const relayAbort = () => {
+      controller.abort(signal.reason);
+      rejectCancellation(new Error("EXECUTION_CANCELLED"));
+    };
     signal?.addEventListener("abort", relayAbort, { once: true });
 
     let timeoutId;
@@ -20,7 +25,8 @@ export class ExecutorGateway {
     try {
       return await Promise.race([
         entry.executor.execute(task, { signal: controller.signal }),
-        timeout
+        timeout,
+        cancellation
       ]);
     } finally {
       clearTimeout(timeoutId);
