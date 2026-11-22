@@ -9,16 +9,19 @@ export class ExecutorGateway {
     let rejectCancellation;
     const cancellation = new Promise((_, reject) => { rejectCancellation = reject; });
     const relayAbort = () => {
-      controller.abort(signal.reason);
+      // Reject the gateway operation before notifying the executor. An executor may
+      // resolve synchronously from its abort listener; cancellation must still win.
       rejectCancellation(new Error("EXECUTION_CANCELLED"));
+      controller.abort(signal.reason);
     };
     signal?.addEventListener("abort", relayAbort, { once: true });
 
     let timeoutId;
     const timeout = new Promise((_, reject) => {
       timeoutId = setTimeout(() => {
-        controller.abort(new Error("EXECUTOR_TIMEOUT"));
+        // Settle the timeout before notifying the executor for the same reason.
         reject(new Error("EXECUTOR_TIMEOUT"));
+        controller.abort(new Error("EXECUTOR_TIMEOUT"));
       }, timeoutMs);
     });
 
