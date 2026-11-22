@@ -59,8 +59,15 @@ export class Orchestrator {
         errors: []
       };
     } catch (error) {
-      const code = error?.message === "EXECUTOR_TIMEOUT" ? "TIMEOUT" : "EXECUTION_FAILED";
-      return { protocol: "sofia.result.v1", task_id: task.task_id, status: "failed", errors: [code] };
+      const code = error?.message === "EXECUTOR_TIMEOUT" ? "TIMEOUT"
+        : error?.message === "EXECUTION_CANCELLED" ? "EXECUTION_CANCELLED"
+        : "EXECUTION_FAILED";
+      return {
+        protocol: "sofia.result.v1",
+        task_id: task.task_id,
+        status: code === "EXECUTION_CANCELLED" ? "cancelled" : "failed",
+        errors: [code]
+      };
     }
   }
 }
