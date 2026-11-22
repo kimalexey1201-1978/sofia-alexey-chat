@@ -5,18 +5,26 @@ export class ExecutorGateway {
     }
     if (signal?.aborted) throw new Error("Execution cancelled");
 
+    const controller = new AbortController();
+    const relayAbort = () => controller.abort(signal.reason);
+    signal?.addEventListener("abort", relayAbort, { once: true });
+
     let timeoutId;
     const timeout = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error("EXECUTOR_TIMEOUT")), timeoutMs);
+      timeoutId = setTimeout(() => {
+        controller.abort(new Error("EXECUTOR_TIMEOUT"));
+        reject(new Error("EXECUTOR_TIMEOUT"));
+      }, timeoutMs);
     });
 
     try {
       return await Promise.race([
-        entry.executor.execute(task, { signal }),
+        entry.executor.execute(task, { signal: controller.signal }),
         timeout
       ]);
     } finally {
       clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", relayAbort);
     }
   }
 }
