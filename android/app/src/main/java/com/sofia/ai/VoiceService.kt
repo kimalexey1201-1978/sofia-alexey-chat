@@ -25,6 +25,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var restarting=false
  private var destroyed=false
  private var speaking=false
+ private var restartTask:Runnable?=null
  override fun onCreate() {
   super.onCreate()
   if (Build.VERSION.SDK_INT>=26) {
@@ -52,7 +53,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   .setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("София активна").setContentText(s).setOngoing(true).build()
  private fun status(s:String)=getSystemService(NotificationManager::class.java).notify(NOTIFICATION,notification(s))
  private fun startRecognition() {
-  if(destroyed||restarting)return
+  if(destroyed||restarting||speaking)return
   if(!SpeechRecognizer.isRecognitionAvailable(this)){status("Распознавание речи недоступно");return}
   try {
    recognizer?.destroy()
@@ -61,14 +62,27 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     override fun onReadyForSpeech(p:Bundle?){status(if(waiting)"София проснулась, жду команду" else "Ожидаю слово «София»")}
     override fun onBeginningOfSpeech(){}; override fun onRmsChanged(v:Float){}; override fun onBufferReceived(b:ByteArray?){}; override fun onEndOfSpeech(){}
     override fun onError(e:Int){restart()}
-    override fun onResults(b:Bundle?){val phrase=b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty();if(phrase.isNotBlank())handle(phrase);restart()}
+    override fun onResults(b:Bundle?){val phrase=b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty();if(phrase.isNotBlank())handle(phrase);if(!speaking && !destroyed)restart()}
     override fun onPartialResults(b:Bundle?){}; override fun onEvent(t:Int,b:Bundle?){}
    })
    val i=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply { putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ru-RU");putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false);putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,1) }
    recognizer?.startListening(i)
   } catch(e:Exception){restart()}
  }
- private fun restart(){if(destroyed||restarting)return;restarting=true;main.postDelayed({restarting=false;startRecognition()},700)}
+ private fun restart(){
+  if(destroyed||restarting||speaking)return
+  restarting=true
+  restartTask=Runnable{restarting=false;restartTask=null;startRecognition()}
+  main.postDelayed(restartTask!!,700)
+ }
+ private fun stopRecognition(){
+  restartTask?.let{main.removeCallbacks(it)}
+  restartTask=null
+  restarting=false
+  recognizer?.cancel()
+  recognizer?.destroy()
+  recognizer=null
+ }
  private fun norm(s:String)=s.lowercase(Locale("ru","RU")).replace(Regex("[.,!?;:]")," ").replace(Regex("\\s+")," ").trim()
  private fun handle(raw:String) {
   val text=norm(raw)
