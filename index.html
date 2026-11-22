@@ -41,10 +41,10 @@ function handleVoicePhrase(raw){
   const phrase=raw.trim();
   if(!phrase)return;
   const normalized=cleanSpeech(phrase);
-  const match=normalized.match(/(?:^|\s)софия(?:\s|$)/i);
+  const match=phrase.match(/(?:^|\s)софия(?=\s|[.,!?;:]|$)/i);
   if(!waitingCommand){
     if(!match)return;
-    const command=normalized.slice(match.index+match[0].indexOf('софия')+6).trim();
+    const command=phrase.slice(match.index+match[0].lastIndexOf('софия')+6).replace(/^[\s.,!?;:]+/,'').trim();
     if(command){
       waitingCommand=false;
       voiceStatus('Команда распознана: '+command);
