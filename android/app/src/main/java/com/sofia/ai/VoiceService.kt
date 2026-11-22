@@ -6,6 +6,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,6 +24,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var waiting=false
  private var restarting=false
  private var destroyed=false
+ private var speaking=false
  override fun onCreate() {
   super.onCreate()
   if (Build.VERSION.SDK_INT>=26) {
@@ -35,7 +37,17 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int)=START_STICKY
  override fun onBind(intent:Intent?):IBinder?=null
- override fun onInit(status:Int) { if(status==TextToSpeech.SUCCESS){ttsReady=true;tts?.language=Locale("ru","RU")} }
+ override fun onInit(status:Int) {
+  if(status==TextToSpeech.SUCCESS){
+   ttsReady=true
+   tts?.language=Locale("ru","RU")
+   tts?.setOnUtteranceProgressListener(object:UtteranceProgressListener(){
+    override fun onStart(id:String){ }
+    override fun onDone(id:String){main.post{speaking=false;if(!destroyed)startRecognition()}}
+    @Deprecated("Deprecated in Java") override fun onError(id:String){main.post{speaking=false;if(!destroyed)startRecognition()}}
+   })
+  }
+ }
  private fun notification(s:String)=NotificationCompat.Builder(this,CHANNEL)
   .setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("София активна").setContentText(s).setOngoing(true).build()
  private fun status(s:String)=getSystemService(NotificationManager::class.java).notify(NOTIFICATION,notification(s))
@@ -83,7 +95,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    }catch(e:Exception){main.post{say("Не удалось связаться с сервером.");status("Ошибка соединения. Ожидаю слово «София»")}}
   }
  }
- private fun say(s:String){if(ttsReady)tts?.speak(s,TextToSpeech.QUEUE_FLUSH,null,"sofia-response")}
+ private fun say(s:String){
+  if(ttsReady){
+   speaking=true
+   stopRecognition()
+   tts?.speak(s,TextToSpeech.QUEUE_FLUSH,null,"sofia-response")
+  } else {
+   main.postDelayed({if(!destroyed)startRecognition()},1200)
+  }
+ }
  override fun onDestroy(){destroyed=true;main.removeCallbacksAndMessages(null);recognizer?.destroy();tts?.stop();tts?.shutdown();io.shutdownNow();super.onDestroy()}
  companion object {private const val CHANNEL="sofia_voice";private const val NOTIFICATION=7301;private const val ENDPOINT="https://sofia.kim-alexey1201.workers.dev/api/chat"}
 }
