@@ -8,8 +8,13 @@ export class AgentRegistry {
     if (typeof manifest.version !== "string" || !manifest.version.trim()) {
       throw new TypeError("Executor manifest requires a version");
     }
-    if (!Array.isArray(manifest.capabilities) || manifest.capabilities.some(x => typeof x !== "string")) {
-      throw new TypeError("Executor manifest capabilities must be a string array");
+    if (
+      !Array.isArray(manifest.capabilities) ||
+      manifest.capabilities.length === 0 ||
+      manifest.capabilities.some(x => typeof x !== "string" || !x.trim()) ||
+      new Set(manifest.capabilities).size !== manifest.capabilities.length
+    ) {
+      throw new TypeError("Executor manifest capabilities must be a non-empty array of unique, non-empty strings");
     }
     if (!executor || typeof executor.execute !== "function") {
       throw new TypeError("Executor must implement execute(task, context)");
