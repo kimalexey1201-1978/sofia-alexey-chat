@@ -22,42 +22,103 @@ $('menuBtn').onclick=()=>$('menu').classList.toggle('open');$('profileBtn').oncl
 function pick(w){let f=$(w+'File').files[0];if(!f)return;let rd=new FileReader();rd.onload=()=>{let im=new Image();im.onload=()=>{let c=document.createElement('canvas'),z=Math.min(1,500/Math.max(im.width,im.height));c.width=im.width*z;c.height=im.height*z;c.getContext('2d').drawImage(im,0,0,c.width,c.height);avatars[w]=c.toDataURL('image/jpeg',.82);localStorage.setItem(AVS,JSON.stringify(avatars));render()};im.src=rd.result};rd.readAsDataURL(f)}
 $('sofiaPick').onclick=()=>$('sofiaFile').click();$('alexeyPick').onclick=()=>$('alexeyFile').click();$('sofiaFile').onchange=()=>pick('sofia');$('alexeyFile').onchange=()=>pick('alexey');
 $('exportBtn').onclick=()=>{let txt=chat.map(m=>new Date(m.date).toLocaleString('ru-RU')+' '+(m.who==='me'?'Алексей':'София')+': '+m.text).join('\\n\\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));a.download='Переписка.txt';a.click();$('menu').classList.remove('open')};$('clearBtn').onclick=()=>{if(confirm('Удалить всю переписку?')){chat=[];render()}$('menu').classList.remove('open')};
-let rec=null;
-$('voiceBtn').onclick=()=>{
-  if(rec){try{rec.stop()}catch{}return}
+let rec=null,voiceActive=false,waitingCommand=false,restartTimer=null;
+function voiceStatus(text){$('voiceStatus').textContent=text}
+function wakeBeep(){
+  try{
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(!C)return;
+    const ctx=new C(),osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.frequency.value=880;gain.gain.setValueAtTime(.001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+.025);
+    gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.18);
+    osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.19);
+    osc.onended=()=>ctx.close();
+  }catch(e){}
+}
+function cleanSpeech(s){return s.toLowerCase().replace(/[.,!?;:]/g,' ').replace(/\s+/g,' ').trim()}
+function handleVoicePhrase(raw){
+  const phrase=raw.trim();
+  if(!phrase)return;
+  const normalized=cleanSpeech(phrase);
+  const match=normalized.match(/(?:^|\s)софия(?:\s|$)/i);
+  if(!waitingCommand){
+    if(!match)return;
+    const command=normalized.slice(match.index+match[0].indexOf('софия')+6).trim();
+    if(command){
+      waitingCommand=false;
+      voiceStatus('Команда распознана: '+command);
+      $('input').value='';
+      send(command);
+    }else{
+      waitingCommand=true;
+      wakeBeep();
+      voiceStatus('София проснулась. Говори команду.');
+    }
+    return;
+  }
+  if(normalized==='софия'){
+    voiceStatus('Я уже слушаю. Говори команду.');
+    return;
+  }
+  waitingCommand=false;
+  voiceStatus('Отправляю команду: '+phrase);
+  $('input').value='';
+  send(phrase);
+}
+function stopVoice(){
+  voiceActive=false;waitingCommand=false;
+  if(restartTimer){clearTimeout(restartTimer);restartTimer=null}
+  if(rec){const r=rec;rec=null;try{r.onend=null;r.stop()}catch(e){}}
+  $('voiceBtn').textContent='🎙';
+  voiceStatus('Голосовой режим выключен.');
+}
+function startRecognizer(){
+  if(!voiceActive)return;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){$('voiceStatus').textContent='Распознавание речи не поддерживается этим браузером. Используй микрофон клавиатуры Samsung.';return}
-  rec=new SR();
-  rec.lang='ru-RU';
-  rec.continuous=false;
-  rec.interimResults=true;
-  rec.maxAlternatives=1;
-  rec.onstart=()=>{$('voiceStatus').textContent='Слушаю… Говори сейчас';$('voiceBtn').textContent='■'};
-  rec.onresult=e=>{
-    let transcript='';
-    for(let i=e.resultIndex;i<e.results.length;i++) transcript+=e.results[i][0].transcript;
-    $('input').value=transcript.trim();
-    const finalResult=Array.from(e.results).some(x=>x.isFinal);
-    $('voiceStatus').textContent=finalResult?'Распознано. Проверь текст и нажми отправить.':'Распознаю речь…';
+  if(!SR){voiceStatus('Этот браузер не поддерживает распознавание речи.');stopVoice();return}
+  const r=new SR();rec=r;
+  r.lang='ru-RU';r.continuous=true;r.interimResults=false;r.maxAlternatives=1;
+  r.onstart=()=>voiceStatus(waitingCommand?'София проснулась. Говори команду.':'Слушаю слово «София»…');
+  r.onresult=e=>{
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal){
+        const phrase=e.results[i][0].transcript;
+        handleVoicePhrase(phrase);
+      }
+    }
   };
-  rec.onnomatch=()=>{$('voiceStatus').textContent='Речь не распознана. Попробуй произнести фразу ещё раз.'};
-  rec.onerror=e=>{
-    const messages={
+  r.onerror=e=>{
+    const errors={
       'not-allowed':'Нет разрешения на микрофон. Разреши доступ сайту в настройках браузера.',
       'service-not-allowed':'Браузер запретил службу распознавания речи.',
-      'no-speech':'Не услышала речь. Нажми микрофон и попробуй ещё раз.',
       'audio-capture':'Не удалось получить звук с микрофона.',
-      'network':'Ошибка сетевого сервиса распознавания речи.',
-      'aborted':'Распознавание остановлено.'
+      'network':'Сетевая ошибка службы распознавания речи.',
+      'no-speech':'Пока не слышу речь. Продолжаю ожидать слово «София».',
+      'aborted':'Прослушивание прервано.'
     };
-    $('voiceStatus').textContent=messages[e.error]||('Ошибка распознавания: '+e.error);
+    voiceStatus(errors[e.error]||('Ошибка распознавания: '+e.error));
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'||e.error==='network')stopVoice();
   };
-  rec.onend=()=>{
-    if($('voiceStatus').textContent==='Слушаю… Говори сейчас'||$('voiceStatus').textContent==='Распознаю речь…') $('voiceStatus').textContent='Прослушивание завершено. Если текста нет, попробуй ещё раз.';
-    $('voiceBtn').textContent='🎙';
-    rec=null;
+  r.onend=()=>{
+    if(rec===r)rec=null;
+    if(voiceActive){
+      voiceStatus(waitingCommand?'София проснулась. Жду команду…':'Перезапускаю прослушивание слова «София»…');
+      restartTimer=setTimeout(()=>{restartTimer=null;startRecognizer()},700);
+    }
   };
-  $('voiceStatus').textContent='Запускаю микрофон…';
-  try{rec.start()}catch(e){$('voiceStatus').textContent='Не удалось запустить микрофон: '+e.message;rec=null;$('voiceBtn').textContent='🎙'}
+  try{r.start()}catch(e){
+    voiceStatus('Не удалось запустить прослушивание: '+e.message);
+    stopVoice();
+  }
+}
+$('voiceBtn').onclick=()=>{
+  if(voiceActive){stopVoice();return}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){voiceStatus('Распознавание речи не поддерживается этим браузером.');return}
+  voiceActive=true;waitingCommand=false;
+  $('voiceBtn').textContent='■';
+  voiceStatus('Включаю постоянное прослушивание…');
+  startRecognizer();
 };
 </script></body></html>
