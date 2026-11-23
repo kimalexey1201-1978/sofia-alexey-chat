@@ -220,6 +220,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  private fun ownerProfile(): Pair<String, String> {
   val prefs = getSharedPreferences(PROFILE_PREFS, MODE_PRIVATE)
+  if (!prefs.contains("owner_name") || !prefs.contains("preferred_address")) {
+   prefs.edit()
+    .putString("owner_name", DEFAULT_OWNER_NAME)
+    .putString("preferred_address", DEFAULT_ADDRESS)
+    .apply()
+  }
   val ownerName = prefs.getString("owner_name", DEFAULT_OWNER_NAME)?.trim()
    ?.takeIf { it.isNotEmpty() } ?: DEFAULT_OWNER_NAME
   val address = prefs.getString("preferred_address", DEFAULT_ADDRESS)?.trim()
