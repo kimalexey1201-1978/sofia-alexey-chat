@@ -58,6 +58,10 @@ jobs:
           rm -f "$RUNNER_TEMP/sofia-signing-check.csr"
           echo "Signing credentials verified."
       - name: Build signed APK
+        env:
+          SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
+          SOFIA_KEY_ALIAS: ${{ secrets.SOFIA_KEY_ALIAS }}
+          SOFIA_KEY_PASSWORD: ${{ secrets.SOFIA_KEY_PASSWORD }}
         run: gradle -p android assembleDebug
       - name: Verify APK signature and package
         run: |
