@@ -8,6 +8,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import org.json.JSONArray
 import org.json.JSONObject
@@ -92,6 +93,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (destroyed || restarting || speaking || requestInFlight) return
   if (!SpeechRecognizer.isRecognitionAvailable(this)) {
    status("Распознавание речи недоступно")
+   Log.e(TAG, "Speech recognition service is unavailable")
    return
   }
   try {
@@ -109,9 +111,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     override fun onRmsChanged(v: Float) {}
     override fun onBufferReceived(b: ByteArray?) {}
     override fun onEndOfSpeech() {}
-    override fun onError(e: Int) { restart() }
+    override fun onError(e: Int) { handleRecognitionError(e) }
     override fun onResults(b: Bundle?) {
      val phrase = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+     Log.d(TAG, "Recognition result received; characters=${phrase.length}")
      val consumed = phrase.isNotBlank() && handle(phrase)
      if (!consumed && !speaking && !requestInFlight && !destroyed) restart()
     }
@@ -124,14 +127,55 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
    }
    recognizer?.startListening(intent)
   } catch (e: Exception) {
-   restart()
+   Log.e(TAG, "Could not start speech recognition", e)
+   resetRecognizer()
+   restart(1500L)
   }
  }
 
- private fun restart() {
+ private fun handleRecognitionError(error: Int) {
+  if (destroyed) return
+  val description = when (error) {
+   SpeechRecognizer.ERROR_AUDIO -> "ошибка аудиовхода"
+   SpeechRecognizer.ERROR_CLIENT -> "перезапуск распознавателя"
+   SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "нет разрешения на микрофон"
+   SpeechRecognizer.ERROR_NETWORK -> "ошибка сети распознавания"
+   SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "тайм-аут распознавания"
+   SpeechRecognizer.ERROR_NO_MATCH -> "речь не распознана"
+   SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "распознаватель занят"
+   SpeechRecognizer.ERROR_SERVER -> "ошибка службы распознавания"
+   SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "тишина"
+   else -> "ошибка распознавания"
+  }
+  Log.w(TAG, "SpeechRecognizer error=$error ($description)")
+  if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+   status("Нет разрешения на микрофон")
+   return
+  }
+  val reset = error == SpeechRecognizer.ERROR_CLIENT ||
+   error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+   error == SpeechRecognizer.ERROR_SERVER
+  if (reset) resetRecognizer()
+  val delay = when (error) {
+   SpeechRecognizer.ERROR_RECOGNIZER_BUSY, SpeechRecognizer.ERROR_CLIENT -> 1800L
+   SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> 2500L
+   else -> 900L
+  }
+  status("Голосовой модуль: $description")
+  restart(delay)
+ }
+
+ private fun resetRecognizer() {
+  try { recognizer?.cancel() } catch (_: Exception) {}
+  try { recognizer?.destroy() } catch (_: Exception) {}
+  recognizer = null
+ }
+
+ private fun restart(delayMs: Long = 900L) {
   if (destroyed || restarting || speaking || requestInFlight) return
   restarting = true
   restartTask = Runnable {
@@ -139,16 +183,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    restartTask = null
    startRecognition()
   }
-  main.postDelayed(restartTask!!, 700)
+  main.postDelayed(restartTask!!, delayMs)
  }
 
  private fun stopRecognition() {
   restartTask?.let { main.removeCallbacks(it) }
   restartTask = null
   restarting = false
-  // Keep one recognizer instance alive between listening sessions.
-  // Recreating it for every phrase can trigger repeated system speech-service
-  // startup sounds and adds unnecessary lifecycle races.
   try { recognizer?.cancel() } catch (_: Exception) {}
  }
 
@@ -157,7 +198,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   .replace(Regex("\\s+"), " ")
   .trim()
 
- // Returns true when this phrase changed the state and must not restart recognition.
  private fun handle(raw: String): Boolean {
   val text = norm(raw)
   val match = Regex("(^|\\s)софия(?=\\s|$)").find(text)
@@ -178,6 +218,48 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   return false
  }
 
+ private fun ownerProfile(): Pair<String, String> {
+  val prefs = getSharedPreferences(PROFILE_PREFS, MODE_PRIVATE)
+  if (!prefs.contains("owner_name") || !prefs.contains("preferred_address")) {
+   prefs.edit()
+    .putString("owner_name", DEFAULT_OWNER_NAME)
+    .putString("preferred_address", DEFAULT_ADDRESS)
+    .apply()
+  }
+  val ownerName = prefs.getString("owner_name", DEFAULT_OWNER_NAME)?.trim()
+   ?.takeIf { it.isNotEmpty() } ?: DEFAULT_OWNER_NAME
+  val address = prefs.getString("preferred_address", DEFAULT_ADDRESS)?.trim()
+   ?.takeIf { it.isNotEmpty() } ?: DEFAULT_ADDRESS
+  return ownerName to address
+ }
+
+ private fun loadHistory(): JSONArray {
+  val raw = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE).getString(HISTORY_KEY, null)
+  return try {
+   val stored = if (raw.isNullOrBlank()) JSONArray() else JSONArray(raw)
+   val recent = JSONArray()
+   val start = (stored.length() - MAX_HISTORY_MESSAGES).coerceAtLeast(0)
+   for (i in start until stored.length()) {
+    val item = stored.optJSONObject(i) ?: continue
+    val role = item.optString("role")
+    val text = item.optString("content")
+    if ((role == "user" || role == "assistant") && text.isNotBlank()) {
+     recent.put(JSONObject().put("role", role).put("content", text))
+    }
+   }
+   recent
+  } catch (e: Exception) {
+   Log.w(TAG, "Saved conversation history is unreadable; starting a fresh history", e)
+   JSONArray()
+  }
+ }
+
+ private fun saveHistory(history: JSONArray) {
+  getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE).edit()
+   .putString(HISTORY_KEY, history.toString())
+   .apply()
+ }
+
  private fun sendCommand(command: String) {
   waiting = false
   requestInFlight = true
@@ -185,9 +267,20 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   status("Выполняю команду")
   io.execute {
    try {
+    val (ownerName, preferredAddress) = ownerProfile()
+    val systemPrompt = """
+     Ты София, личный голосовой помощник владельца этого приложения.
+     Идентификационное имя владельца: $ownerName. Не называй его этим именем автоматически.
+     Предпочтительное обращение к владельцу в голосовом общении: «$preferredAddress».
+     Не спрашивай повторно, как зовут владельца и как к нему обращаться.
+     Отвечай по-русски, естественно и кратко. Учитывай переданную историю диалога.
+     Сохраняй последовательность разговора и не проси повторять сведения, которые уже есть в истории.
+    """.trimIndent()
     val messages = JSONArray()
-     .put(JSONObject().put("role", "system").put("content", "Ты София, личный помощник. Отвечай по-русски кратко и естественно."))
-     .put(JSONObject().put("role", "user").put("content", command))
+     .put(JSONObject().put("role", "system").put("content", systemPrompt))
+    val history = loadHistory()
+    for (i in 0 until history.length()) messages.put(history.getJSONObject(i))
+    messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
@@ -219,11 +312,20 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      root.has("error") -> "Сервис ответа временно недоступен."
      else -> "Я получила пустой ответ. Повтори, пожалуйста, вопрос."
     }
+    if (code in 200..299 && answer.isNotBlank()) {
+     history.put(JSONObject().put("role", "user").put("content", command))
+     history.put(JSONObject().put("role", "assistant").put("content", answer))
+     val trimmed = JSONArray()
+     val start = (history.length() - MAX_HISTORY_MESSAGES).coerceAtLeast(0)
+     for (i in start until history.length()) trimmed.put(history.getJSONObject(i))
+     saveHistory(trimmed)
+    }
     main.post {
      status(if (code in 200..299) "Готовлю ответ" else "Ошибка ответа сервера")
      say(finalAnswer)
     }
    } catch (e: Exception) {
+    Log.e(TAG, "Chat request failed", e)
     main.post {
      status("Ошибка соединения")
      say("Не удалось связаться с сервером. Проверь соединение и повтори вопрос.")
@@ -257,7 +359,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  override fun onDestroy() {
   destroyed = true
   main.removeCallbacksAndMessages(null)
-  recognizer?.destroy()
+  resetRecognizer()
   tts?.stop()
   tts?.shutdown()
   io.shutdownNow()
@@ -265,8 +367,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  companion object {
+  private const val TAG = "SofiaVoice"
   private const val CHANNEL = "sofia_voice"
   private const val NOTIFICATION = 7301
   private const val ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/chat"
+  private const val PROFILE_PREFS = "sofia_profile"
+  private const val MEMORY_PREFS = "sofia_memory"
+  private const val HISTORY_KEY = "conversation_history"
+  private const val DEFAULT_OWNER_NAME = "Алексей"
+  private const val DEFAULT_ADDRESS = "мой хороший"
+  private const val MAX_HISTORY_MESSAGES = 20
  }
 }
