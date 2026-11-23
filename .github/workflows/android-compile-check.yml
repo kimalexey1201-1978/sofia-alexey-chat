@@ -1,6 +1,12 @@
 name: Android compile check
 
 on:
+  push:
+    branches:
+      - "fix/android-owner-memory-voice-20261124"
+    paths:
+      - "android/**"
+      - ".github/workflows/android-compile-check.yml"
   pull_request:
     paths:
       - "android/**"
