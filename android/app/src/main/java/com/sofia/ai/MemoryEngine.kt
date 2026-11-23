@@ -15,7 +15,12 @@ import java.util.UUID
  * No memory content is written to logs or shipped in the APK.
  */
 class MemoryEngine(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    init {
+        migrateLegacyProfile()
+    }
 
     enum class MemoryType(val wireName: String) {
         WORKING("working"),
@@ -166,6 +171,45 @@ class MemoryEngine(context: Context) {
     @Synchronized
     fun count(): Int = readRecords().size
 
+    @Synchronized
+    fun delete(id: String): Boolean {
+        val records = readRecords().toMutableList()
+        val removed = records.removeAll { it.id == id }
+        if (removed) writeRecords(records)
+        return removed
+    }
+
+    @Synchronized
+    fun clearAll() {
+        writeRecords(emptyList())
+    }
+
+    private fun migrateLegacyProfile() {
+        val legacy = appContext.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE)
+        val ownerName = legacy.getString("owner_name", null)?.trim().orEmpty()
+        val preferredAddress = legacy.getString("preferred_address", null)?.trim().orEmpty()
+        if (ownerName.isNotEmpty() && readRecords().none { it.id == LEGACY_OWNER_ID }) {
+            add(
+                type = MemoryType.LONG_TERM,
+                content = "Имя владельца: $ownerName. Не использовать его автоматически как обращение.",
+                source = "legacy_sofia_profile",
+                importance = 5,
+                tags = listOf("владелец", "имя", "профиль"),
+                id = LEGACY_OWNER_ID
+            )
+        }
+        if (preferredAddress.isNotEmpty() && readRecords().none { it.id == LEGACY_ADDRESS_ID }) {
+            add(
+                type = MemoryType.LONG_TERM,
+                content = "Предпочтительное обращение к владельцу в голосовом режиме: $preferredAddress.",
+                source = "legacy_sofia_profile",
+                importance = 5,
+                tags = listOf("владелец", "обращение", "голос"),
+                id = LEGACY_ADDRESS_ID
+            )
+        }
+    }
+
     private fun score(record: MemoryRecord, terms: Set<String>): Int {
         val content = tokenize(record.content)
         val tags = record.tags.toSet()
@@ -174,7 +218,7 @@ class MemoryEngine(context: Context) {
             if (term in tags) score += 4
             if (term in content) score += 2
         }
-        if (record.type == MemoryType.LONG_TERM || record.type == MemoryType.PROCEDURAL) score += 1
+        if (score > 0 && (record.type == MemoryType.LONG_TERM || record.type == MemoryType.PROCEDURAL)) score += 1
         return score
     }
 
@@ -224,7 +268,7 @@ class MemoryEngine(context: Context) {
         val type = MemoryType.fromWire(optString("type")) ?: return null
         val content = optString("content").trim().takeIf { it.isNotEmpty() && it.length <= MAX_RECORD_CHARS } ?: return null
         val tagsArray = optJSONArray("tags") ?: JSONArray()
-        val tags = (0 until tagsArray.length()).mapNotNull { tagsArray.optString(it).takeIf(String::isNotBlank) }.take(30)
+        val tags = (0 until tagsArray.length()).mapNotNull { tagsArray.optString(it).takeIf { tag -> tag.isNotBlank() } }.take(30)
         return MemoryRecord(
             id = id,
             type = type,
@@ -247,5 +291,7 @@ class MemoryEngine(context: Context) {
         private const val SCHEMA_VERSION = 1
         private const val MAX_RECORD_CHARS = 12000
         private const val MAX_IMPORT_BYTES = 5 * 1024 * 1024
+        private const val LEGACY_OWNER_ID = "legacy-profile-owner-name-v1"
+        private const val LEGACY_ADDRESS_ID = "legacy-profile-preferred-address-v1"
     }
 }
