@@ -35,7 +35,8 @@ jobs:
           test -n "$SOFIA_STORE_PASSWORD" || (echo "Missing SOFIA_STORE_PASSWORD secret" && exit 1)
           test -n "$SOFIA_KEY_ALIAS" || (echo "Missing SOFIA_KEY_ALIAS secret" && exit 1)
           test -n "$SOFIA_KEY_PASSWORD" || (echo "Missing SOFIA_KEY_PASSWORD secret" && exit 1)
-          keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -alias "$SOFIA_KEY_ALIAS" >/dev/null || (echo "Signing check failed: store password or key alias is incorrect" && exit 1)
+          keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" >/dev/null || (echo "Signing check failed: SOFIA_STORE_PASSWORD does not match the keystore" && exit 1)
+          keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -alias "$SOFIA_KEY_ALIAS" >/dev/null || (echo "Signing check failed: SOFIA_KEY_ALIAS does not exist in this keystore" && exit 1)
           keytool -certreq -alias "$SOFIA_KEY_ALIAS" -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -keypass "$SOFIA_KEY_PASSWORD" -file "$RUNNER_TEMP/sofia-signing-check.csr" >/dev/null || (echo "Signing check failed: key password is incorrect" && exit 1)
           rm -f "$RUNNER_TEMP/sofia-signing-check.csr"
           echo "Signing credentials verified."
