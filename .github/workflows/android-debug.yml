@@ -26,7 +26,7 @@ jobs:
           test -n "$SOFIA_KEYSTORE_BASE64" || (echo "Missing SOFIA_KEYSTORE_BASE64 secret" && exit 1)
           printf '%s' "$SOFIA_KEYSTORE_BASE64" | base64 --decode > android/app/sofia-release.jks
           chmod 600 android/app/sofia-release.jks
-      - name: Build signed APK
+      - name: Verify signing credentials
         env:
           SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
           SOFIA_KEY_ALIAS: ${{ secrets.SOFIA_KEY_ALIAS }}
@@ -35,7 +35,19 @@ jobs:
           test -n "$SOFIA_STORE_PASSWORD" || (echo "Missing SOFIA_STORE_PASSWORD secret" && exit 1)
           test -n "$SOFIA_KEY_ALIAS" || (echo "Missing SOFIA_KEY_ALIAS secret" && exit 1)
           test -n "$SOFIA_KEY_PASSWORD" || (echo "Missing SOFIA_KEY_PASSWORD secret" && exit 1)
-          gradle -p android assembleDebug
+          keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -alias "$SOFIA_KEY_ALIAS" >/dev/null || (echo "Signing check failed: store password or key alias is incorrect" && exit 1)
+          keytool -certreq -alias "$SOFIA_KEY_ALIAS" -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -keypass "$SOFIA_KEY_PASSWORD" -file "$RUNNER_TEMP/sofia-signing-check.csr" >/dev/null || (echo "Signing check failed: key password is incorrect" && exit 1)
+          rm -f "$RUNNER_TEMP/sofia-signing-check.csr"
+          echo "Signing credentials verified."
+      - name: Build signed APK
+        run: gradle -p android assembleDebug
+      - name: Verify APK signature and package
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          apksigner verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt" dump badging "$APK" | grep -E "^package: name='com.sofia.ai'"
+          sha256sum "$APK"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
