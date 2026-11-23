@@ -95,10 +95,11 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    return
   }
   try {
-   recognizer?.destroy()
-   recognizer = if (Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this))
-    SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-   else SpeechRecognizer.createSpeechRecognizer(this)
+   if (recognizer == null) {
+    recognizer = if (Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this))
+     SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+    else SpeechRecognizer.createSpeechRecognizer(this)
+   }
 
    recognizer?.setRecognitionListener(object : RecognitionListener {
     override fun onReadyForSpeech(p: Bundle?) {
@@ -145,9 +146,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   restartTask?.let { main.removeCallbacks(it) }
   restartTask = null
   restarting = false
-  recognizer?.cancel()
-  recognizer?.destroy()
-  recognizer = null
+  // Keep one recognizer instance alive between listening sessions.
+  // Recreating it for every phrase can trigger repeated system speech-service
+  // startup sounds and adds unnecessary lifecycle races.
+  try { recognizer?.cancel() } catch (_: Exception) {}
  }
 
  private fun norm(s: String) = s.lowercase(Locale("ru", "RU"))
