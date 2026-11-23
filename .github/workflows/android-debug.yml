@@ -89,8 +89,10 @@ jobs:
         run: |
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          apksigner verify --verbose --print-certs "$APK"
-          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt" dump badging "$APK" | grep -E "^package: name='com.sofia.ai'"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          test -x "$BUILD_TOOLS/apksigner"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -E "^package: name='com.sofia.ai'"
           sha256sum "$APK"
       - name: Upload APK
         uses: actions/upload-artifact@v4
