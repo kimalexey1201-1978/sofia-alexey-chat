@@ -29,6 +29,8 @@ jobs:
           printf '%s' "$SOFIA_KEYSTORE_BASE64" | base64 --decode > android/app/sofia-release.jks
           test -s android/app/sofia-release.jks || (echo "Decoded keystore file is empty" && exit 1)
           chmod 600 android/app/sofia-release.jks
+          echo "Decoded keystore SHA-256 fingerprint:"
+          sha256sum android/app/sofia-release.jks
       - name: Verify signing credentials
         env:
           SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
