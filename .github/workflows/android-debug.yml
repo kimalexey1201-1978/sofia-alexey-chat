@@ -31,11 +31,23 @@ jobs:
           chmod 600 android/app/sofia-release.jks
           echo "Decoded keystore SHA-256 fingerprint:"
           sha256sum android/app/sofia-release.jks
-      - name: Compare signing secret with secure backup (temporary diagnostic)
+      - name: Diagnose signing secret metadata (temporary diagnostic)
         env:
           SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
         run: |
           actual="$(printf '%s' "$SOFIA_STORE_PASSWORD" | sha256sum | cut -d' ' -f1)"
+          length="$(LC_ALL=C printf '%s' "$SOFIA_STORE_PASSWORD" | wc -c | tr -d ' ')"
+          echo "SIGNING_SECRET_REPOSITORY=${GITHUB_REPOSITORY}"
+          echo "SIGNING_SECRET_REF=${GITHUB_REF}"
+          echo "STORE_PASSWORD_BYTE_LENGTH=$length"
+          case "$SOFIA_STORE_PASSWORD" in
+            [[:space:]]*) echo "STORE_PASSWORD_LEADING_WHITESPACE=yes" ;;
+            *) echo "STORE_PASSWORD_LEADING_WHITESPACE=no" ;;
+          esac
+          case "$SOFIA_STORE_PASSWORD" in
+            *[[:space:]]) echo "STORE_PASSWORD_TRAILING_WHITESPACE=yes" ;;
+            *) echo "STORE_PASSWORD_TRAILING_WHITESPACE=no" ;;
+          esac
           if [ "$actual" = "6ab3c2914a89b798ab3a62f001bdcad9dfa7cb8342b0f26bac3ddd14850d6317" ]; then
             echo "STORE_PASSWORD_BACKUP_CHECK=MATCH"
           else
