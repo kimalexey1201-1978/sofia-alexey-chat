@@ -39,7 +39,7 @@ jobs:
           test -n "$SOFIA_KEY_ALIAS" || (echo "Missing SOFIA_KEY_ALIAS secret" && exit 1)
           test -n "$SOFIA_KEY_PASSWORD" || (echo "Missing SOFIA_KEY_PASSWORD secret" && exit 1)
 
-          if ! keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" >/dev/null 2>"$RUNNER_TEMP/keystore-open.log"; then
+          if ! keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" >"$RUNNER_TEMP/keystore-open.log" 2>&1; then
             if grep -Eqi "password was incorrect|tampered with" "$RUNNER_TEMP/keystore-open.log"; then
               echo "Signing check failed: SOFIA_STORE_PASSWORD was rejected by the keystore."
             elif grep -Eqi "invalid keystore format|unrecognized keystore format|not a valid keystore" "$RUNNER_TEMP/keystore-open.log"; then
