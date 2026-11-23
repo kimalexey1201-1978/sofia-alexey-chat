@@ -69,10 +69,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     }
    }
   })
-  pendingSpeech?.let {
+  val queued = pendingSpeech
+  if (queued != null) {
    pendingSpeech = null
-   speakNow(it)
-  } ?: if (!requestInFlight && !speaking && !destroyed) startRecognition()
+   speakNow(queued)
+  } else if (!requestInFlight && !speaking && !destroyed) {
+   startRecognition()
+  }
  }
 
  private fun notification(s: String) = NotificationCompat.Builder(this, CHANNEL)
