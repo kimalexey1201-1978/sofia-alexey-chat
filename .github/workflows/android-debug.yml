@@ -31,32 +31,26 @@ jobs:
           chmod 600 android/app/sofia-release.jks
           echo "Decoded keystore SHA-256 fingerprint:"
           sha256sum android/app/sofia-release.jks
-      - name: Diagnose signing secret metadata (temporary diagnostic)
+      - name: Normalize and verify signing password
         env:
           SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
         run: |
-          actual="$(printf '%s' "$SOFIA_STORE_PASSWORD" | sha256sum | cut -d' ' -f1)"
-          length="$(LC_ALL=C printf '%s' "$SOFIA_STORE_PASSWORD" | wc -c | tr -d ' ')"
-          echo "SIGNING_SECRET_REPOSITORY=${GITHUB_REPOSITORY}"
-          echo "SIGNING_SECRET_REF=${GITHUB_REF}"
-          echo "STORE_PASSWORD_BYTE_LENGTH=$length"
-          case "$SOFIA_STORE_PASSWORD" in
-            [[:space:]]*) echo "STORE_PASSWORD_LEADING_WHITESPACE=yes" ;;
-            *) echo "STORE_PASSWORD_LEADING_WHITESPACE=no" ;;
-          esac
-          case "$SOFIA_STORE_PASSWORD" in
-            *[[:space:]]) echo "STORE_PASSWORD_TRAILING_WHITESPACE=yes" ;;
-            *) echo "STORE_PASSWORD_TRAILING_WHITESPACE=no" ;;
-          esac
-          if [ "$actual" = "6ab3c2914a89b798ab3a62f001bdcad9dfa7cb8342b0f26bac3ddd14850d6317" ]; then
-            echo "STORE_PASSWORD_BACKUP_CHECK=MATCH"
-          else
-            echo "STORE_PASSWORD_BACKUP_CHECK=MISMATCH"
+          original_length="$(LC_ALL=C printf '%s' "$SOFIA_STORE_PASSWORD" | wc -c | tr -d ' ')"
+          clean="$SOFIA_STORE_PASSWORD"
+          if [ "$(printf '%s' "$clean" | sha256sum | cut -d' ' -f1)" != "6ab3c2914a89b798ab3a62f001bdcad9dfa7cb8342b0f26bac3ddd14850d6317" ]; then
+            clean="${clean%[[:space:]]}"
+          fi
+          actual="$(printf '%s' "$clean" | sha256sum | cut -d' ' -f1)"
+          if [ "$actual" != "6ab3c2914a89b798ab3a62f001bdcad9dfa7cb8342b0f26bac3ddd14850d6317" ]; then
+            echo "Signing password does not match the secure backup, even after removing one trailing whitespace character."
             exit 1
           fi
+          printf 'SOFIA_STORE_PASSWORD=%s\n' "$clean" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD_NORMALIZATION=SUCCESS"
+          echo "STORE_PASSWORD_ORIGINAL_BYTE_LENGTH=$original_length"
+          echo "STORE_PASSWORD_FINAL_BYTE_LENGTH=$(LC_ALL=C printf '%s' "$clean" | wc -c | tr -d ' ')"
       - name: Verify signing credentials
         env:
-          SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
           SOFIA_KEY_ALIAS: ${{ secrets.SOFIA_KEY_ALIAS }}
           SOFIA_KEY_PASSWORD: ${{ secrets.SOFIA_KEY_PASSWORD }}
         run: |
@@ -82,7 +76,6 @@ jobs:
           echo "Signing credentials verified."
       - name: Build signed APK
         env:
-          SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
           SOFIA_KEY_ALIAS: ${{ secrets.SOFIA_KEY_ALIAS }}
           SOFIA_KEY_PASSWORD: ${{ secrets.SOFIA_KEY_PASSWORD }}
         run: gradle -p android assembleDebug
