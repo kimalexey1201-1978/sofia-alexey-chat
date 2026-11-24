@@ -1,0 +1,94 @@
+package com.sofia.ai
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * App-private persistent memory for Sofia.
+ *
+ * v1 deliberately keeps memory on this Android installation. It stores a small
+ * profile, explicit facts and a bounded conversation history. It does not
+ * silently infer or promote sensitive details into long-term facts.
+ */
+class SofiaMemory(context: Context) {
+    private val prefs = context.getSharedPreferences("sofia_memory_v1", Context.MODE_PRIVATE)
+
+    data class Turn(val role: String, val content: String)
+
+    @Synchronized
+    fun profileContext(): String {
+        val address = prefs.getString("preferred_address", "").orEmpty()
+        val language = prefs.getString("language", "Russian").orEmpty()
+        val owner = prefs.getString("owner_label", "").orEmpty()
+        val facts = readFacts()
+        return buildString {
+            append("Я София, личный помощник владельца этого устройства. ")
+            append("Основной язык общения: ").append(language).append(". ")
+            if (owner.isNotBlank()) append("Обращение к владельцу: ").append(owner).append(". ")
+            else append("Не называй владельца по имени и не придумывай обращение. ")
+            if (address.isNotBlank()) append("Предпочтительное обращение: ").append(address).append(". ")
+            if (facts.isNotEmpty()) {
+                append("\nДолговременная память владельца (сохранённые факты):\n")
+                facts.forEach { append("- ").append(it).append("\n") }
+            }
+        }
+    }
+
+    @Synchronized
+    fun recentTurns(limit: Int = 12): List<Turn> {
+        val source = try { JSONArray(prefs.getString("conversation", "[]")) }
+                     catch (_: Exception) { JSONArray() }
+        val result = ArrayList<Turn>()
+        val start = (source.length() - limit.coerceAtLeast(0)).coerceAtLeast(0)
+        for (i in start until source.length()) {
+            val item = source.optJSONObject(i) ?: continue
+            val role = item.optString("role")
+            val text = item.optString("content")
+            if ((role == "user" || role == "assistant") && text.isNotBlank()) {
+                result.add(Turn(role, text))
+            }
+        }
+        return result
+    }
+
+    @Synchronized
+    fun rememberTurn(role: String, content: String) {
+        if (role != "user" && role != "assistant") return
+        val clean = content.trim().take(6000)
+        if (clean.isBlank()) return
+        val turns = try { JSONArray(prefs.getString("conversation", "[]")) }
+                    catch (_: Exception) { JSONArray() }
+        turns.put(JSONObject().put("role", role).put("content", clean).put("at", System.currentTimeMillis()))
+        val bounded = JSONArray()
+        val start = (turns.length() - 40).coerceAtLeast(0)
+        for (i in start until turns.length()) bounded.put(turns.getJSONObject(i))
+        prefs.edit().putString("conversation", bounded.toString()).apply()
+    }
+
+    /** Save only facts explicitly confirmed by the owner or an explicit memory action. */
+    @Synchronized
+    fun rememberFact(fact: String) {
+        val clean = fact.trim().take(500)
+        if (clean.isBlank()) return
+        val facts = readFacts().toMutableList()
+        if (facts.none { it.equals(clean, ignoreCase = true) }) facts.add(clean)
+        prefs.edit().putString("facts", JSONArray(facts.takeLast(100)).toString()).apply()
+    }
+
+    @Synchronized
+    fun setPreferredAddress(value: String) {
+        prefs.edit().putString("preferred_address", value.trim().take(80)).apply()
+    }
+
+    @Synchronized
+    fun setOwnerLabel(value: String) {
+        prefs.edit().putString("owner_label", value.trim().take(80)).apply()
+    }
+
+    private fun readFacts(): List<String> {
+        val array = try { JSONArray(prefs.getString("facts", "[]")) }
+                    catch (_: Exception) { JSONArray() }
+        return (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
+    }
+}
