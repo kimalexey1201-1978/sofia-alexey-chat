@@ -2,6 +2,12 @@ name: Sofia memory instrumentation tests
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - "memory-reliability-plan"
+    paths:
+      - "android/**"
+      - ".github/workflows/sofia-memory-tests.yml"
   pull_request:
     paths:
       - "android/**"
