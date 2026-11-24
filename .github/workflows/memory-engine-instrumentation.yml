@@ -16,9 +16,16 @@ on:
 permissions:
   contents: read
 
+# A push and its pull_request event can target the same head branch.
+# Keep only one emulator run active for that branch.
+concurrency:
+  group: memory-engine-instrumentation-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   memory-engine-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       # GitHub-hosted Linux runners may lack hardware acceleration.
       # Force the Android emulator's supported TCG software CPU mode.
