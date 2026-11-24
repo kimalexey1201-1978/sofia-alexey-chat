@@ -21,6 +21,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private val main = Handler(Looper.getMainLooper())
  private val io = Executors.newSingleThreadExecutor()
  private var recognizer: SpeechRecognizer? = null
+ private var recognitionActive = false
  private var tts: TextToSpeech? = null
  private var ttsReady = false
  private var waiting = false
@@ -74,8 +75,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (queued != null) {
    pendingSpeech = null
    speakNow(queued)
-  } else if (!requestInFlight && !speaking && !destroyed) {
-   startRecognition()
   }
  }
 
@@ -90,7 +89,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification(s))
 
  private fun startRecognition() {
-  if (destroyed || restarting || speaking || requestInFlight) return
+  if (destroyed || restarting || speaking || requestInFlight || recognitionActive) return
   if (!SpeechRecognizer.isRecognitionAvailable(this)) {
    status("Распознавание речи недоступно")
    Log.e(TAG, "Speech recognition service is unavailable")
@@ -111,8 +110,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     override fun onRmsChanged(v: Float) {}
     override fun onBufferReceived(b: ByteArray?) {}
     override fun onEndOfSpeech() {}
-    override fun onError(e: Int) { handleRecognitionError(e) }
+    override fun onError(e: Int) {
+     recognitionActive = false
+     handleRecognitionError(e)
+    }
     override fun onResults(b: Bundle?) {
+     recognitionActive = false
      val phrase = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
      Log.d(TAG, "Recognition result received; characters=${phrase.length}")
      val consumed = phrase.isNotBlank() && handle(phrase)
@@ -129,8 +132,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
     putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
    }
+   recognitionActive = true
    recognizer?.startListening(intent)
   } catch (e: Exception) {
+   recognitionActive = false
    Log.e(TAG, "Could not start speech recognition", e)
    resetRecognizer()
    restart(1500L)
@@ -170,13 +175,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  private fun resetRecognizer() {
+  recognitionActive = false
   try { recognizer?.cancel() } catch (_: Exception) {}
   try { recognizer?.destroy() } catch (_: Exception) {}
   recognizer = null
  }
 
  private fun restart(delayMs: Long = 900L) {
-  if (destroyed || restarting || speaking || requestInFlight) return
+  if (destroyed || restarting || speaking || requestInFlight || recognitionActive) return
   restarting = true
   restartTask = Runnable {
    restarting = false
@@ -190,6 +196,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   restartTask?.let { main.removeCallbacks(it) }
   restartTask = null
   restarting = false
+  recognitionActive = false
   try { recognizer?.cancel() } catch (_: Exception) {}
  }
 
