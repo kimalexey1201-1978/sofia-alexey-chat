@@ -455,6 +455,37 @@ class MemoryEngineInstrumentedTest {
         }
     }
 
+    @Test
+    fun missingKeystoreKeyPreservesCiphertextAndDoesNotCreateReplacementKey() {
+        val alias = "sofia_test_missing_key_${System.currentTimeMillis()}"
+        val prefsName = "secure_preferences_missing_key_test"
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        try {
+            val secure = SofiaSecurePreferences(prefs, "missing-key-test", alias)
+            secure.putString("protected-value", "recoverable encrypted payload")
+            val originalCiphertext = prefs.getString("protected-value", null)
+            assertTrue(originalCiphertext.orEmpty().startsWith("enc:v1:"))
+            assertFalse(originalCiphertext.orEmpty().contains("recoverable encrypted payload"))
+
+            keyStore.deleteEntry(alias)
+            var rejected = false
+            try {
+                secure.getString("protected-value", null)
+            } catch (_: IllegalStateException) {
+                rejected = true
+            }
+
+            assertTrue("Reading ciphertext without its key must fail closed", rejected)
+            assertEquals("Ciphertext must remain byte-for-byte unchanged", originalCiphertext,
+                prefs.getString("protected-value", null))
+            assertFalse("A replacement key must not be generated during failed decryption",
+                keyStore.containsAlias(alias))
+        } finally {
+            keyStore.deleteEntry(alias)
+            prefs.edit().clear().commit()
+        }
+    }
     private fun encryptLegacy(value: String, keyName: String): String {
         val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val secret = keyStore.getKey("sofia_memory_aes_gcm_v1", null) as javax.crypto.SecretKey
