@@ -359,6 +359,7 @@ class MemoryEngine(
                 source = "legacy_sofia_memory",
                 importance = 4,
                 tags = listOf("владелец", "профиль", "миграция"),
+                sensitive = true,
                 id = stableLegacyId("owner-label", ownerLabel)
             )
         }
