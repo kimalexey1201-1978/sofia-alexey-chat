@@ -50,13 +50,22 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  override fun onInit(status: Int) {
   if (status != TextToSpeech.SUCCESS) {
-   status("Не удалось запустить озвучивание")
+   Log.e(TAG, "TextToSpeech initialization failed with status=$status")
+   pendingSpeech = null
+   status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
+   if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
+    startRecognition()
+   }
    return
   }
   val engine = tts
   if (engine == null) {
-   status("Модуль озвучивания не создан")
    Log.e(TAG, "TextToSpeech initialization succeeded but engine is null")
+   pendingSpeech = null
+   status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
+   if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
+    startRecognition()
+   }
    return
   }
   configureRussianVoice(engine)
