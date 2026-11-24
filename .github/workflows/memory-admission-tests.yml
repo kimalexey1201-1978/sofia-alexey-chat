@@ -1,0 +1,35 @@
+name: Sofia Memory Admission Tests
+
+on:
+  push:
+    branches:
+      - core/v0.1-memory-admission
+    paths:
+      - "src/core/memory-admission.mjs"
+      - "tests/core/memory-admission.test.mjs"
+      - "contracts/v1/memory-*.schema.json"
+      - ".github/workflows/memory-admission-tests.yml"
+  pull_request:
+    branches:
+      - core/v0.1-memory-admission
+    paths:
+      - "src/core/memory-admission.mjs"
+      - "tests/core/memory-admission.test.mjs"
+      - "contracts/v1/memory-*.schema.json"
+      - ".github/workflows/memory-admission-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  memory-admission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate memory JSON Schemas
+        run: npx --yes --package=ajv-cli@5 --package=ajv-formats ajv compile -s 'contracts/v1/memory-*.schema.json' --spec=draft2020 --strict=false -c ajv-formats
+      - name: Run memory admission tests
+        run: node --test tests/core/memory-admission.test.mjs
