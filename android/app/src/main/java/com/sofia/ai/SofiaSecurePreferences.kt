@@ -13,11 +13,12 @@ import javax.crypto.spec.GCMParameterSpec
 /** AES-256-GCM preferences encrypted with a key held by Android Keystore. */
 internal class SofiaSecurePreferences(
     private val prefs: SharedPreferences,
-    private val namespace: String = "default"
+    private val namespace: String = "default",
+    private val keyAlias: String = DEFAULT_keyAlias
 ) {
     companion object {
         private val STORAGE_LOCK = Any()
-        private const val KEY_ALIAS = "sofia_memory_aes_gcm_v1"
+        private const val DEFAULT_keyAlias = "sofia_memory_aes_gcm_v1"
         private const val PREFIX = "enc:v1:"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val TAG_BITS = 128
@@ -104,7 +105,7 @@ internal class SofiaSecurePreferences(
     /** Never create a replacement key while decrypting existing ciphertext. */
     private fun existingSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        return keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+        return keyStore.getKey(keyAlias, null) as? SecretKey
             ?: throw IllegalStateException(
                 "Ключ шифрования памяти Софии отсутствует. Зашифрованные данные сохранены без изменений; автоматическое создание нового ключа запрещено."
             )
@@ -113,13 +114,13 @@ internal class SofiaSecurePreferences(
     /** Key creation is allowed only on a write or plaintext migration path. */
     private fun getOrCreateSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val existing = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+        val existing = keyStore.getKey(keyAlias, null) as? SecretKey
         if (existing != null) return existing
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         generator.init(
             KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
+                keyAlias,
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
             )
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
