@@ -31,6 +31,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var requestInFlight = false
  private var pendingSpeech: String? = null
  private var restartTask: Runnable? = null
+ private var conversationTimeoutTask: Runnable? = null
  private var utteranceSequence = 0
  private var activeUtteranceId: String? = null
 
@@ -131,7 +132,19 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    activeUtteranceId = null
    speaking = false
    requestInFlight = false
-   if (!destroyed) startRecognition()
+   if (!destroyed) {
+    // Keep a short hands-free follow-up window after each spoken answer.
+    waiting = true
+    conversationTimeoutTask?.let { main.removeCallbacks(it) }
+    val timeout = Runnable {
+     waiting = false
+     conversationTimeoutTask = null
+     Log.d(TAG, "Follow-up conversation window expired; returning to wake-word mode")
+    }
+    conversationTimeoutTask = timeout
+    main.postDelayed(timeout, CONVERSATION_WINDOW_MS)
+    startRecognition()
+   }
   }
  }
 
@@ -328,6 +341,23 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   SofiaSecurePreferences(prefs, "conversation-history").putString(HISTORY_KEY, history.toString())
  }
 
+ private fun handleOwnerAddressQuestion(command: String): Boolean {
+  val normalized = norm(command)
+  val asksHowToAddress = listOf(
+   Regex("как (?:ты )?будешь ко мне обращаться"),
+   Regex("как (?:ты )?будешь меня называть"),
+   Regex("как мне к тебе обращаться"),
+   Regex("как обращаться ко мне"),
+   Regex("как меня называть")
+  ).any { it.containsMatchIn(normalized) }
+  if (!asksHowToAddress) return false
+  waiting = false
+  conversationTimeoutTask?.let { main.removeCallbacks(it) }
+  conversationTimeoutTask = null
+  say("Меня зовут София. Я буду обращаться к тебе: мой дорогой.")
+  return true
+ }
+
  /** Handle explicit owner memory commands locally; no network request is needed. */
  private fun handleMemoryCommand(command: String): Boolean {
   val trimmed = command.trim()
@@ -410,8 +440,11 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  private fun sendCommand(command: String) {
+  if (handleOwnerAddressQuestion(command)) return
   if (handleMemoryCommand(command)) return
   waiting = false
+  conversationTimeoutTask?.let { main.removeCallbacks(it) }
+  conversationTimeoutTask = null
   requestInFlight = true
   stopRecognition()
   status("Выполняю команду")
@@ -442,7 +475,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Всегда различай форму общения и обращение: говори с владельцем на «ты», но называй его именно «$preferredAddress».
      Если владелец спрашивает, как ты будешь к нему обращаться, ответь прямо: «Я буду обращаться к тебе: $preferredAddress»; не подменяй это ответом только про «ты» или «вы».
      Не спрашивай повторно, как зовут владельца и как к нему обращаться.
-     Отвечай по-русски, естественно и кратко. Учитывай переданную историю диалога.
+     Отвечай по-русски естественно, живо и по-человечески, как в непринуждённом разговоре.
+     Используй короткие, ясные фразы, естественный порядок слов и уместную интонацию.
+     Избегай канцелярита, шаблонных вступлений, повторов вопроса, чрезмерной официальности и длинных списков.
+     В голосовом разговоре не используй Markdown, эмодзи, заголовки и декоративное форматирование.
+     Обращайся к владельцу на «ты» и используй «мой дорогой» естественно, не механически в каждом предложении.
+     Учитывай переданную историю диалога и сохраняй последовательность разговора.
      Сохраняй последовательность разговора и не проси повторять сведения, которые уже есть в истории.
     """.trimIndent() + memorySection
     val messages = JSONArray()
@@ -552,6 +590,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  override fun onDestroy() {
   destroyed = true
   main.removeCallbacksAndMessages(null)
+  conversationTimeoutTask = null
   resetRecognizer()
   tts?.stop()
   tts?.shutdown()
@@ -570,5 +609,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val DEFAULT_OWNER_NAME = "Алексей"
   private const val DEFAULT_ADDRESS = "мой дорогой"
   private const val MAX_HISTORY_MESSAGES = 20
+  private const val CONVERSATION_WINDOW_MS = 20_000L
  }
 }
