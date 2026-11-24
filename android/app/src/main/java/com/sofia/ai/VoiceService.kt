@@ -449,9 +449,17 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    Log.e(TAG, "Could not read memory summary", e)
    "Не могу безопасно прочитать память. Исходные данные сохранены без изменений."
   }
+  // Android TTS rejects overly long utterances; keep the stored profile intact
+  // and limit only this spoken preview to a safe single-utterance size.
+  val spokenSummary = if (summary.length > MAX_SPOKEN_MEMORY_CHARS) {
+   val notice = ". Профиль сохранён полностью. Чтобы узнать подробности, спроси отдельно о работе, семье или проекте."
+   val contentLimit = MAX_SPOKEN_MEMORY_CHARS - notice.length
+   val cut = summary.lastIndexOf(' ', contentLimit).takeIf { it > 0 } ?: contentLimit
+   summary.substring(0, cut).trimEnd() + notice
+  } else summary
   waiting = false
   requestInFlight = false
-  say(summary)
+  say(spokenSummary)
   return true
  }
 
@@ -638,6 +646,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val DEFAULT_ADDRESS = "мой хороший"
   private const val LEGACY_DEFAULT_ADDRESS = "мой дорогой"
   private const val MAX_HISTORY_MESSAGES = 20
+  private const val MAX_SPOKEN_MEMORY_CHARS = 3500
   private const val CONVERSATION_WINDOW_MS = 20_000L
  }
 }
