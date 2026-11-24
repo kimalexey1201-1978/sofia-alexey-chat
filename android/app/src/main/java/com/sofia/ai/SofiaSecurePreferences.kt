@@ -16,6 +16,7 @@ internal class SofiaSecurePreferences(
     private val namespace: String = "default"
 ) {
     companion object {
+        private val STORAGE_LOCK = Any()
         private const val KEY_ALIAS = "sofia_memory_aes_gcm_v1"
         private const val PREFIX = "enc:v1:"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
@@ -23,8 +24,8 @@ internal class SofiaSecurePreferences(
         private const val IV_BYTES = 12
     }
 
-    @Synchronized
     fun getString(key: String, defaultValue: String?): String? {
+        synchronized(STORAGE_LOCK) {
         val stored = prefs.getString(key, null) ?: return defaultValue
         if (!stored.startsWith(PREFIX)) {
             // One-time migration: only replace plaintext after encryption persisted successfully.
@@ -41,13 +42,17 @@ internal class SofiaSecurePreferences(
                 "Не удалось расшифровать локальную память Софии. Исходные данные не изменены.", e
             )
         }
+    
+        }
     }
 
-    @Synchronized
     fun putString(key: String, value: String) {
+        synchronized(STORAGE_LOCK) {
         val encrypted = encrypt(key, value)
         check(prefs.edit().putString(key, encrypted).commit()) {
             "Не удалось сохранить зашифрованную память Софии."
+        }
+    
         }
     }
 
@@ -65,8 +70,8 @@ internal class SofiaSecurePreferences(
      * deliberately does not rewrite the source value; migration writes into the
      * destination store only after parsing and validating the complete payload.
      */
-    @Synchronized
     fun getLegacyString(key: String, defaultValue: String?): String? {
+        synchronized(STORAGE_LOCK) {
         val stored = prefs.getString(key, null) ?: return defaultValue
         if (!stored.startsWith(PREFIX)) return stored
         return try {
@@ -75,6 +80,8 @@ internal class SofiaSecurePreferences(
             throw IllegalStateException(
                 "Не удалось прочитать старую зашифрованную память Софии. Исходные данные сохранены.", e
             )
+        }
+    
         }
     }
 
