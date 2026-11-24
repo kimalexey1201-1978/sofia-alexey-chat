@@ -1,6 +1,7 @@
 package com.sofia.ai
 
 import android.app.Notification
+import android.app.Person
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.content.Intent
@@ -48,10 +49,11 @@ class MessageNotificationListener : NotificationListenerService() {
     ?.takeIf { it.isNotBlank() }
    ?: return
 
-  val sender = latestMessage?.getCharSequence("sender")?.toString()
-   ?.takeIf { it.isNotBlank() }
-   ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-    ?.takeIf { it.isNotBlank() }
+  @Suppress("DEPRECATION")
+  val senderPerson = latestMessage?.getParcelable("sender_person") as? Person
+  val sender = senderPerson?.name?.toString()?.takeIf { it.isNotBlank() }
+   ?: latestMessage?.getCharSequence("sender")?.toString()?.takeIf { it.isNotBlank() }
+   ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
    ?: "неизвестный отправитель"
 
   // Keep only a small in-memory deduplication window; message contents are not persisted.
