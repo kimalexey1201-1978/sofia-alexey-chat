@@ -53,9 +53,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    status("Не удалось запустить озвучивание")
    return
   }
+  val engine = tts
+  if (engine == null) {
+   status("Модуль озвучивания не создан")
+   Log.e(TAG, "TextToSpeech initialization succeeded but engine is null")
+   return
+  }
+  configureRussianVoice(engine)
   ttsReady = true
-  tts?.language = Locale("ru", "RU")
-  tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+  engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
    override fun onStart(id: String) {}
    override fun onDone(id: String) = finishUtterance(id)
    @Deprecated("Deprecated in Java")
@@ -71,6 +77,35 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    pendingSpeech = null
    speakNow(queued)
   }
+ }
+
+ private fun configureRussianVoice(engine: TextToSpeech) {
+  val russianVoices = engine.voices.orEmpty().filter { voice ->
+   voice.locale.language == "ru" &&
+    !voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+  }
+  val localVoices = russianVoices.filterNot { voice ->
+   voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)
+  }
+  val candidates = if (localVoices.isNotEmpty()) localVoices else russianVoices
+  val selected = candidates.maxWithOrNull(
+   compareBy<android.speech.tts.Voice> { it.quality }.thenBy { -it.latency }
+  )
+  if (selected != null) {
+   engine.voice = selected
+   Log.i(TAG, "Selected Russian TTS voice: name=${selected.name}, quality=${selected.quality}, latency=${selected.latency}")
+  } else {
+   val languageStatus = engine.setLanguage(Locale("ru", "RU"))
+   if (languageStatus < TextToSpeech.LANG_AVAILABLE) {
+    Log.e(TAG, "No installed Russian TTS voice; language status=$languageStatus")
+    status("Русский голос не установлен в Android")
+   } else {
+    Log.w(TAG, "Using Android's default Russian TTS voice; no explicit Russian voice was listed")
+   }
+  }
+  // A slightly slower neutral rate improves intelligibility without changing pitch.
+  engine.setSpeechRate(0.95f)
+  engine.setPitch(1.0f)
  }
 
  private fun finishUtterance(id: String) {
