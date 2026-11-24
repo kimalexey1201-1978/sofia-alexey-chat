@@ -305,9 +305,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val ownerName = secure.getString("owner_name", DEFAULT_OWNER_NAME)?.trim()
    ?.takeIf { it.isNotEmpty() } ?: DEFAULT_OWNER_NAME
   val storedAddress = secure.getString("preferred_address", null)?.trim()
-  // The owner explicitly corrected the old default form of address.
-  // Migrate only the old default; preserve any other custom preference.
-  val address = if (storedAddress.isNullOrEmpty()) {
+  // Replace the obsolete app default left by earlier builds, but preserve genuine custom forms.
+  val address = if (storedAddress.isNullOrEmpty() ||
+   storedAddress.equals(LEGACY_DEFAULT_ADDRESS, ignoreCase = true)) {
    DEFAULT_ADDRESS.also { secure.putString("preferred_address", it) }
   } else storedAddress
   return ownerName to address
@@ -344,11 +344,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private fun handleOwnerAddressQuestion(command: String): Boolean {
   val normalized = norm(command)
   val asksHowToAddress = listOf(
-   Regex("как (?:ты )?будешь ко мне обращаться"),
-   Regex("как (?:ты )?будешь меня называть"),
+   Regex("как (?:ты )?(?:будешь )?(?:ко мне )?обращаться"),
+   Regex("как (?:ты )?(?:будешь )?меня называть"),
    Regex("как мне к тебе обращаться"),
+   Regex("как ты ко мне обращаешься"),
    Regex("как обращаться ко мне"),
-   Regex("как меня называть")
+   Regex("как меня называть"),
+   Regex("чем ты будешь меня называть")
   ).any { it.containsMatchIn(normalized) }
   if (!asksHowToAddress) return false
   waiting = false
@@ -477,9 +479,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Если владелец спрашивает, как ты будешь к нему обращаться, ответь прямо: «Я буду обращаться к тебе: $preferredAddress»; не подменяй это ответом только про «ты» или «вы».
      Не спрашивай повторно, как зовут владельца и как к нему обращаться.
      Отвечай по-русски естественно, живо и по-человечески, как в непринуждённом разговоре.
+     ГРАММАТИЧЕСКИЙ РОД ОБЯЗАТЕЛЕН: говори о себе и описывай только себя в женском роде.
+     Используй формы «я сказала», «я поняла», «я готова», «я сделала», «я рада», «я проверила».
+     Никогда не используй о себе мужские формы «я сказал», «я понял», «я готов», «я сделал».
+     Это правило действует во всех ответах, включая короткие подтверждения и сообщения об ошибках.
      Используй короткие, ясные фразы, естественный порядок слов и уместную интонацию.
      Избегай канцелярита, шаблонных вступлений, повторов вопроса, чрезмерной официальности и длинных списков.
-     В голосовом разговоре не используй Markdown, эмодзи, заголовки и декоративное форматирование.
+     В голосовом разговоре выдавай только обычный текст: никаких эмодзи, смайликов, названий эмодзи, Markdown, заголовков и декоративного форматирования.
      Обращайся к владельцу на «ты» и используй предпочтительное обращение «$preferredAddress» естественно, не механически в каждом предложении.
      Учитывай переданную историю диалога и сохраняй последовательность разговора.
      Сохраняй последовательность разговора и не проси повторять сведения, которые уже есть в истории.
@@ -490,6 +496,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     if (history != null) {
      for (i in 0 until history.length()) messages.put(history.getJSONObject(i))
     }
+    // Reassert voice output rules after chat history so old masculine/emoji-heavy turns cannot override them.
+    val voiceOutputContract = """
+     ОБЯЗАТЕЛЬНЫЕ ПРАВИЛА ЭТОГО ГОЛОСОВОГО ОТВЕТА:
+     1. Говори о себе только в женском роде: «я сказала», «я готова», «я поняла».
+     2. Обращайся к владельцу именно «$preferredAddress», если обращение уместно.
+     3. Не выводи эмодзи, смайлики, ASCII-смайлы, их названия или Markdown. Только произносимый обычный текст.
+     4. Не повторяй эти правила и не объясняй их, просто соблюдай.
+    """.trimIndent()
+    messages.put(JSONObject().put("role", "system").put("content", voiceOutputContract))
     messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
@@ -554,20 +569,52 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  private fun speechText(markdown: String): String {
-  // Keep the spoken answer natural: remove Markdown syntax and visual-only emoji.
-  return markdown
+  // TTS must never receive visual emoji, text emoticons, or emoji shortcodes.
+  val withoutEmoji = buildString(markdown.length) {
+   var offset = 0
+   while (offset < markdown.length) {
+    val codePoint = markdown.codePointAt(offset)
+    if (!isEmojiCodePoint(codePoint)) appendCodePoint(codePoint)
+    offset += Character.charCount(codePoint)
+   }
+  }
+  return withoutEmoji
    .replace(Regex("(?s)\\x60\\x60\\x60[^\\n]*\\n?(.*?)\\x60\\x60\\x60"), "$1")
    .replace(Regex("\\[([^\\]]+)\\]\\((?:https?://)?[^)]+\\)"), "$1")
+   .replace(Regex("(?i):[a-z0-9_+-]{2,}: "), " ")
+   .replace(Regex("(?i):[a-z0-9_+-]{2,}:"), " ")
+   .replace(Regex("(?<!\\w)(?:[:;=8xX][-^']?[)(/\\\\DPp]|<3)(?!\\w)"), " ")
    .replace(Regex("(?m)^\\s{0,3}#{1,6}\\s*"), "")
    .replace(Regex("(?m)^\\s*[-+*]\\s+"), "")
    .replace(Regex("(?m)^\\s*\\d+[.)]\\s+"), "")
    .replace(Regex("[*_~]{1,3}"), "")
    .replace(Regex("`{1,3}"), "")
    .replace(Regex("(?m)^\\s*>\\s?"), "")
-   .replace(Regex("[\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{FE0F}\\x{200D}]"), "")
    .replace(Regex("[ \\t]{2,}"), " ")
+   .replace(Regex(" *\\n *"), "\\n")
    .replace(Regex("\\n{3,}"), "\\n\\n")
    .trim()
+ }
+
+ private fun isEmojiCodePoint(codePoint: Int): Boolean {
+  return codePoint in 0x1F000..0x1FAFF ||
+   codePoint in 0x2600..0x27BF ||
+   codePoint in 0x2300..0x23FF ||
+   codePoint in 0x2B00..0x2BFF ||
+   codePoint in 0xFE00..0xFE0F ||
+   codePoint == 0x200D ||
+   codePoint == 0x20E3 ||
+   codePoint == 0x00A9 ||
+   codePoint == 0x00AE ||
+   codePoint == 0x203C ||
+   codePoint == 0x2049 ||
+   codePoint == 0x2122 ||
+   codePoint == 0x2139 ||
+   codePoint == 0x24C2 ||
+   codePoint == 0x3030 ||
+   codePoint == 0x303D ||
+   codePoint == 0x3297 ||
+   codePoint == 0x3299
  }
 
  private fun speakNow(text: String) {
@@ -576,7 +623,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   stopRecognition()
   val utteranceId = "sofia-response-${++utteranceSequence}"
   activeUtteranceId = utteranceId
-  val spokenText = speechText(text).ifBlank { text.replace(Regex("[*_~\\x60]"), "") }
+  val spokenText = speechText(text)
+  if (spokenText.isBlank()) {
+   Log.w(TAG, "Skipped a voice response containing no speakable text after visual-symbol filtering")
+   finishUtterance(utteranceId)
+   return
+  }
   val result = tts?.speak(spokenText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
   if (result != TextToSpeech.SUCCESS) {
    // A rejected utterance will not reliably produce a completion callback.
@@ -609,6 +661,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val HISTORY_KEY = "conversation_history"
   private const val DEFAULT_OWNER_NAME = "Алексей"
   private const val DEFAULT_ADDRESS = "мой хороший"
+  private const val LEGACY_DEFAULT_ADDRESS = "мой дорогой"
   private const val MAX_HISTORY_MESSAGES = 20
   private const val CONVERSATION_WINDOW_MS = 20_000L
  }
