@@ -220,7 +220,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  private fun ownerProfile(): Pair<String, String> {
   val prefs = getSharedPreferences(PROFILE_PREFS, MODE_PRIVATE)
-  val secure = SofiaSecurePreferences(prefs)
+  val secure = SofiaSecurePreferences(prefs, "owner-profile")
   // Existing plaintext profile values are migrated in place after encryption succeeds.
   val ownerName = secure.getString("owner_name", DEFAULT_OWNER_NAME)?.trim()
    ?.takeIf { it.isNotEmpty() } ?: DEFAULT_OWNER_NAME
@@ -231,7 +231,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  private fun loadHistory(): JSONArray {
   val prefs = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE)
-  val raw = SofiaSecurePreferences(prefs).getString(HISTORY_KEY, null)
+  val raw = SofiaSecurePreferences(prefs, "conversation-history").getString(HISTORY_KEY, null)
   return try {
    val stored = if (raw.isNullOrBlank()) JSONArray() else JSONArray(raw)
    val recent = JSONArray()
@@ -253,7 +253,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  private fun saveHistory(history: JSONArray) {
   val prefs = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE)
-  SofiaSecurePreferences(prefs).putString(HISTORY_KEY, history.toString())
+  SofiaSecurePreferences(prefs, "conversation-history").putString(HISTORY_KEY, history.toString())
  }
 
  /** Handle explicit owner memory commands locally; no network request is needed. */
