@@ -2,6 +2,7 @@ package com.sofia.ai
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -63,12 +64,23 @@ class MainActivity : Activity() {
  }
 
  private fun openMemoryExport() {
-  val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-   addCategory(Intent.CATEGORY_OPENABLE)
-   type = "application/json"
-   putExtra(Intent.EXTRA_TITLE, "sofia-memory.json")
-  }
-  startActivityForResult(intent, exportRequest)
+  AlertDialog.Builder(this)
+   .setTitle("Экспорт памяти Софии")
+   .setMessage(
+    "Файл экспорта содержит все записи памяти, включая конфиденциальные и личные данные. " +
+     "Он будет сохранён как обычный JSON без дополнительного шифрования. " +
+     "Храните файл в безопасном месте и не отправляйте его посторонним."
+   )
+   .setNegativeButton("Отмена", null)
+   .setPositiveButton("Продолжить") { _, _ ->
+    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+     addCategory(Intent.CATEGORY_OPENABLE)
+     type = "application/json"
+     putExtra(Intent.EXTRA_TITLE, "sofia-memory.json")
+    }
+    startActivityForResult(intent, exportRequest)
+   }
+   .show()
  }
 
  @Deprecated("Deprecated in Java")
