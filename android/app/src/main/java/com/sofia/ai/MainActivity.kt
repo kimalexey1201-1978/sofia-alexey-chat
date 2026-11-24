@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.ComponentName
+import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -16,6 +18,7 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
  private lateinit var status: TextView
+ private lateinit var notificationAccessButton: Button
  private val maxMemoryImportBytes = 5 * 1024 * 1024
  private val req = 41
  private val importRequest = 42
@@ -40,7 +43,7 @@ class MainActivity : Activity() {
    text = "Импортировать память Софии"
    setOnClickListener { openMemoryImport() }
   }
-  val notificationAccess = Button(this).apply {
+  notificationAccessButton = Button(this).apply {
    text = "Разрешить Софии читать сообщения"
    setOnClickListener {
     AlertDialog.Builder(this@MainActivity)
@@ -67,11 +70,24 @@ class MainActivity : Activity() {
    setPadding(24,24,24,24)
    addView(status)
    addView(stop)
-   addView(notificationAccess)
+   addView(notificationAccessButton)
    addView(importMemory)
    addView(exportMemory)
   })
   requestAudioAndStart()
+ }
+
+ override fun onResume() {
+  super.onResume()
+  if (::notificationAccessButton.isInitialized) {
+   val granted = getSystemService(NotificationManager::class.java)
+    .isNotificationListenerAccessGranted(ComponentName(this, MessageNotificationListener::class.java))
+   notificationAccessButton.text = if (granted) {
+    "Доступ к сообщениям включён · настройки"
+   } else {
+    "Разрешить Софии читать сообщения"
+   }
+  }
  }
 
  private fun openMemoryImport() {
