@@ -530,16 +530,19 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      }.joinToString(" ")
      else -> ""
     }.trim()
+    // Normalize once before history persistence so old masculine forms and visual emoji
+    // cannot be fed back into future model turns.
+    val normalizedAnswer = VoiceOutputSanitizer.sanitize(answer)
 
     val finalAnswer = when {
      code !in 200..299 -> "Сервер вернул ошибку. Попробуй повторить вопрос."
-     answer.isNotBlank() -> answer
+     normalizedAnswer.isNotBlank() -> normalizedAnswer
      root.has("error") -> "Сервис ответа временно недоступен."
      else -> "Я получила пустой ответ. Повтори, пожалуйста, вопрос."
     }
-    if (code in 200..299 && answer.isNotBlank() && history != null) {
+    if (code in 200..299 && normalizedAnswer.isNotBlank() && history != null) {
      history.put(JSONObject().put("role", "user").put("content", command))
-     history.put(JSONObject().put("role", "assistant").put("content", answer))
+     history.put(JSONObject().put("role", "assistant").put("content", normalizedAnswer))
      val trimmed = JSONArray()
      val start = (history.length() - MAX_HISTORY_MESSAGES).coerceAtLeast(0)
      for (i in start until history.length()) trimmed.put(history.getJSONObject(i))
@@ -568,62 +571,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   speakNow(text)
  }
 
- private fun speechText(markdown: String): String {
-  // TTS must never receive visual emoji, text emoticons, or emoji shortcodes.
-  val withoutEmoji = buildString(markdown.length) {
-   var offset = 0
-   while (offset < markdown.length) {
-    val codePoint = markdown.codePointAt(offset)
-    if (!isEmojiCodePoint(codePoint)) appendCodePoint(codePoint)
-    offset += Character.charCount(codePoint)
-   }
-  }
-  return withoutEmoji
-   .replace(Regex("(?s)\\x60\\x60\\x60[^\\n]*\\n?(.*?)\\x60\\x60\\x60"), "$1")
-   .replace(Regex("\\[([^\\]]+)\\]\\((?:https?://)?[^)]+\\)"), "$1")
-   .replace(Regex("(?i):[a-z0-9_+-]{2,}: "), " ")
-   .replace(Regex("(?i):[a-z0-9_+-]{2,}:"), " ")
-   .replace(Regex("(?<!\\w)(?:[:;=8xX][-^']?[)(/\\\\DPp]|<3)(?!\\w)"), " ")
-   .replace(Regex("(?m)^\\s{0,3}#{1,6}\\s*"), "")
-   .replace(Regex("(?m)^\\s*[-+*]\\s+"), "")
-   .replace(Regex("(?m)^\\s*\\d+[.)]\\s+"), "")
-   .replace(Regex("[*_~]{1,3}"), "")
-   .replace(Regex("`{1,3}"), "")
-   .replace(Regex("(?m)^\\s*>\\s?"), "")
-   .replace(Regex("[ \\t]{2,}"), " ")
-   .replace(Regex(" *\\n *"), "\\n")
-   .replace(Regex("\\n{3,}"), "\\n\\n")
-   .trim()
- }
-
- private fun isEmojiCodePoint(codePoint: Int): Boolean {
-  return codePoint in 0x1F000..0x1FAFF ||
-   codePoint in 0x2600..0x27BF ||
-   codePoint in 0x2300..0x23FF ||
-   codePoint in 0x2B00..0x2BFF ||
-   codePoint in 0xFE00..0xFE0F ||
-   codePoint == 0x200D ||
-   codePoint == 0x20E3 ||
-   codePoint == 0x00A9 ||
-   codePoint == 0x00AE ||
-   codePoint == 0x203C ||
-   codePoint == 0x2049 ||
-   codePoint == 0x2122 ||
-   codePoint == 0x2139 ||
-   codePoint == 0x24C2 ||
-   codePoint == 0x3030 ||
-   codePoint == 0x303D ||
-   codePoint == 0x3297 ||
-   codePoint == 0x3299
- }
-
  private fun speakNow(text: String) {
   if (destroyed) return
   speaking = true
   stopRecognition()
   val utteranceId = "sofia-response-${++utteranceSequence}"
   activeUtteranceId = utteranceId
-  val spokenText = speechText(text)
+  val spokenText = VoiceOutputSanitizer.sanitize(text)
   if (spokenText.isBlank()) {
    Log.w(TAG, "Skipped a voice response containing no speakable text after visual-symbol filtering")
    finishUtterance(utteranceId)
