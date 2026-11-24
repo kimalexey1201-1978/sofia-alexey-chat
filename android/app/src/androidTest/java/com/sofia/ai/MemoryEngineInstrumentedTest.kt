@@ -137,7 +137,13 @@ class MemoryEngineInstrumentedTest {
 
     @Test
     fun voiceContextAlwaysIncludesSeededOwnerProfile() {
-        val memory = engine()
+        val memory = MemoryEngine(
+            context = context,
+            preferencesName = prefsName,
+            legacyProfilePreferencesName = null,
+            legacyMemoryPreferencesName = null,
+            seedOwnerProfile = true
+        )
 
         val voiceContext = memory.buildContext(
             query = "Что ты знаешь обо мне?",
