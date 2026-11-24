@@ -14,6 +14,7 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
  private lateinit var status: TextView
+ private val maxMemoryImportBytes = 5 * 1024 * 1024
  private val req = 41
  private val importRequest = 42
  private val exportRequest = 43
@@ -78,9 +79,19 @@ class MainActivity : Activity() {
   try {
    when (requestCode) {
     importRequest -> {
-     val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-      ?: throw IllegalStateException("Не удалось открыть файл")
-     require(bytes.size <= 5 * 1024 * 1024) { "Файл памяти больше 5 МБ" }
+     val bytes = contentResolver.openInputStream(uri)?.use { input ->
+      val output = java.io.ByteArrayOutputStream()
+      val buffer = ByteArray(8192)
+      var total = 0
+      while (true) {
+       val count = input.read(buffer)
+       if (count < 0) break
+       total += count
+       require(total <= maxMemoryImportBytes) { "Файл памяти больше 5 МБ" }
+       output.write(buffer, 0, count)
+      }
+      output.toByteArray()
+     } ?: throw IllegalStateException("Не удалось открыть файл")
      val result = MemoryEngine(this).importJson(String(bytes, Charsets.UTF_8))
      Toast.makeText(
       this,
