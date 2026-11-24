@@ -373,6 +373,83 @@ class MemoryEngineInstrumentedTest {
         assertEquals(repairedCiphertext, legacy.getString("conversation", null))
     }
 
+    @Test
+    fun importRejectsMoreThanMaximumRecordsWithoutChangingStoredMemory() {
+        val memory = engine()
+        memory.add(
+            type = MemoryEngine.MemoryType.LONG_TERM,
+            content = "Existing record must survive rejected import",
+            id = "existing-before-large-import"
+        )
+        val records = org.json.JSONArray()
+        repeat(10001) { index ->
+            records.put(
+                org.json.JSONObject()
+                    .put("id", "bulk-$index")
+                    .put("type", "long_term")
+                    .put("content", "Bulk record $index")
+                    .put("createdAt", 100L)
+                    .put("updatedAt", 100L)
+            )
+        }
+        val payload = org.json.JSONObject()
+            .put("format", "sofia-memory")
+            .put("schemaVersion", 1)
+            .put("records", records)
+
+        var rejected = false
+        try {
+            memory.importJson(payload.toString())
+        } catch (_: IllegalArgumentException) {
+            rejected = true
+        }
+
+        assertTrue("Import over 10000 records must be rejected", rejected)
+        assertEquals(1, memory.count())
+        assertEquals(
+            "Existing record must survive rejected import",
+            memory.search("Existing record").single().content
+        )
+    }
+
+    @Test
+    fun securePreferencesConcurrentInstancesKeepSharedValueReadable() {
+        val prefs = context.getSharedPreferences(
+            "secure_preferences_concurrent_test",
+            Context.MODE_PRIVATE
+        )
+        val initial = "legacy plaintext value"
+        prefs.edit().putString("shared-key", initial).commit()
+
+        val workers = 8
+        val ready = CountDownLatch(workers)
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(workers)
+        try {
+            val tasks = (0 until workers).map {
+                executor.submit {
+                    val secure = SofiaSecurePreferences(prefs, "concurrent-test")
+                    ready.countDown()
+                    check(start.await(10, TimeUnit.SECONDS))
+                    assertEquals(initial, secure.getString("shared-key", null))
+                    secure.putString("shared-key", "updated-by-worker-$it")
+                }
+            }
+            assertTrue("Workers did not become ready", ready.await(10, TimeUnit.SECONDS))
+            start.countDown()
+            tasks.forEach { it.get(60, TimeUnit.SECONDS) }
+
+            val reopened = SofiaSecurePreferences(prefs, "concurrent-test")
+            val finalValue = reopened.getString("shared-key", null)
+            assertTrue(finalValue?.startsWith("updated-by-worker-") == true)
+            assertTrue(prefs.getString("shared-key", null).orEmpty().startsWith("enc:v1:"))
+        } finally {
+            start.countDown()
+            executor.shutdownNow()
+            prefs.edit().clear().commit()
+        }
+    }
+
     private fun encryptLegacy(value: String, keyName: String): String {
         val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val secret = keyStore.getKey("sofia_memory_aes_gcm_v1", null) as javax.crypto.SecretKey
