@@ -178,6 +178,7 @@ class MemoryEngine(
         val version = root.optInt("schemaVersion", -1)
         require(version in 1..SCHEMA_VERSION) { "Unsupported memory schema version" }
         val incoming = root.optJSONArray("records") ?: JSONArray()
+        require(incoming.length() <= MAX_IMPORT_RECORDS) { "Memory file contains too many records" }
         val records = readRecords().associateBy { it.id }.toMutableMap()
         var imported = 0
         var skipped = 0
@@ -483,6 +484,7 @@ class MemoryEngine(
         private const val SCHEMA_VERSION = 1
         private const val MAX_RECORD_CHARS = 12000
         private const val MAX_IMPORT_BYTES = 5 * 1024 * 1024
+        private const val MAX_IMPORT_RECORDS = 10000
         private const val WORKING_TTL_MS = 24L * 60L * 60L * 1000L
         private const val LEGACY_OWNER_ID = "legacy-profile-owner-name-v1"
         private const val LEGACY_ADDRESS_ID = "legacy-profile-preferred-address-v1"
