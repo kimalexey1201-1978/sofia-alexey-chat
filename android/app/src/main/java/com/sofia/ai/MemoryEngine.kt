@@ -23,8 +23,10 @@ class MemoryEngine(
     private val secure = SofiaSecurePreferences(prefs, "structured-memory")
 
     init {
+        synchronized(STORAGE_LOCK) {
         legacyProfilePreferencesName?.let(::migrateLegacyProfile)
         legacyMemoryPreferencesName?.let(::migrateLegacyMemory)
+            }
     }
 
     enum class MemoryType(val wireName: String) {
@@ -34,6 +36,7 @@ class MemoryEngine(
         PROCEDURAL("procedural");
 
         companion object {
+        private val STORAGE_LOCK = Any()
             fun fromWire(value: String): MemoryType? = values().firstOrNull { it.wireName == value }
         }
     }
@@ -53,8 +56,7 @@ class MemoryEngine(
 
     data class ImportResult(val imported: Int, val skipped: Int, val total: Int)
 
-    @Synchronized
-    fun add(
+        fun add(
         type: MemoryType,
         content: String,
         source: String = "owner",
@@ -64,6 +66,7 @@ class MemoryEngine(
         sensitive: Boolean = false,
         id: String = UUID.randomUUID().toString()
     ): MemoryRecord {
+        synchronized(STORAGE_LOCK) {
         val clean = content.trim()
         require(clean.isNotEmpty()) { "Memory content cannot be empty" }
         require(clean.length <= MAX_RECORD_CHARS) { "Memory record is too large" }
@@ -94,9 +97,10 @@ class MemoryEngine(
         writeRecords(records)
         return persistedRecord
     }
+        }
 
-    @Synchronized
-    fun search(query: String, limit: Int = 20, includeSensitive: Boolean = false): List<MemoryRecord> {
+        fun search(query: String, limit: Int = 20, includeSensitive: Boolean = false): List<MemoryRecord> {
+        synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
         if (terms.isEmpty()) return emptyList()
         return readRecords()
@@ -111,10 +115,11 @@ class MemoryEngine(
             .map { it.first }
             .toList()
     }
+        }
 
     /** Sensitive records are never added to automatic model context. */
-    @Synchronized
-    fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
+        fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
+        synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
         if (terms.isEmpty()) return ""
         val ranked = readRecords()
@@ -138,9 +143,10 @@ class MemoryEngine(
         }
         return result.toString()
     }
+        }
 
-    @Synchronized
-    fun summary(): String {
+        fun summary(): String {
+        synchronized(STORAGE_LOCK) {
         val records = readRecords().filter { !it.sensitive }
         if (records.isEmpty()) return "Структурированная память пока пуста."
         return records.sortedWith(compareBy<MemoryRecord> { it.type.ordinal }
@@ -150,9 +156,10 @@ class MemoryEngine(
             .mapIndexed { index, record -> "${index + 1}. [${record.type.wireName}] ${record.content}" }
             .joinToString("\n")
     }
+        }
 
-    @Synchronized
-    fun exportJson(): String {
+        fun exportJson(): String {
+        synchronized(STORAGE_LOCK) {
         val records = JSONArray()
         readRecords().forEach { records.put(it.toJson()) }
         return JSONObject()
@@ -162,9 +169,10 @@ class MemoryEngine(
             .put("records", records)
             .toString(2)
     }
+        }
 
-    @Synchronized
-    fun importJson(json: String): ImportResult {
+        fun importJson(json: String): ImportResult {
+        synchronized(STORAGE_LOCK) {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_IMPORT_BYTES) { "Memory file is too large" }
         val root = JSONObject(json)
         require(root.optString("format") == FORMAT_NAME) { "Not a Sofia memory file" }
@@ -192,20 +200,24 @@ class MemoryEngine(
         writeRecords(records.values.toList())
         return ImportResult(imported, skipped, records.size)
     }
+        }
 
-    @Synchronized
-    fun count(): Int = readRecords().size
+        fun count(): Int = readRecords().size
 
     @Synchronized
     fun delete(id: String): Boolean {
+        synchronized(STORAGE_LOCK) {
+        synchronized(STORAGE_LOCK) {
         val records = readRecords().toMutableList()
         val removed = records.removeAll { it.id == id }
-        if (removed) writeRecords(records)
+        if (removed) writeRecords(
+        }records)
         return removed
     }
+        }
 
-    @Synchronized
-    fun deleteByContent(content: String): Boolean {
+        fun deleteByContent(content: String): Boolean {
+        synchronized(STORAGE_LOCK) {
         val target = content.trim()
         if (target.isEmpty()) return false
         val records = readRecords().toMutableList()
@@ -213,11 +225,13 @@ class MemoryEngine(
         if (removed) writeRecords(records)
         return removed
     }
+        }
 
-    @Synchronized
-    fun clearAll() {
+        fun clearAll() {
+        synchronized(STORAGE_LOCK) {
         writeRecords(emptyList())
     }
+        }
 
     private fun migrateLegacyProfile(preferencesName: String) {
         val legacy = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
