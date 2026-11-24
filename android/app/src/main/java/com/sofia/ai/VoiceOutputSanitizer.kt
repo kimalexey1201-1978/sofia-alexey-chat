@@ -53,8 +53,8 @@ internal object VoiceOutputSanitizer {
             .replace(Regex("`{1,3}"), "")
             .replace(Regex("(?m)^\\s*>\\s?"), "")
             .replace(Regex("[ \\t]{2,}"), " ")
-            .replace(Regex(" *\\n *"), "\\n")
-            .replace(Regex("\\n{3,}"), "\\n\\n")
+            .replace(Regex(" *\\n *"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
     }
 
