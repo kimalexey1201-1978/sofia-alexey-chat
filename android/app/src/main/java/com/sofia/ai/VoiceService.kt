@@ -354,7 +354,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   waiting = false
   conversationTimeoutTask?.let { main.removeCallbacks(it) }
   conversationTimeoutTask = null
-  say("Меня зовут София. Я буду обращаться к тебе: мой дорогой.")
+  val preferredAddress = try { ownerProfile().second } catch (_: Exception) { DEFAULT_ADDRESS }
+  say("Меня зовут София. Я буду обращаться к тебе: $preferredAddress.")
   return true
  }
 
