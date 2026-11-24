@@ -14,7 +14,9 @@ class MemoryEngine(
     context: Context,
     preferencesName: String = "sofia_memory_engine",
     legacyProfilePreferencesName: String? = "sofia_profile",
-    legacyMemoryPreferencesName: String? = "sofia_memory_v1"
+    legacyMemoryPreferencesName: String? = "sofia_memory_v1",
+    profileDestinationPreferencesName: String = "sofia_profile",
+    conversationDestinationPreferencesName: String = "sofia_memory"
 ) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
@@ -294,7 +296,7 @@ class MemoryEngine(
             // Preserve the most recent turns for immediate conversational continuity.
             // Existing v2 history always wins; the legacy source remains untouched.
             if (validTurns.length() > 0) {
-                val historyPrefs = appContext.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE)
+                val historyPrefs = appContext.getSharedPreferences(conversationDestinationPreferencesName, Context.MODE_PRIVATE)
                 val historySecure = SofiaSecurePreferences(historyPrefs, "conversation-history")
                 val existing = historySecure.getString("conversation_history", null)
                 if (existing.isNullOrBlank()) {
@@ -312,7 +314,7 @@ class MemoryEngine(
 
         // Keep profile preferences in the profile namespace consumed by VoiceService.
         if (address.isNotEmpty() || ownerLabel.isNotEmpty()) {
-            val profilePrefs = appContext.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE)
+            val profilePrefs = appContext.getSharedPreferences(profileDestinationPreferencesName, Context.MODE_PRIVATE)
             val profile = SofiaSecurePreferences(profilePrefs, "owner-profile")
             if (address.isNotEmpty() && profile.getString("preferred_address", null).isNullOrBlank()) {
                 profile.putString("preferred_address", address)
@@ -348,7 +350,7 @@ class MemoryEngine(
 
     private fun score(record: MemoryRecord, terms: Set<String>): Int {
         val content = tokenize(record.content)
-        val tags = record.tags.toSet()
+        val tags = record.tags.map(::normalizeToken).toSet()
         var score = 0
         for (term in terms) {
             if (term in tags) score += 4
@@ -360,7 +362,27 @@ class MemoryEngine(
 
     private fun tokenize(value: String): Set<String> =
         Regex("[\\p{L}\\p{N}]{2,}").findAll(value.lowercase(Locale.ROOT))
-            .map { it.value }.toSet()
+            .map { normalizeToken(it.value) }.toSet()
+
+    /**
+     * A small deterministic normalizer for common Russian inflectional endings.
+     * This is not a full morphological analyzer; it lets ordinary case forms such
+     * as "архитектуре", "архитектура" and "архитектуру" share a retrieval stem.
+     */
+    private fun normalizeToken(token: String): String {
+        val suffixes = listOf(
+            "иями", "ями", "ами", "ией", "иям", "иях",
+            "ого", "ему", "ому", "ыми", "ими",
+            "ее", "ие", "ые", "ое", "ей", "ий", "ый", "ой",
+            "ая", "яя", "ую", "юю",
+            "ам", "ям", "ах", "ях", "ов", "ев", "ом", "ем",
+            "ы", "и", "а", "я", "у", "ю", "е", "о"
+        )
+        val suffix = suffixes.firstOrNull {
+            token.length - it.length >= 4 && token.endsWith(it)
+        }
+        return if (suffix == null) token else token.dropLast(suffix.length)
+    }
 
     /**
      * Fail closed on malformed local data. Returning an empty list here would let a later
