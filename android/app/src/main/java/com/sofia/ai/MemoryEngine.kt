@@ -512,7 +512,7 @@ class MemoryEngine(
         private const val WORKING_TTL_MS = 24L * 60L * 60L * 1000L
         private const val LEGACY_OWNER_ID = "legacy-profile-owner-name-v1"
         private const val LEGACY_ADDRESS_ID = "legacy-profile-preferred-address-v1"
-        private const val OWNER_KNOWLEDGE_PROFILE = """
+        private val OWNER_KNOWLEDGE_PROFILE = """
 ПРОФИЛЬ ВЛАДЕЛЬЦА. Эти сведения владелец ранее сообщал ChatGPT. Используй их для продолжения знакомства. Не выдумывай факты; если сведения могли устареть, уточняй.
 
 ОБЩЕНИЕ И ЯЗЫК:
