@@ -14,6 +14,16 @@ import org.json.JSONObject
 class SofiaMemory(context: Context) {
     private val prefs = context.getSharedPreferences("sofia_memory_v1", Context.MODE_PRIVATE)
 
+    init {
+        // Voice-mode address preference supplied by the owner.
+        if (!prefs.contains("preferred_address") || !prefs.contains("language")) {
+            prefs.edit()
+                .putString("preferred_address", prefs.getString("preferred_address", "мой хороший"))
+                .putString("language", prefs.getString("language", "Russian"))
+                .apply()
+        }
+    }
+
     data class Turn(val role: String, val content: String)
 
     @Synchronized
