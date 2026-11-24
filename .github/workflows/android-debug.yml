@@ -19,35 +19,80 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Compile Android sources (independent of signing)
+        run: gradle -p android :app:compileDebugKotlin
       - name: Prepare permanent signing key
         env:
           SOFIA_KEYSTORE_BASE64: ${{ secrets.SOFIA_KEYSTORE_BASE64 }}
         run: |
           test -n "$SOFIA_KEYSTORE_BASE64" || (echo "Missing SOFIA_KEYSTORE_BASE64 secret" && exit 1)
           printf '%s' "$SOFIA_KEYSTORE_BASE64" | base64 --decode > android/app/sofia-release.jks
+          test -s android/app/sofia-release.jks || (echo "Decoded keystore file is empty" && exit 1)
           chmod 600 android/app/sofia-release.jks
-      - name: Verify signing credentials
+          echo "Decoded keystore SHA-256 fingerprint:"
+          sha256sum android/app/sofia-release.jks
+      - name: Normalize and verify signing passwords
         env:
           SOFIA_STORE_PASSWORD: ${{ secrets.SOFIA_STORE_PASSWORD }}
-          SOFIA_KEY_ALIAS: ${{ secrets.SOFIA_KEY_ALIAS }}
           SOFIA_KEY_PASSWORD: ${{ secrets.SOFIA_KEY_PASSWORD }}
+        run: |
+          normalize_secret() {
+            name="$1"
+            value="$2"
+            expected_hash="$3"
+            original_length="$(LC_ALL=C printf '%s' "$value" | wc -c | tr -d ' ')"
+            if [ "$(printf '%s' "$value" | sha256sum | cut -d' ' -f1)" != "$expected_hash" ]; then
+              value="${value%[[:space:]]}"
+            fi
+            actual="$(printf '%s' "$value" | sha256sum | cut -d' ' -f1)"
+            if [ "$actual" != "$expected_hash" ]; then
+              echo "$name does not match the secure backup after safe trailing-whitespace normalization."
+              return 1
+            fi
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+            final_length="$(LC_ALL=C printf '%s' "$value" | wc -c | tr -d ' ')"
+            echo "${name}_NORMALIZATION=SUCCESS"
+            echo "${name}_ORIGINAL_BYTE_LENGTH=$original_length"
+            echo "${name}_FINAL_BYTE_LENGTH=$final_length"
+          }
+          normalize_secret SOFIA_STORE_PASSWORD "$SOFIA_STORE_PASSWORD" "6ab3c2914a89b798ab3a62f001bdcad9dfa7cb8342b0f26bac3ddd14850d6317"
+          normalize_secret SOFIA_KEY_PASSWORD "$SOFIA_KEY_PASSWORD" "66e0f042a20c974c78874f42d29b6e63a68041e4bee7a449ce822069215fede3"
+      - name: Verify signing credentials
+        env:
+          SOFIA_KEY_ALIAS: ${{ secrets.SOFIA_KEY_ALIAS }}
         run: |
           test -n "$SOFIA_STORE_PASSWORD" || (echo "Missing SOFIA_STORE_PASSWORD secret" && exit 1)
           test -n "$SOFIA_KEY_ALIAS" || (echo "Missing SOFIA_KEY_ALIAS secret" && exit 1)
           test -n "$SOFIA_KEY_PASSWORD" || (echo "Missing SOFIA_KEY_PASSWORD secret" && exit 1)
-          keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" >/dev/null || (echo "Signing check failed: SOFIA_STORE_PASSWORD does not match the keystore" && exit 1)
+
+          if ! keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" >"$RUNNER_TEMP/keystore-open.log" 2>&1; then
+            if grep -Eqi "password was incorrect|tampered with" "$RUNNER_TEMP/keystore-open.log"; then
+              echo "Signing check failed: SOFIA_STORE_PASSWORD was rejected by the keystore."
+            elif grep -Eqi "invalid keystore format|unrecognized keystore format|not a valid keystore" "$RUNNER_TEMP/keystore-open.log"; then
+              echo "Signing check failed: decoded file is not a readable Java keystore."
+            else
+              echo "Signing check failed: keytool could not open the decoded keystore. Diagnostic:"
+              sed -n '1,8p' "$RUNNER_TEMP/keystore-open.log"
+            fi
+            exit 1
+          fi
+
           keytool -list -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -alias "$SOFIA_KEY_ALIAS" >/dev/null || (echo "Signing check failed: SOFIA_KEY_ALIAS does not exist in this keystore" && exit 1)
-          keytool -certreq -alias "$SOFIA_KEY_ALIAS" -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -keypass "$SOFIA_KEY_PASSWORD" -file "$RUNNER_TEMP/sofia-signing-check.csr" >/dev/null || (echo "Signing check failed: key password is incorrect" && exit 1)
+          keytool -certreq -alias "$SOFIA_KEY_ALIAS" -keystore android/app/sofia-release.jks -storepass "$SOFIA_STORE_PASSWORD" -keypass "$SOFIA_KEY_PASSWORD" -file "$RUNNER_TEMP/sofia-signing-check.csr" >/dev/null || (echo "Signing check failed: SOFIA_KEY_PASSWORD was rejected for this alias" && exit 1)
           rm -f "$RUNNER_TEMP/sofia-signing-check.csr"
           echo "Signing credentials verified."
       - name: Build signed APK
+        env:
+          SOFIA_KEY_ALIAS: ${{ secrets.SOFIA_KEY_ALIAS }}
         run: gradle -p android assembleDebug
       - name: Verify APK signature and package
         run: |
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          apksigner verify --verbose --print-certs "$APK"
-          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt" dump badging "$APK" | grep -E "^package: name='com.sofia.ai'"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          test -x "$BUILD_TOOLS/apksigner"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -E "^package: name='com.sofia.ai'"
           sha256sum "$APK"
       - name: Upload APK
         uses: actions/upload-artifact@v4
