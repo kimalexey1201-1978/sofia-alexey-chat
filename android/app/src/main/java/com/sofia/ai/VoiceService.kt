@@ -76,6 +76,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (queued != null) {
    pendingSpeech = null
    speakNow(queued)
+  } else if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
+   // Retry if the recognizer was unavailable during service creation.
+   startRecognition()
   }
  }
 
