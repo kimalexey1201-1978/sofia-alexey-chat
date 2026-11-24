@@ -209,9 +209,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    error == SpeechRecognizer.ERROR_SERVER
   if (reset) resetRecognizer()
   val delay = when (error) {
-   SpeechRecognizer.ERROR_RECOGNIZER_BUSY, SpeechRecognizer.ERROR_CLIENT -> 1800L
-   SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> 2500L
-   else -> 900L
+   SpeechRecognizer.ERROR_RECOGNIZER_BUSY, SpeechRecognizer.ERROR_CLIENT -> 2500L
+   SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> 3500L
+   SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> 3000L
+   else -> 2000L
   }
   status("Голосовой модуль: $description")
   restart(delay)
@@ -224,7 +225,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   recognizer = null
  }
 
- private fun restart(delayMs: Long = 900L) {
+ private fun restart(delayMs: Long = 2000L) {
   if (destroyed || restarting || speaking || requestInFlight || recognitionActive) return
   restarting = true
   restartTask = Runnable {
