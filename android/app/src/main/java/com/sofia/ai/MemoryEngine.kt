@@ -197,36 +197,36 @@ class MemoryEngine(
 
         fun count(): Int = synchronized(STORAGE_LOCK) { readRecords().size }
 
-        fu
-        synchronized(STORAGE_LOCK) {n delete(id: String): Boolean {
+        fun delete(id: String): Boolean {
+        synchronized(STORAGE_LOCK) {
         val records = readRecords().toMutableList()
         val removed = records.removeAll { it.id == id }
         if (removed) writeRecords(records)
         return removed
     }
 
-        fun deleteByCont
-        synchronized(STORAGE_LOCK) {ent(content: String): Boolean {
+        fun deleteByContent(content: String): Boolean {
+        synchronized(STORAGE_LOCK) {
         val target = content.trim()
-        if (target.isEmpty())         }
-    return false
-        val records = re        }
-    adRecords().toMutableList()
-        v        }
-    al removed = records.removeAll { it.c        }
-    ontent.equals(target, ignoreCase = tr        }
-    ue) }
-        if (removed) writeRecor        }
-    ds(records)
-        return removed
-
-         }
-           synchronized(STORAGE_LOCK) {          }
-      }
+        if (target.isEmpty()) return false
+        val record        }
+    s = readRecords().toMutableList()
+           }
+         val removed = records.removeAll         }
+    { it.content.equals(target, ignoreCas        }
+    e = true) }
+        if (removed) writ        }
+    eRecords(records)
+        return remo        }
+    ved
+    }
 
         fun clearAll() {
-               }
-     writeRecords(emptyList())
+         }
+           synchronized(STORAGE_LOCK) {
+         }
+           writeRecords(emptyList())
+            }
     }
 
     private fun migrateLegacyProfile(preferencesName: String) {
