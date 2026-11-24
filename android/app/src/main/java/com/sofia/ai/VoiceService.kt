@@ -262,13 +262,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  /** Handle explicit owner memory commands locally; no network request is needed. */
  private fun handleMemoryCommand(command: String): Boolean {
-  val engine = try { MemoryEngine(this) } catch (e: Exception) {
-   Log.e(TAG, "Structured memory could not be opened", e)
-   waiting = false
-   requestInFlight = false
-   say("Не могу безопасно открыть память. Я сохранила исходные данные без изменений. Нужна проверка.")
-   return true
-  }
   val trimmed = command.trim()
   val actions = listOf(
    Triple(Regex("^(?:запомни надолго|сохрани надолго)\\s+(.+)$", RegexOption.IGNORE_CASE), MemoryEngine.MemoryType.LONG_TERM, 5),
@@ -276,8 +269,26 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    Triple(Regex("^(?:запомни событие|сохрани событие)\\s+(.+)$", RegexOption.IGNORE_CASE), MemoryEngine.MemoryType.EPISODIC, 4),
    Triple(Regex("^(?:запомни временно|сохрани временно)\\s+(.+)$", RegexOption.IGNORE_CASE), MemoryEngine.MemoryType.WORKING, 3)
   )
-  for ((regex, type, importance) in actions) {
-   val match = regex.matchEntire(trimmed) ?: continue
+  val matchedAction = actions.firstOrNull { it.first.matches(trimmed) }
+  val forget = Regex("^(?:удали из памяти|забудь факт)\\s+(.+)$", RegexOption.IGNORE_CASE)
+   .matchEntire(trimmed)
+  val showMemory = trimmed.lowercase(Locale("ru", "RU")) in setOf(
+   "что ты помнишь", "что ты помнишь обо мне", "покажи свою память"
+  )
+  // Do not let a damaged memory store block ordinary chat requests.
+  if (matchedAction == null && forget == null && !showMemory) return false
+
+  val engine = try { MemoryEngine(this) } catch (e: Exception) {
+   Log.e(TAG, "Structured memory could not be opened", e)
+   waiting = false
+   requestInFlight = false
+   say("Не могу безопасно открыть память. Исходные данные сохранены без изменений. Нужна проверка.")
+   return true
+  }
+
+  if (matchedAction != null) {
+   val (regex, type, importance) = matchedAction
+   val match = regex.matchEntire(trimmed) ?: return false
    return try {
     engine.add(
      type = type,
@@ -308,8 +319,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    }
   }
 
-  val forget = Regex("^(?:удали из памяти|забудь факт)\\s+(.+)$", RegexOption.IGNORE_CASE)
-   .matchEntire(trimmed)
   if (forget != null) {
    val removed = try { engine.deleteByContent(forget.groupValues[1]) } catch (e: Exception) {
     Log.e(TAG, "Could not delete structured memory", e)
@@ -322,19 +331,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    return true
   }
 
-  if (trimmed.lowercase(Locale("ru", "RU")) in setOf(
-    "что ты помнишь", "что ты помнишь обо мне", "покажи свою память"
-   )) {
-   val summary = try { engine.summary() } catch (e: Exception) {
-    Log.e(TAG, "Could not read memory summary", e)
-    "Не могу безопасно прочитать память. Исходные данные сохранены без изменений."
-   }
-   waiting = false
-   requestInFlight = false
-   say(summary)
-   return true
+  val summary = try { engine.summary() } catch (e: Exception) {
+   Log.e(TAG, "Could not read memory summary", e)
+   "Не могу безопасно прочитать память. Исходные данные сохранены без изменений."
   }
-  return false
+  waiting = false
+  requestInFlight = false
+  say(summary)
+  return true
  }
 
  private fun sendCommand(command: String) {
