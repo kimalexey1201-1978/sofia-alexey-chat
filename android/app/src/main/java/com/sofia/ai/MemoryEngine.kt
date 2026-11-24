@@ -10,13 +10,17 @@ import java.util.UUID
  * Sofia's private, encrypted, on-device memory store.
  * The persistence contract stays independent so the backend can later move to Room.
  */
-class MemoryEngine(context: Context) {
+class MemoryEngine(
+    context: Context,
+    preferencesName: String = "sofia_memory_engine",
+    legacyProfilePreferencesName: String? = "sofia_profile"
+) {
     private val appContext = context.applicationContext
-    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
     private val secure = SofiaSecurePreferences(prefs, "structured-memory")
 
     init {
-        migrateLegacyProfile()
+        legacyProfilePreferencesName?.let(::migrateLegacyProfile)
     }
 
     enum class MemoryType(val wireName: String) {
@@ -205,8 +209,8 @@ class MemoryEngine(context: Context) {
         writeRecords(emptyList())
     }
 
-    private fun migrateLegacyProfile() {
-        val legacy = appContext.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE)
+    private fun migrateLegacyProfile(preferencesName: String) {
+        val legacy = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
         val secureLegacy = SofiaSecurePreferences(legacy, "owner-profile")
         val ownerName = secureLegacy.getString("owner_name", null)?.trim().orEmpty()
         val preferredAddress = secureLegacy.getString("preferred_address", null)?.trim().orEmpty()
