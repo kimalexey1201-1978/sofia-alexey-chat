@@ -1,0 +1,54 @@
+name: Sofia memory instrumentation tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/sofia-memory-tests.yml"
+
+jobs:
+  memory-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      # This disposable key exists only inside the CI runner. It does not
+      # replace or modify the permanent signing key used for owner installs.
+      - name: Create temporary CI signing key
+        shell: bash
+        run: |
+          STORE_PASSWORD="$(openssl rand -hex 24)"
+          echo "SOFIA_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "SOFIA_KEY_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "SOFIA_KEY_ALIAS=sofia-ci" >> "$GITHUB_ENV"
+          keytool -genkeypair -v \
+            -keystore android/app/sofia-release.jks \
+            -storepass "$STORE_PASSWORD" \
+            -alias sofia-ci \
+            -keypass "$STORE_PASSWORD" \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=Sofia CI,O=Temporary,C=US"
+          chmod 600 android/app/sofia-release.jks
+
+      - name: Run Android instrumentation tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: gradle -p android connectedDebugAndroidTest
