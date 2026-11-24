@@ -108,8 +108,8 @@ class SofiaMemoryInstrumentedTest {
         memory.rememberFact("protected fact")
         val original = prefs.getString("facts", null).orEmpty()
         val payload = original.removePrefix("enc:v1:")
-        val replacement = if (payload.last() == 'A') 'B' else 'A'
-        val corrupted = "enc:v1:" + payload.dropLast(1) + replacement
+        val replacement = if (payload.first() == 'A') 'B' else 'A'
+        val corrupted = "enc:v1:" + replacement + payload.drop(1)
         prefs.edit().putString("facts", corrupted).commit()
 
         try {
