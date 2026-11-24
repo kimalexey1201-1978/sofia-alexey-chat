@@ -54,7 +54,7 @@ export default {
               },
               {
                 role: "user",
-                content: "Отправитель: " + body.sender + "\nТекст сообщения:\n" + body.text
+                content: body.text
               }
             ]
           })
