@@ -43,7 +43,18 @@ class MainActivity : Activity() {
   val notificationAccess = Button(this).apply {
    text = "Разрешить Софии читать сообщения"
    setOnClickListener {
-    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    AlertDialog.Builder(this@MainActivity)
+     .setTitle("Доступ к входящим сообщениям")
+     .setMessage(
+      "После включения доступа София сможет читать текст уведомлений из поддерживаемых приложений. " +
+       "Текст сообщения и имя отправителя будут отправляться на сервер Софии для определения языка и перевода на русский. " +
+       "Содержимое сообщений не сохраняется в локальной истории приложения."
+     )
+     .setNegativeButton("Отмена", null)
+     .setPositiveButton("Открыть настройки") { _, _ ->
+      startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+     }
+     .show()
    }
   }
   val exportMemory = Button(this).apply {
