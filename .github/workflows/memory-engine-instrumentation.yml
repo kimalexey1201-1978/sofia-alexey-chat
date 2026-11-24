@@ -19,7 +19,7 @@ permissions:
 # A push and its pull_request event can target the same head branch.
 # Keep only one emulator run active for that branch.
 concurrency:
-  group: memory-engine-instrumentation-${{ github.event.pull_request.head.ref || github.ref }}
+  group: memory-engine-instrumentation-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
