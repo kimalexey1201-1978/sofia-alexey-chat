@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.fail
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -99,6 +100,25 @@ class SofiaMemoryInstrumentedTest {
 
         val summary = memory.factsSummary()
         assertEquals(500, Regex("x+").find(summary)?.value?.length)
+    }
+
+    @Test
+    fun tamperedCiphertextFailsClosedAndRemainsStored() {
+        val memory = SofiaMemory(context, prefsName)
+        memory.rememberFact("protected fact")
+        val original = prefs.getString("facts", null).orEmpty()
+        val payload = original.removePrefix("enc:v1:")
+        val replacement = if (payload.last() == 'A') 'B' else 'A'
+        val corrupted = "enc:v1:" + payload.dropLast(1) + replacement
+        prefs.edit().putString("facts", corrupted).commit()
+
+        try {
+            memory.factsSummary()
+            fail("Tampered ciphertext must not be treated as an empty memory.")
+        } catch (_: IllegalStateException) {
+            // Expected: authenticated decryption rejects modified ciphertext.
+        }
+        assertEquals(corrupted, prefs.getString("facts", null))
     }
 
     @Test
