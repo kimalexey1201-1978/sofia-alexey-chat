@@ -31,6 +31,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var requestInFlight = false
  private var pendingSpeech: String? = null
  private var restartTask: Runnable? = null
+ private var utteranceSequence = 0
+ private var activeUtteranceId: String? = null
 
  override fun onCreate() {
   super.onCreate()
@@ -55,26 +57,30 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   tts?.language = Locale("ru", "RU")
   tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
    override fun onStart(id: String) {}
-   override fun onDone(id: String) {
-    main.post {
-     speaking = false
-     requestInFlight = false
-     if (!destroyed) startRecognition()
-    }
-   }
+   override fun onDone(id: String) = finishUtterance(id)
    @Deprecated("Deprecated in Java")
-   override fun onError(id: String) {
-    main.post {
-     speaking = false
-     requestInFlight = false
-     if (!destroyed) startRecognition()
-    }
+   override fun onError(id: String) = finishUtterance(id)
+   override fun onError(id: String, errorCode: Int) {
+    Log.e(TAG, "TextToSpeech failed for utterance=$id with error=$errorCode")
+    finishUtterance(id)
    }
+   override fun onStop(id: String, interrupted: Boolean) = finishUtterance(id)
   })
   val queued = pendingSpeech
   if (queued != null) {
    pendingSpeech = null
    speakNow(queued)
+  }
+ }
+
+ private fun finishUtterance(id: String) {
+  main.post {
+   // A delayed callback from a flushed utterance must not unlock a newer response.
+   if (activeUtteranceId != id) return@post
+   activeUtteranceId = null
+   speaking = false
+   requestInFlight = false
+   if (!destroyed) startRecognition()
   }
  }
 
@@ -454,7 +460,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (destroyed) return
   speaking = true
   stopRecognition()
-  val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sofia-response")
+  val utteranceId = "sofia-response-${++utteranceSequence}"
+  activeUtteranceId = utteranceId
+  val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
   if (result == TextToSpeech.ERROR) {
    speaking = false
    requestInFlight = false
