@@ -13,14 +13,13 @@ import org.json.JSONObject
  */
 class SofiaMemory(context: Context) {
     private val prefs = context.getSharedPreferences("sofia_memory_v1", Context.MODE_PRIVATE)
+    private val securePrefs = SofiaSecurePreferences(context, prefs)
 
     init {
         // Voice-mode address preference supplied by the owner.
-        if (!prefs.contains("preferred_address") || !prefs.contains("language")) {
-            prefs.edit()
-                .putString("preferred_address", prefs.getString("preferred_address", "мой хороший"))
-                .putString("language", prefs.getString("language", "Russian"))
-                .apply()
+        if (!securePrefs.contains("preferred_address") || !securePrefs.contains("language")) {
+            securePrefs.putString("preferred_address", securePrefs.getString("preferred_address", "мой хороший") ?: "мой хороший")
+            securePrefs.putString("language", securePrefs.getString("language", "Russian") ?: "Russian")
         }
     }
 
@@ -28,9 +27,9 @@ class SofiaMemory(context: Context) {
 
     @Synchronized
     fun profileContext(): String {
-        val address = prefs.getString("preferred_address", "").orEmpty()
-        val language = prefs.getString("language", "Russian").orEmpty()
-        val owner = prefs.getString("owner_label", "").orEmpty()
+        val address = securePrefs.getString("preferred_address", "").orEmpty()
+        val language = securePrefs.getString("language", "Russian").orEmpty()
+        val owner = securePrefs.getString("owner_label", "").orEmpty()
         val facts = readFacts()
         return buildString {
             append("Я София, личный помощник владельца этого устройства. ")
@@ -47,7 +46,7 @@ class SofiaMemory(context: Context) {
 
     @Synchronized
     fun recentTurns(limit: Int = 12): List<Turn> {
-        val source = try { JSONArray(prefs.getString("conversation", "[]")) }
+        val source = try { JSONArray(securePrefs.getString("conversation", "[]")) }
                      catch (_: Exception) { JSONArray() }
         val result = ArrayList<Turn>()
         val start = (source.length() - limit.coerceAtLeast(0)).coerceAtLeast(0)
@@ -67,13 +66,13 @@ class SofiaMemory(context: Context) {
         if (role != "user" && role != "assistant") return
         val clean = content.trim().take(6000)
         if (clean.isBlank()) return
-        val turns = try { JSONArray(prefs.getString("conversation", "[]")) }
+        val turns = try { JSONArray(securePrefs.getString("conversation", "[]")) }
                     catch (_: Exception) { JSONArray() }
         turns.put(JSONObject().put("role", role).put("content", clean).put("at", System.currentTimeMillis()))
         val bounded = JSONArray()
         val start = (turns.length() - 40).coerceAtLeast(0)
         for (i in start until turns.length()) bounded.put(turns.getJSONObject(i))
-        prefs.edit().putString("conversation", bounded.toString()).apply()
+        securePrefs.putString("conversation", bounded.toString())
     }
 
     @Synchronized
@@ -89,7 +88,7 @@ class SofiaMemory(context: Context) {
         val index = facts.indexOfFirst { it.equals(fact.trim(), ignoreCase = true) }
         if (index < 0) return false
         facts.removeAt(index)
-        prefs.edit().putString("facts", JSONArray(facts).toString()).apply()
+        securePrefs.putString("facts", JSONArray(facts).toString())
         return true
     }
 
@@ -100,21 +99,21 @@ class SofiaMemory(context: Context) {
         if (clean.isBlank()) return
         val facts = readFacts().toMutableList()
         if (facts.none { it.equals(clean, ignoreCase = true) }) facts.add(clean)
-        prefs.edit().putString("facts", JSONArray(facts.takeLast(100)).toString()).apply()
+        securePrefs.putString("facts", JSONArray(facts.takeLast(100)).toString())
     }
 
     @Synchronized
     fun setPreferredAddress(value: String) {
-        prefs.edit().putString("preferred_address", value.trim().take(80)).apply()
+        securePrefs.putString("preferred_address", value.trim().take(80))
     }
 
     @Synchronized
     fun setOwnerLabel(value: String) {
-        prefs.edit().putString("owner_label", value.trim().take(80)).apply()
+        securePrefs.putString("owner_label", value.trim().take(80))
     }
 
     private fun readFacts(): List<String> {
-        val array = try { JSONArray(prefs.getString("facts", "[]")) }
+        val array = try { JSONArray(securePrefs.getString("facts", "[]")) }
                     catch (_: Exception) { JSONArray() }
         return (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
     }
