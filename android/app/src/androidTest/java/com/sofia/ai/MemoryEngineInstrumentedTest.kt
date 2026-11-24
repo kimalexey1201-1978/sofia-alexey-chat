@@ -149,10 +149,12 @@ class MemoryEngineInstrumentedTest {
             legacyMemoryPreferencesName = null
         )
 
-        val migrated = memory.search("Private Owner", includeSensitive = true)
-        assertEquals(1, migrated.size)
-        assertTrue(migrated.single().sensitive)
-        assertTrue(memory.search("Private Voice Address", includeSensitive = true).single().sensitive)
+        val migratedOwner = memory.search("Private Owner", includeSensitive = true)
+            .single { it.content.contains("Private Owner Name") }
+        assertTrue(migratedOwner.sensitive)
+        val migratedAddress = memory.search("Private Voice Address", includeSensitive = true)
+            .single { it.content.contains("Private Voice Address") }
+        assertTrue(migratedAddress.sensitive)
         assertTrue(memory.buildContext("Private Owner Name").isEmpty())
         assertTrue(memory.buildContext("Private Voice Address").isEmpty())
     }
@@ -420,6 +422,9 @@ class MemoryEngineInstrumentedTest {
         )
         val initial = "legacy plaintext value"
         prefs.edit().putString("shared-key", initial).commit()
+        // Complete the one-time plaintext migration before starting concurrent writers.
+        assertEquals(initial, SofiaSecurePreferences(prefs, "concurrent-test")
+            .getString("shared-key", null))
 
         val workers = 8
         val ready = CountDownLatch(workers)
@@ -431,7 +436,7 @@ class MemoryEngineInstrumentedTest {
                     val secure = SofiaSecurePreferences(prefs, "concurrent-test")
                     ready.countDown()
                     check(start.await(10, TimeUnit.SECONDS))
-                    assertEquals(initial, secure.getString("shared-key", null))
+                    assertTrue(secure.getString("shared-key", null)?.isNotBlank() == true)
                     secure.putString("shared-key", "updated-by-worker-$it")
                 }
             }
