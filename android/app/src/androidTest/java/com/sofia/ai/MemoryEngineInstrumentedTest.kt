@@ -37,16 +37,19 @@ class MemoryEngineInstrumentedTest {
     @Test
     fun recordsPersistAcrossEngineRecreationAndStableIdsUpdateInPlace() {
         val first = engine()
-        first.add(
+        val original = first.add(
             type = MemoryEngine.MemoryType.LONG_TERM,
             content = "Проект использует модульную архитектуру",
             id = "architecture"
         )
-        first.add(
+        val updated = first.add(
             type = MemoryEngine.MemoryType.LONG_TERM,
             content = "Обновлённое описание архитектуры",
             id = "architecture"
         )
+
+        assertEquals(original.createdAt, updated.createdAt)
+        assertTrue(updated.updatedAt >= original.updatedAt)
 
         val reopened = engine()
         assertEquals(1, reopened.count())
