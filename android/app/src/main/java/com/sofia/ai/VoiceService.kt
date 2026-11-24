@@ -34,6 +34,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var conversationTimeoutTask: Runnable? = null
  private var utteranceSequence = 0
  private var activeUtteranceId: String? = null
+ private var pendingTtsChunks = 0
 
  override fun onCreate() {
   super.onCreate()
@@ -77,14 +78,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   ttsReady = true
   engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
    override fun onStart(id: String) {}
-   override fun onDone(id: String) = finishUtterance(id)
+   override fun onDone(id: String) = completeSpeechChunk(id)
    @Deprecated("Deprecated in Java")
-   override fun onError(id: String) = finishUtterance(id)
+   override fun onError(id: String) = completeSpeechChunk(id)
    override fun onError(id: String, errorCode: Int) {
     Log.e(TAG, "TextToSpeech failed for utterance=$id with error=$errorCode")
-    finishUtterance(id)
+    completeSpeechChunk(id)
    }
-   override fun onStop(id: String, interrupted: Boolean) = finishUtterance(id)
+   override fun onStop(id: String, interrupted: Boolean) = completeSpeechChunk(id)
   })
   val queued = pendingSpeech
   if (queued != null) {
@@ -123,6 +124,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   // A slightly slower neutral rate improves intelligibility without changing pitch.
   engine.setSpeechRate(0.95f)
   engine.setPitch(1.0f)
+ }
+
+ private fun completeSpeechChunk(id: String) {
+  main.post {
+   if (activeUtteranceId != id) return@post
+   pendingTtsChunks = (pendingTtsChunks - 1).coerceAtLeast(0)
+   if (pendingTtsChunks == 0) finishUtterance(id)
+  }
  }
 
  private fun finishUtterance(id: String) {
@@ -604,25 +613,60 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (destroyed) return
   speaking = true
   stopRecognition()
-  val utteranceId = "sofia-response-${++utteranceSequence}"
+  val utteranceId = "sofia-response-" + (++utteranceSequence)
   activeUtteranceId = utteranceId
   val spokenText = VoiceOutputSanitizer.sanitize(text)
   if (spokenText.isBlank()) {
    Log.w(TAG, "Skipped a voice response containing no speakable text after visual-symbol filtering")
+   pendingTtsChunks = 0
    finishUtterance(utteranceId)
    return
   }
-  val result = tts?.speak(spokenText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-  if (result != TextToSpeech.SUCCESS) {
-   // A rejected utterance will not reliably produce a completion callback.
-   if (activeUtteranceId == utteranceId) activeUtteranceId = null
-   speaking = false
-   requestInFlight = false
-   status("Не удалось озвучить ответ")
-   startRecognition()
+  // Split long answers into Android TTS-sized utterances. Keep one response ID
+  // and open the follow-up window only after every chunk has completed.
+  val chunks = splitForTts(spokenText, MAX_TTS_CHUNK_CHARS)
+  pendingTtsChunks = chunks.size
+  var rejectedChunks = 0
+  chunks.forEachIndexed { index, chunk ->
+   val mode = if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+   val result = tts?.speak(chunk, mode, null, utteranceId) ?: TextToSpeech.ERROR
+   if (result != TextToSpeech.SUCCESS) {
+    rejectedChunks++
+    Log.e(TAG, "TextToSpeech rejected response chunk " + (index + 1) + "/" + chunks.size)
+   }
+  }
+  if (rejectedChunks > 0) {
+   main.post {
+    if (activeUtteranceId != utteranceId) return@post
+    pendingTtsChunks = (pendingTtsChunks - rejectedChunks).coerceAtLeast(0)
+    if (pendingTtsChunks == 0) {
+     status("Не удалось озвучить часть ответа")
+     finishUtterance(utteranceId)
+    }
+   }
   }
  }
 
+ private fun splitForTts(text: String, maxChars: Int): List<String> {
+  val chunks = ArrayList<String>()
+  var remaining = text.trim()
+  while (remaining.length > maxChars) {
+   val limit = maxChars - 1
+   val sentenceEnd = remaining.substring(0, limit + 1)
+    .indexOfLast { it == '.' || it == '!' || it == '?' || it == '…' || it == '\n' }
+   val wordEnd = remaining.lastIndexOf(' ', limit)
+   val cut = when {
+    sentenceEnd >= maxChars / 2 -> sentenceEnd + 1
+    wordEnd >= maxChars / 2 -> wordEnd
+    else -> maxChars
+   }.coerceIn(1, remaining.length)
+   val chunk = remaining.substring(0, cut).trim()
+   if (chunk.isNotEmpty()) chunks.add(chunk)
+   remaining = remaining.substring(cut).trimStart()
+  }
+  if (remaining.isNotEmpty()) chunks.add(remaining)
+  return chunks
+ }
  override fun onDestroy() {
   destroyed = true
   main.removeCallbacksAndMessages(null)
@@ -647,6 +691,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val LEGACY_DEFAULT_ADDRESS = "мой дорогой"
   private const val MAX_HISTORY_MESSAGES = 20
   private const val MAX_SPOKEN_MEMORY_CHARS = 3500
+  private const val MAX_TTS_CHUNK_CHARS = 3500
   private const val CONVERSATION_WINDOW_MS = 20_000L
  }
 }
