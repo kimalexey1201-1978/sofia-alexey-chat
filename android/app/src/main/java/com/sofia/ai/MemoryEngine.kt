@@ -13,7 +13,7 @@ import java.util.UUID
 class MemoryEngine(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val secure = SofiaSecurePreferences(prefs)
+    private val secure = SofiaSecurePreferences(prefs, "structured-memory")
 
     init {
         migrateLegacyProfile()
@@ -207,8 +207,9 @@ class MemoryEngine(context: Context) {
 
     private fun migrateLegacyProfile() {
         val legacy = appContext.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE)
-        val ownerName = legacy.getString("owner_name", null)?.trim().orEmpty()
-        val preferredAddress = legacy.getString("preferred_address", null)?.trim().orEmpty()
+        val secureLegacy = SofiaSecurePreferences(legacy, "owner-profile")
+        val ownerName = secureLegacy.getString("owner_name", null)?.trim().orEmpty()
+        val preferredAddress = secureLegacy.getString("preferred_address", null)?.trim().orEmpty()
         if (ownerName.isNotEmpty() && readRecords().none { it.id == LEGACY_OWNER_ID }) {
             add(
                 type = MemoryType.LONG_TERM,
