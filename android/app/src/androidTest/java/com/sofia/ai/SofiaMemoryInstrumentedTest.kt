@@ -67,6 +67,41 @@ class SofiaMemoryInstrumentedTest {
     }
 
     @Test
+    fun legacyPlaintextFactsAreMigratedToEncryptedStorageOnRead() {
+        prefs.edit().putString("facts", """["legacy fact"]""").commit()
+
+        val memory = SofiaMemory(context, prefsName)
+        assertTrue(memory.factsSummary().contains("legacy fact"))
+
+        val stored = prefs.getString("facts", null).orEmpty()
+        assertTrue(stored.startsWith("enc:v1:"))
+        assertFalse(stored.contains("legacy fact"))
+    }
+
+    @Test
+    fun memoryPayloadsAreEncryptedAtRest() {
+        val memory = SofiaMemory(context, prefsName)
+        memory.rememberFact("private fact")
+        memory.rememberTurn("user", "private conversation")
+
+        val storedFacts = prefs.getString("facts", null).orEmpty()
+        val storedConversation = prefs.getString("conversation", null).orEmpty()
+        assertTrue(storedFacts.startsWith("enc:v1:"))
+        assertTrue(storedConversation.startsWith("enc:v1:"))
+        assertFalse(storedFacts.contains("private fact"))
+        assertFalse(storedConversation.contains("private conversation"))
+    }
+
+    @Test
+    fun factLengthIsBoundedToFiveHundredCharacters() {
+        val memory = SofiaMemory(context, prefsName)
+        memory.rememberFact("x".repeat(700))
+
+        val summary = memory.factsSummary()
+        assertEquals(500, Regex("x+").find(summary)?.value?.length)
+    }
+
+    @Test
     fun malformedFactsJsonIsNotOverwrittenByRememberFact() {
         val memory = SofiaMemory(context, prefsName)
         prefs.edit().putString("facts", "{broken-json").commit()
