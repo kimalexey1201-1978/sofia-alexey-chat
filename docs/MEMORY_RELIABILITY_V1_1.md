@@ -34,7 +34,13 @@ Verify that local memory remains private, readable, and recoverable across norma
 | MEM-13 | Save an empty or whitespace-only fact | No empty fact is added |
 | MEM-14 | Run memory reads while voice recognition is restarting | No crash, duplicate recognizer, or lost saved fact |
 
-## Automated coverage added in this branch\n\n`SofiaMemoryInstrumentedTest` currently covers: fact persistence across memory-object recreation, case-insensitive deduplication and removal, the 40-turn history bound, invalid-role and blank-fact rejection, legacy plaintext migration, encryption at rest, the 500-character fact limit, and preservation of malformed facts/history payloads, and fail-closed handling of modified ciphertext. These tests are committed but have not yet been executed on an Android emulator or device.\n\nThe test suite uses a separate SharedPreferences name (`sofia_memory_instrumented_test`). It must never call `clear()` on the production `sofia_memory_v1` preferences.\n\n## Release gates
+## Automated coverage added in this branch
+
+`SofiaMemoryInstrumentedTest` currently covers: fact persistence across memory-object recreation, case-insensitive deduplication and removal, the 40-turn history bound, invalid-role and blank-fact rejection, legacy plaintext migration, encryption at rest, the 500-character fact limit, and preservation of malformed facts/history payloads, and fail-closed handling of modified ciphertext. These tests are committed but have not yet been executed on an Android emulator or device.
+
+The test suite uses a separate SharedPreferences name (`sofia_memory_instrumented_test`). It must never call `clear()` on the production `sofia_memory_v1` preferences.
+
+## Release gates
 
 1. Run the Android debug build and unit/instrumentation tests.
 2. Run MEM-01 through MEM-14 on an Android device or emulator.
