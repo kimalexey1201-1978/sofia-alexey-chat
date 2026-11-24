@@ -181,6 +181,29 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  private fun sendCommand(command: String) {
+  val normalizedCommand = command.trim().lowercase(Locale("ru", "RU"))
+  if (normalizedCommand in setOf("что ты помнишь", "что ты помнишь обо мне", "покажи свою память")) {
+   val summary = memory.factsSummary()
+   memory.rememberTurn("user", command)
+   memory.rememberTurn("assistant", summary)
+   waiting = false
+   requestInFlight = false
+   say(summary)
+   return
+  }
+  val forgetMatch = Regex("^(?:удали из памяти|забудь факт)\\s+(.+)$", RegexOption.IGNORE_CASE)
+   .matchEntire(command.trim())
+  if (forgetMatch != null) {
+   val removed = memory.forgetFact(forgetMatch.groupValues[1])
+   val response = if (removed) "Хорошо, удалила этот факт из долговременной памяти."
+    else "Такого точного факта в долговременной памяти не нашла."
+   memory.rememberTurn("user", command)
+   memory.rememberTurn("assistant", response)
+   waiting = false
+   requestInFlight = false
+   say(response)
+   return
+  }
   val rememberMatch = Regex("^(?:запомни|сохрани в память)\\s+(.+)$", RegexOption.IGNORE_CASE)
    .matchEntire(command.trim())
   if (rememberMatch != null) {
