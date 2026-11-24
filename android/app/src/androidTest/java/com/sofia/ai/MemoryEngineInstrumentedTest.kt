@@ -230,6 +230,77 @@ class MemoryEngineInstrumentedTest {
         )
     }
 
+    @Test
+    fun malformedLegacyConversationPreservesSourceAndAllowsIdempotentRetry() {
+        // Bootstrap the legacy AES/GCM key before encrypting fixture values.
+        engine().add(
+            type = MemoryEngine.MemoryType.LONG_TERM,
+            content = "keystore bootstrap for malformed conversation",
+            id = "conversation-bootstrap"
+        )
+        val legacy = context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE)
+        val factsRaw = org.json.JSONArray().put("Факт для частичной миграции").toString()
+        val brokenConversation = "{broken-conversation-json"
+        val factsCiphertext = encryptLegacy(factsRaw, "facts")
+        val conversationCiphertext = encryptLegacy(brokenConversation, "conversation")
+        legacy.edit()
+            .putString("facts", factsCiphertext)
+            .putString("conversation", conversationCiphertext)
+            .commit()
+
+        var failedClosed = false
+        try {
+            MemoryEngine(
+                context = context,
+                preferencesName = "memory_engine_bad_conversation_destination",
+                legacyProfilePreferencesName = null,
+                legacyMemoryPreferencesName = legacyPrefsName,
+                profileDestinationPreferencesName = profileDestinationPrefsName,
+                conversationDestinationPreferencesName = historyDestinationPrefsName
+            )
+        } catch (_: IllegalStateException) {
+            failedClosed = true
+        }
+
+        assertTrue(failedClosed)
+        assertEquals(factsCiphertext, legacy.getString("facts", null))
+        assertEquals(conversationCiphertext, legacy.getString("conversation", null))
+
+        val destinationName = "memory_engine_bad_conversation_destination"
+        val partial = MemoryEngine(
+            context = context,
+            preferencesName = destinationName,
+            legacyProfilePreferencesName = null,
+            legacyMemoryPreferencesName = null
+        )
+        assertEquals(1, partial.search("Факт для частичной миграции").size)
+
+        val repairedConversation = org.json.JSONArray()
+            .put(org.json.JSONObject().put("role", "user").put("content", "Восстановленная история").put("at", 300L))
+            .toString()
+        val repairedCiphertext = encryptLegacy(repairedConversation, "conversation")
+        legacy.edit().putString("conversation", repairedCiphertext).commit()
+
+        val retried = MemoryEngine(
+            context = context,
+            preferencesName = destinationName,
+            legacyProfilePreferencesName = null,
+            legacyMemoryPreferencesName = legacyPrefsName,
+            profileDestinationPreferencesName = profileDestinationPrefsName,
+            conversationDestinationPreferencesName = historyDestinationPrefsName
+        )
+
+        assertEquals(1, retried.search("Факт для частичной миграции").size)
+        assertEquals(1, retried.search("Восстановленная история", includeSensitive = true).size)
+        val history = SofiaSecurePreferences(
+            context.getSharedPreferences(historyDestinationPrefsName, Context.MODE_PRIVATE),
+            "conversation-history"
+        ).getString("conversation_history", null)
+        assertEquals(1, org.json.JSONArray(history).length())
+        assertEquals(factsCiphertext, legacy.getString("facts", null))
+        assertEquals(repairedCiphertext, legacy.getString("conversation", null))
+    }
+
     private fun encryptLegacy(value: String, keyName: String): String {
         val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val secret = keyStore.getKey("sofia_memory_aes_gcm_v1", null) as javax.crypto.SecretKey
