@@ -2,6 +2,7 @@ package com.sofia.ai
 
 import android.content.Context
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 
 /**
@@ -47,7 +48,7 @@ class SofiaMemory(context: Context) {
     @Synchronized
     fun recentTurns(limit: Int = 12): List<Turn> {
         val source = try { JSONArray(securePrefs.getString("conversation", "[]")) }
-                     catch (_: Exception) { JSONArray() }
+                     catch (_: JSONException) { JSONArray() }
         val result = ArrayList<Turn>()
         val start = (source.length() - limit.coerceAtLeast(0)).coerceAtLeast(0)
         for (i in start until source.length()) {
@@ -67,7 +68,7 @@ class SofiaMemory(context: Context) {
         val clean = content.trim().take(6000)
         if (clean.isBlank()) return
         val turns = try { JSONArray(securePrefs.getString("conversation", "[]")) }
-                    catch (_: Exception) { JSONArray() }
+                    catch (_: JSONException) { JSONArray() }
         turns.put(JSONObject().put("role", role).put("content", clean).put("at", System.currentTimeMillis()))
         val bounded = JSONArray()
         val start = (turns.length() - 40).coerceAtLeast(0)
@@ -114,7 +115,7 @@ class SofiaMemory(context: Context) {
 
     private fun readFacts(): List<String> {
         val array = try { JSONArray(securePrefs.getString("facts", "[]")) }
-                    catch (_: Exception) { JSONArray() }
+                    catch (_: JSONException) { JSONArray() }
         return (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
     }
 }
