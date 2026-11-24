@@ -103,13 +103,15 @@ internal class SofiaStructuredMemory(context: Context) {
                 .thenByDescending { it.first.importance }
                 .thenByDescending { it.first.updatedAt })
         val result = StringBuilder()
+        var count = 0
         for ((record, _) in ranked) {
-            if (result.count { it == '\n' } >= maxRecords.coerceIn(1, 12) - 1) break
+            if (count >= maxRecords.coerceIn(1, 12)) break
             val line = "- [${record.type.wireName}] ${record.content}"
             val extra = line.length + if (result.isEmpty()) 0 else 1
             if (result.length + extra > maxChars.coerceIn(256, 5000)) continue
             if (result.isNotEmpty()) result.append('\n')
             result.append(line)
+            count++
         }
         return result.toString()
     }
@@ -130,6 +132,18 @@ internal class SofiaStructuredMemory(context: Context) {
         val removed = records.removeAll { it.content.equals(target, ignoreCase = true) }
         if (removed) writeRecords(records)
         return removed
+    }
+
+    @Synchronized
+    fun summary(): String {
+        val records = readRecords().filter { !it.sensitive }
+        if (records.isEmpty()) return "Структурированная память пока пуста."
+        return records.sortedWith(compareBy<Record> { it.type.ordinal }
+            .thenByDescending { it.importance }
+            .thenByDescending { it.updatedAt })
+            .take(60)
+            .mapIndexed { index, record -> "${index + 1}. [${record.type.wireName}] ${record.content}" }
+            .joinToString("\n")
     }
 
     @Synchronized
