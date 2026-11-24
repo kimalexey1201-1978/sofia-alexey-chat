@@ -346,12 +346,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   status("Выполняю команду")
   io.execute {
    try {
-    val (ownerName, preferredAddress) = try {
-     ownerProfile()
+    val preferredAddress = try {
+     ownerProfile().second
     } catch (profileError: Exception) {
      // Keep ordinary chat available while preserving an unreadable profile for recovery.
      Log.e(TAG, "Owner profile unavailable; using safe defaults without modifying stored bytes", profileError)
-     DEFAULT_OWNER_NAME to DEFAULT_ADDRESS
+     DEFAULT_ADDRESS
     }
     val memoryContext = try { MemoryEngine(this).buildContext(command) } catch (memoryError: Exception) {
      // A damaged memory store must not prevent ordinary chat; leave its raw data untouched.
@@ -366,7 +366,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     """.trimIndent()
     val systemPrompt = """
      Ты София, личный голосовой помощник владельца этого приложения.
-     Идентификационное имя владельца: $ownerName. Не называй его этим именем автоматически.
      Предпочтительное обращение к владельцу в голосовом общении: «$preferredAddress».
      Не спрашивай повторно, как зовут владельца и как к нему обращаться.
      Отвечай по-русски, естественно и кратко. Учитывай переданную историю диалога.
