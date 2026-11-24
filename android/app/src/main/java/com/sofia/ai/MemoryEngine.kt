@@ -47,7 +47,6 @@ class MemoryEngine(context: Context) {
 
     data class ImportResult(val imported: Int, val skipped: Int, val total: Int)
 
-    @Synchronized
     fun add(
         type: MemoryType,
         content: String,
@@ -85,7 +84,6 @@ class MemoryEngine(context: Context) {
     
         }}
 
-    @Synchronized
     fun search(query: String, limit: Int = 20, includeSensitive: Boolean = false): List<MemoryRecord> {
         synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
@@ -105,7 +103,6 @@ class MemoryEngine(context: Context) {
         }}
 
     /** Sensitive records are never added to automatic model context. */
-    @Synchronized
     fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
         synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
@@ -133,7 +130,6 @@ class MemoryEngine(context: Context) {
     
         }}
 
-    @Synchronized
     fun summary(): String {
         val records = readRecords().filter { !it.sensitive }
         if (records.isEmpty()) return "Структурированная память пока пуста."
@@ -145,7 +141,6 @@ class MemoryEngine(context: Context) {
             .joinToString("\n")
     }
 
-    @Synchronized
     fun exportJson(): String {
         synchronized(STORAGE_LOCK) {
         val records = JSONArray()
@@ -159,7 +154,6 @@ class MemoryEngine(context: Context) {
     
         }}
 
-    @Synchronized
     fun importJson(json: String): ImportResult {
         synchronized(STORAGE_LOCK) {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_IMPORT_BYTES) { "Memory file is too large" }
@@ -193,7 +187,6 @@ class MemoryEngine(context: Context) {
 
     fun count(): Int = synchronized(STORAGE_LOCK) { readRecords().size }
 
-    @Synchronized
     fun delete(id: String): Boolean {
         synchronized(STORAGE_LOCK) {
         val records = readRecords().toMutableList()
@@ -203,7 +196,6 @@ class MemoryEngine(context: Context) {
     
         }}
 
-    @Synchronized
     fun deleteByContent(content: String): Boolean {
         synchronized(STORAGE_LOCK) {
         val target = content.trim()
@@ -215,7 +207,6 @@ class MemoryEngine(context: Context) {
     
         }}
 
-    @Synchronized
     fun clearAll() {
         synchronized(STORAGE_LOCK) {
         writeRecords(emptyList())
