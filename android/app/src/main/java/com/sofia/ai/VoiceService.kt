@@ -132,8 +132,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
     putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
    }
+   val activeRecognizer = recognizer
+    ?: throw IllegalStateException("Speech recognizer was not created")
    recognitionActive = true
-   recognizer?.startListening(intent)
+   activeRecognizer.startListening(intent)
   } catch (e: Exception) {
    recognitionActive = false
    Log.e(TAG, "Could not start speech recognition", e)
@@ -353,12 +355,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   status("Выполняю команду")
   io.execute {
    try {
-    val preferredAddress = try {
-     ownerProfile().second
+    val (ownerName, preferredAddress) = try {
+     ownerProfile()
     } catch (profileError: Exception) {
      // Keep ordinary chat available while preserving an unreadable profile for recovery.
      Log.e(TAG, "Owner profile unavailable; using safe defaults without modifying stored bytes", profileError)
-     DEFAULT_ADDRESS
+     DEFAULT_OWNER_NAME to DEFAULT_ADDRESS
     }
     val memoryContext = try { MemoryEngine(this).buildContext(command) } catch (memoryError: Exception) {
      // A damaged memory store must not prevent ordinary chat; leave its raw data untouched.
@@ -373,6 +375,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     """.trimIndent()
     val systemPrompt = """
      Ты София, личный голосовой помощник владельца этого приложения.
+     Имя владельца для идентификации: $ownerName. Это справочная информация, не используй имя как обращение.
      Предпочтительное обращение к владельцу в голосовом общении: «$preferredAddress».
      Не спрашивай повторно, как зовут владельца и как к нему обращаться.
      Отвечай по-русски, естественно и кратко. Учитывай переданную историю диалога.
