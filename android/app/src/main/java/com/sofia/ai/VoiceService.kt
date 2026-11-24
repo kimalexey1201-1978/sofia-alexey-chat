@@ -499,13 +499,31 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   speakNow(text)
  }
 
+ private fun speechText(markdown: String): String {
+  // Keep the spoken answer natural: remove Markdown syntax and visual-only emoji.
+  return markdown
+   .replace(Regex("(?s)\`\`\`[^\\n]*\\n?(.*?)\`\`\`"), "$1")
+   .replace(Regex("\\[([^\\]]+)\\]\\((?:https?://)?[^)]+\\)"), "$1")
+   .replace(Regex("(?m)^\\s{0,3}#{1,6}\\s*"), "")
+   .replace(Regex("(?m)^\\s*[-+*]\\s+"), "")
+   .replace(Regex("(?m)^\\s*\\d+[.)]\\s+"), "")
+   .replace(Regex("[*_~]{1,3}"), "")
+   .replace(Regex("`{1,3}"), "")
+   .replace(Regex("(?m)^\\s*>\\s?"), "")
+   .replace(Regex("[\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{FE0F}\\x{200D}]"), "")
+   .replace(Regex("[ \\t]{2,}"), " ")
+   .replace(Regex("\\n{3,}"), "\\n\\n")
+   .trim()
+ }
+
  private fun speakNow(text: String) {
   if (destroyed) return
   speaking = true
   stopRecognition()
   val utteranceId = "sofia-response-${++utteranceSequence}"
   activeUtteranceId = utteranceId
-  val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+  val spokenText = speechText(text).ifBlank { text.replace(Regex("[*_~\\x60]"), "") }
+  val result = tts?.speak(spokenText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
   if (result != TextToSpeech.SUCCESS) {
    // A rejected utterance will not reliably produce a completion callback.
    if (activeUtteranceId == utteranceId) activeUtteranceId = null
