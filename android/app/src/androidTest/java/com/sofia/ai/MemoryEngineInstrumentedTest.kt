@@ -9,6 +9,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class MemoryEngineInstrumentedTest {
@@ -17,6 +20,7 @@ class MemoryEngineInstrumentedTest {
     private val legacyPrefsName = "memory_engine_legacy_profile_test"
     private val profileDestinationPrefsName = "memory_engine_profile_destination_test"
     private val historyDestinationPrefsName = "memory_engine_history_destination_test"
+    private val concurrentPrefsName = "memory_engine_concurrent_test"
 
     private fun engine() = MemoryEngine(
         context = context,
@@ -32,6 +36,7 @@ class MemoryEngineInstrumentedTest {
         context.getSharedPreferences("memory_engine_migration_destination", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences(profileDestinationPrefsName, Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences(historyDestinationPrefsName, Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences(concurrentPrefsName, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test
@@ -57,6 +62,51 @@ class MemoryEngineInstrumentedTest {
             "Обновлённое описание архитектуры",
             reopened.search("архитектуры").single().content
         )
+    }
+
+
+    @Test
+    fun concurrentAddsAcrossIndependentEngineInstancesDoNotLoseRecords() {
+        val workers = 8
+        val recordsPerWorker = 10
+        val ready = CountDownLatch(workers)
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(workers)
+        try {
+            val tasks = (0 until workers).map { worker ->
+                executor.submit {
+                    val independentEngine = MemoryEngine(
+                        context = context,
+                        preferencesName = concurrentPrefsName,
+                        legacyProfilePreferencesName = null,
+                        legacyMemoryPreferencesName = null
+                    )
+                    ready.countDown()
+                    check(start.await(10, TimeUnit.SECONDS))
+                    repeat(recordsPerWorker) { index ->
+                        independentEngine.add(
+                            type = MemoryEngine.MemoryType.LONG_TERM,
+                            content = "Concurrent record $worker $index",
+                            id = "concurrent-$worker-$index"
+                        )
+                    }
+                }
+            }
+            assertTrue("Workers did not become ready", ready.await(10, TimeUnit.SECONDS))
+            start.countDown()
+            tasks.forEach { it.get(60, TimeUnit.SECONDS) }
+
+            val reopened = MemoryEngine(
+                context = context,
+                preferencesName = concurrentPrefsName,
+                legacyProfilePreferencesName = null,
+                legacyMemoryPreferencesName = null
+            )
+            assertEquals(workers * recordsPerWorker, reopened.count())
+        } finally {
+            start.countDown()
+            executor.shutdownNow()
+        }
     }
 
     @Test
