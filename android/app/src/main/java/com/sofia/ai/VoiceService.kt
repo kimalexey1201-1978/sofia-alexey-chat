@@ -659,8 +659,31 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     // cannot be fed back into future model turns.
     val normalizedAnswer = VoiceOutputSanitizer.sanitize(answer)
 
+    val providerError = root.opt("error")
+    val providerCode = when (providerError) {
+     is JSONObject -> providerError.optString("code").lowercase(Locale.ROOT)
+     is String -> providerError.lowercase(Locale.ROOT)
+     else -> ""
+    }
+    val serverErrorText = when (code) {
+     400 -> "HTTP 400: сервер не принял формат запроса."
+     401, 403 -> "HTTP $code: сервер отклонил авторизацию."
+     402 -> "HTTP 402: у провайдера недостаточно средств или исчерпан баланс."
+     404 -> "HTTP 404: выбранная модель или адрес сервиса не найдены."
+     408, 504 -> "HTTP $code: сервер не дождался ответа вовремя."
+     429 -> "HTTP 429: превышен лимит запросов или квота провайдера."
+     in 500..599 -> "HTTP $code: внутренняя ошибка сервера или провайдера."
+     else -> "Сервер вернул HTTP $code."
+    }
+    val diagnostic = when (providerCode) {
+     "api_key_missing", "provider_credential_not_configured" -> "На сервере не настроен ключ провайдера."
+     "invalid_api_key", "authentication_error" -> "Провайдер отклонил ключ авторизации."
+     "rate_limit_exceeded", "insufficient_quota" -> "Провайдер сообщил о лимите или исчерпанной квоте."
+     "model_not_found" -> "Провайдер не нашёл выбранную модель."
+     else -> serverErrorText
+    }
     val finalAnswer = when {
-     code !in 200..299 -> "Сервер вернул ошибку. Попробуй повторить вопрос."
+     code !in 200..299 -> diagnostic + " Попробуй позже."
      normalizedAnswer.isNotBlank() -> normalizedAnswer
      root.has("error") -> "Сервис ответа временно недоступен."
      else -> "Я получила пустой ответ. Повтори, пожалуйста, вопрос."
