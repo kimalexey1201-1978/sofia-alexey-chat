@@ -120,11 +120,11 @@ class MemoryEngine(
     /** Sensitive records are never added to automatic model context. */
     fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
         synchronized(STORAGE_LOCK) {
+        val records = readRecords().filter { !it.sensitive }
+        val ownerProfile = records.firstOrNull { it.id == "owner-knowledge-profile-v1" }
         val terms = tokenize(query)
-        if (terms.isEmpty()) return ""
-        val ranked = readRecords()
-            .asSequence()
-            .filter { !it.sensitive }
+        val ranked = records.asSequence()
+            .filter { it.id != "owner-knowledge-profile-v1" }
             .map { it to score(it, terms) }
             .filter { it.second > 0 }
             .sortedWith(compareByDescending<Pair<MemoryRecord, Int>> { it.second }
@@ -132,6 +132,13 @@ class MemoryEngine(
                 .thenByDescending { it.first.updatedAt })
         val result = StringBuilder()
         var count = 0
+        if (ownerProfile != null) {
+            val line = "- [${ownerProfile.type.wireName}] ${ownerProfile.content}"
+            if (line.length <= maxChars.coerceIn(256, 5000)) {
+                result.append(line)
+                count++
+            }
+        }
         for ((record, _) in ranked) {
             if (count >= maxRecords.coerceIn(1, 12)) break
             val line = "- [${record.type.wireName}] ${record.content}"
