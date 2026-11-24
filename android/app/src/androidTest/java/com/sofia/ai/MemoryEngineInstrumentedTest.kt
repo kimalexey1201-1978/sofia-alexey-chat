@@ -175,6 +175,61 @@ class MemoryEngineInstrumentedTest {
         }
     }
 
+    @Test
+    fun importSkipsRecordsWithImpossibleTimestamps() {
+        val memory = engine()
+        val valid = org.json.JSONObject()
+            .put("id", "valid-time")
+            .put("type", "long_term")
+            .put("content", "Корректная запись")
+            .put("createdAt", 100L)
+            .put("updatedAt", 200L)
+        val invalid = org.json.JSONObject()
+            .put("id", "invalid-time")
+            .put("type", "long_term")
+            .put("content", "Запись с неверной хронологией")
+            .put("createdAt", 300L)
+            .put("updatedAt", 200L)
+        val payload = org.json.JSONObject()
+            .put("format", "sofia-memory")
+            .put("schemaVersion", 1)
+            .put("records", org.json.JSONArray().put(valid).put(invalid))
+
+        val result = memory.importJson(payload.toString())
+
+        assertEquals(1, result.imported)
+        assertEquals(1, result.skipped)
+        assertEquals(1, memory.count())
+        assertTrue(memory.search("Корректная запись").any { it.id == "valid-time" })
+        assertTrue(memory.search("неверной хронологией").isEmpty())
+    }
+
+    @Test
+    fun malformedLegacyFactsAbortMigrationWithoutChangingSource() {
+        val legacy = context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE)
+        val malformed = "{not-a-valid-facts-array"
+        legacy.edit().putString("facts", malformed).commit()
+
+        var failedClosed = false
+        try {
+            MemoryEngine(
+                context = context,
+                preferencesName = "memory_engine_bad_legacy_destination",
+                legacyProfilePreferencesName = null,
+                legacyMemoryPreferencesName = legacyPrefsName
+            )
+        } catch (_: IllegalStateException) {
+            failedClosed = true
+        }
+
+        assertTrue(failedClosed)
+        assertEquals(malformed, legacy.getString("facts", null))
+        assertFalse(
+            context.getSharedPreferences("memory_engine_bad_legacy_destination", Context.MODE_PRIVATE)
+                .contains("records_v1")
+        )
+    }
+
     private fun encryptLegacy(value: String, keyName: String): String {
         val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val secret = keyStore.getKey("sofia_memory_aes_gcm_v1", null) as javax.crypto.SecretKey
