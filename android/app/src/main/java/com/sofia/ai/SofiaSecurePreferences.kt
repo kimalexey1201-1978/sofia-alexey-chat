@@ -14,11 +14,11 @@ import javax.crypto.spec.GCMParameterSpec
 internal class SofiaSecurePreferences(
     private val prefs: SharedPreferences,
     private val namespace: String = "default",
-    private val keyAlias: String = DEFAULT_keyAlias
+    private val keyAlias: String = DEFAULT_KEY_ALIAS
 ) {
     companion object {
         private val STORAGE_LOCK = Any()
-        private const val DEFAULT_keyAlias = "sofia_memory_aes_gcm_v1"
+        private const val DEFAULT_KEY_ALIAS = "sofia_memory_aes_gcm_v1"
         private const val PREFIX = "enc:v1:"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val TAG_BITS = 128
