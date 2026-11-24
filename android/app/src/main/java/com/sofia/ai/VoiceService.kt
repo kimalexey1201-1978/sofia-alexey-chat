@@ -457,7 +457,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Log.e(TAG, "Owner profile unavailable; using safe defaults without modifying stored bytes", profileError)
      DEFAULT_OWNER_NAME to DEFAULT_ADDRESS
     }
-    val memoryContext = try { MemoryEngine(this).buildContext(command, maxRecords = 8, maxChars = 5000) } catch (memoryError: Exception) {
+    val memoryContext = try { MemoryEngine(this).buildContext(command, maxRecords = 8, maxChars = 5000, includeOwnerProfile = true) } catch (memoryError: Exception) {
      // A damaged memory store must not prevent ordinary chat; leave its raw data untouched.
      Log.e(TAG, "Structured memory unavailable; continuing without memory context", memoryError)
      ""
