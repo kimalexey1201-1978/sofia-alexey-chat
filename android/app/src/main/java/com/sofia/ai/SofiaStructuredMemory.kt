@@ -168,7 +168,7 @@ internal class SofiaStructuredMemory(context: Context) {
         val raw = secure.getString(KEY_RECORDS, "[]") ?: "[]"
         val parsed = try {
             val array = JSONArray(raw)
-            buildList {
+            buildList<Record> {
                 for (i in 0 until array.length()) {
                     val item = array.optJSONObject(i) ?: continue
                     val record = try { item.toRecord() } catch (_: JSONException) { null }
