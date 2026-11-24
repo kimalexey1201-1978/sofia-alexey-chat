@@ -36,7 +36,6 @@ class MemoryEngine(
         PROCEDURAL("procedural");
 
         companion object {
-        private val STORAGE_LOCK = Any()
             fun fromWire(value: String): MemoryType? = values().firstOrNull { it.wireName == value }
         }
     }
