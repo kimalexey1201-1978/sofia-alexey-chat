@@ -1,22 +1,19 @@
 package com.sofia.ai
 
 import android.content.Context
-import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
 import java.util.UUID
 
 /**
- * Sofia's private, on-device memory store.
- *
- * The public API is intentionally independent of the persistence backend so the
- * implementation can move to SQLite/Room later without changing callers.
- * No memory content is written to logs or shipped in the APK.
+ * Sofia's private, encrypted, on-device memory store.
+ * The persistence contract stays independent so the backend can later move to Room.
  */
 class MemoryEngine(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val secure = SofiaSecurePreferences(prefs)
 
     init {
         migrateLegacyProfile()
@@ -62,17 +59,19 @@ class MemoryEngine(context: Context) {
         val clean = content.trim()
         require(clean.isNotEmpty()) { "Memory content cannot be empty" }
         require(clean.length <= MAX_RECORD_CHARS) { "Memory record is too large" }
+        require(id.isNotBlank() && id.length <= 128) { "Invalid memory record ID" }
         val now = System.currentTimeMillis()
         val record = MemoryRecord(
             id = id,
             type = type,
             content = clean,
-            source = source.take(200),
+            source = source.trim().take(200),
             createdAt = now,
             updatedAt = now,
             confidence = confidence.coerceIn(0.0, 1.0),
             importance = importance.coerceIn(1, 5),
-            tags = tags.map { it.trim().lowercase(Locale.ROOT) }.filter { it.isNotEmpty() }.distinct().take(30),
+            tags = tags.map { it.trim().lowercase(Locale.ROOT) }
+                .filter { it.isNotEmpty() }.distinct().take(30),
             sensitive = sensitive
         )
         val records = readRecords().toMutableList()
@@ -99,31 +98,43 @@ class MemoryEngine(context: Context) {
             .toList()
     }
 
-    /**
-     * Returns only query-relevant memory, never the entire profile.
-     * Sensitive records require a stronger lexical match.
-     */
+    /** Sensitive records are never added to automatic model context. */
+    @Synchronized
     fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
         val terms = tokenize(query)
         if (terms.isEmpty()) return ""
         val ranked = readRecords()
+            .asSequence()
+            .filter { !it.sensitive }
             .map { it to score(it, terms) }
-            .filter { (record, score) -> score >= if (record.sensitive) 4 else 1 }
+            .filter { it.second > 0 }
             .sortedWith(compareByDescending<Pair<MemoryRecord, Int>> { it.second }
                 .thenByDescending { it.first.importance }
                 .thenByDescending { it.first.updatedAt })
         val result = StringBuilder()
         var count = 0
         for ((record, _) in ranked) {
-            if (count >= maxRecords.coerceIn(1, 20)) break
+            if (count >= maxRecords.coerceIn(1, 12)) break
             val line = "- [${record.type.wireName}] ${record.content}"
             val extra = line.length + if (result.isEmpty()) 0 else 1
-            if (result.length + extra > maxChars.coerceIn(256, 8000)) continue
+            if (result.length + extra > maxChars.coerceIn(256, 5000)) continue
             if (result.isNotEmpty()) result.append('\n')
             result.append(line)
             count++
         }
         return result.toString()
+    }
+
+    @Synchronized
+    fun summary(): String {
+        val records = readRecords().filter { !it.sensitive }
+        if (records.isEmpty()) return "Структурированная память пока пуста."
+        return records.sortedWith(compareBy<MemoryRecord> { it.type.ordinal }
+            .thenByDescending { it.importance }
+            .thenByDescending { it.updatedAt })
+            .take(60)
+            .mapIndexed { index, record -> "${index + 1}. [${record.type.wireName}] ${record.content}" }
+            .joinToString("\n")
     }
 
     @Synchronized
@@ -180,6 +191,16 @@ class MemoryEngine(context: Context) {
     }
 
     @Synchronized
+    fun deleteByContent(content: String): Boolean {
+        val target = content.trim()
+        if (target.isEmpty()) return false
+        val records = readRecords().toMutableList()
+        val removed = records.removeAll { it.content.equals(target, ignoreCase = true) }
+        if (removed) writeRecords(records)
+        return removed
+    }
+
+    @Synchronized
     fun clearAll() {
         writeRecords(emptyList())
     }
@@ -218,37 +239,42 @@ class MemoryEngine(context: Context) {
             if (term in tags) score += 4
             if (term in content) score += 2
         }
-        if (score > 0 && (record.type == MemoryType.LONG_TERM || record.type == MemoryType.PROCEDURAL)) score += 1
+        if (score > 0 && (record.type == MemoryType.LONG_TERM || record.type == MemoryType.PROCEDURAL)) score++
         return score
     }
 
     private fun tokenize(value: String): Set<String> =
         Regex("[\\p{L}\\p{N}]{2,}").findAll(value.lowercase(Locale.ROOT))
-            .map { it.value }
-            .toSet()
+            .map { it.value }.toSet()
 
+    /**
+     * Fail closed on malformed local data. Returning an empty list here would let a later
+     * write silently replace the original encrypted value and destroy recoverable records.
+     */
     private fun readRecords(): List<MemoryRecord> {
-        val raw = prefs.getString(KEY_RECORDS, null) ?: return emptyList()
-        return try {
-            val array = JSONArray(raw)
-            buildList {
-                for (i in 0 until array.length()) {
-                    val record = try { array.optJSONObject(i)?.toRecord() } catch (_: Exception) { null }
-                    if (record != null) add(record)
-                }
-            }
+        val raw = secure.getString(KEY_RECORDS, null) ?: return emptyList()
+        val array = try {
+            JSONArray(raw)
         } catch (e: Exception) {
-            Log.w(TAG, "Memory store could not be parsed; preserving the raw value for recovery")
-            emptyList()
+            throw IllegalStateException("Локальная память повреждена. Исходные данные сохранены.", e)
         }
+        val parsed = ArrayList<MemoryRecord>(array.length())
+        for (i in 0 until array.length()) {
+            val item = array.optJSONObject(i)
+                ?: throw IllegalStateException("Запись памяти повреждена. Исходные данные сохранены.")
+            val record = try { item.toRecord() } catch (e: Exception) {
+                throw IllegalStateException("Запись памяти повреждена. Исходные данные сохранены.", e)
+            } ?: throw IllegalStateException("Запись памяти неполная. Исходные данные сохранены.")
+            parsed.add(record)
+        }
+        val cutoff = System.currentTimeMillis() - WORKING_TTL_MS
+        return parsed.filter { it.type != MemoryType.WORKING || it.updatedAt >= cutoff }
     }
 
     private fun writeRecords(records: List<MemoryRecord>) {
         val array = JSONArray()
         records.sortedBy { it.createdAt }.forEach { array.put(it.toJson()) }
-        check(prefs.edit().putString(KEY_RECORDS, array.toString()).commit()) {
-            "Could not persist Sofia memory"
-        }
+        secure.putString(KEY_RECORDS, array.toString())
     }
 
     private fun MemoryRecord.toJson() = JSONObject()
@@ -264,11 +290,14 @@ class MemoryEngine(context: Context) {
         .put("sensitive", sensitive)
 
     private fun JSONObject.toRecord(): MemoryRecord? {
-        val id = optString("id").takeIf { it.isNotBlank() } ?: return null
+        val id = optString("id").takeIf { it.isNotBlank() && it.length <= 128 } ?: return null
         val type = MemoryType.fromWire(optString("type")) ?: return null
-        val content = optString("content").trim().takeIf { it.isNotEmpty() && it.length <= MAX_RECORD_CHARS } ?: return null
+        val content = optString("content").trim()
+            .takeIf { it.isNotEmpty() && it.length <= MAX_RECORD_CHARS } ?: return null
         val tagsArray = optJSONArray("tags") ?: JSONArray()
-        val tags = (0 until tagsArray.length()).mapNotNull { tagsArray.optString(it).takeIf { tag -> tag.isNotBlank() } }.take(30)
+        val tags = (0 until tagsArray.length())
+            .mapNotNull { tagsArray.optString(it).trim().takeIf(String::isNotEmpty) }
+            .take(30)
         return MemoryRecord(
             id = id,
             type = type,
@@ -284,13 +313,13 @@ class MemoryEngine(context: Context) {
     }
 
     companion object {
-        private const val TAG = "SofiaMemory"
         private const val PREFS_NAME = "sofia_memory_engine"
         private const val KEY_RECORDS = "records_v1"
         private const val FORMAT_NAME = "sofia-memory"
         private const val SCHEMA_VERSION = 1
         private const val MAX_RECORD_CHARS = 12000
         private const val MAX_IMPORT_BYTES = 5 * 1024 * 1024
+        private const val WORKING_TTL_MS = 24L * 60L * 60L * 1000L
         private const val LEGACY_OWNER_ID = "legacy-profile-owner-name-v1"
         private const val LEGACY_ADDRESS_ID = "legacy-profile-preferred-address-v1"
     }
