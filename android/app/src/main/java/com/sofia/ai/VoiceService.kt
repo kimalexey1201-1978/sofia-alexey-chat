@@ -278,8 +278,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   // Existing plaintext profile values are migrated in place after encryption succeeds.
   val ownerName = secure.getString("owner_name", DEFAULT_OWNER_NAME)?.trim()
    ?.takeIf { it.isNotEmpty() } ?: DEFAULT_OWNER_NAME
-  val address = secure.getString("preferred_address", DEFAULT_ADDRESS)?.trim()
-   ?.takeIf { it.isNotEmpty() } ?: DEFAULT_ADDRESS
+  val storedAddress = secure.getString("preferred_address", null)?.trim()
+  // The owner explicitly corrected the old default form of address.
+  // Migrate only the old default; preserve any other custom preference.
+  val address = if (storedAddress.isNullOrEmpty() || storedAddress == "мой хороший") {
+   DEFAULT_ADDRESS.also { secure.putString("preferred_address", it) }
+  } else storedAddress
   return ownerName to address
  }
 
@@ -531,7 +535,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val MEMORY_PREFS = "sofia_memory"
   private const val HISTORY_KEY = "conversation_history"
   private const val DEFAULT_OWNER_NAME = "Алексей"
-  private const val DEFAULT_ADDRESS = "мой хороший"
+  private const val DEFAULT_ADDRESS = "мой дорогой"
   private const val MAX_HISTORY_MESSAGES = 20
  }
 }
