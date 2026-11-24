@@ -16,7 +16,8 @@ class MemoryEngine(
     legacyProfilePreferencesName: String? = "sofia_profile",
     legacyMemoryPreferencesName: String? = "sofia_memory_v1",
     private val profileDestinationPreferencesName: String = "sofia_profile",
-    private val conversationDestinationPreferencesName: String = "sofia_memory"
+    private val conversationDestinationPreferencesName: String = "sofia_memory",
+    seedOwnerProfile: Boolean = preferencesName == "sofia_memory_engine"
 ) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
@@ -26,7 +27,7 @@ class MemoryEngine(
         synchronized(STORAGE_LOCK) {
         legacyProfilePreferencesName?.let(::migrateLegacyProfile)
         legacyMemoryPreferencesName?.let(::migrateLegacyMemory)
-        seedOwnerKnowledge()
+        if (seedOwnerProfile) seedOwnerKnowledge()
     
         }}
 
