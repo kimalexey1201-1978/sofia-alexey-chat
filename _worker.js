@@ -97,6 +97,14 @@ export default {
         );
 
         const responseText = await upstream.text();
+        if (!upstream.ok) {
+          // Do not forward provider error bodies, which may contain internal diagnostics.
+          return Response.json(
+            { error: "The model provider request failed" },
+            { status: 502, headers: cors }
+          );
+        }
+
         let data;
         try {
           data = JSON.parse(responseText);
@@ -108,7 +116,7 @@ export default {
         }
 
         return Response.json(data, {
-          status: upstream.status,
+          status: 200,
           headers: cors
         });
 
