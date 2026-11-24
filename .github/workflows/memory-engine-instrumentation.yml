@@ -1,0 +1,86 @@
+name: MemoryEngine instrumentation tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "test/memory-engine-instrumentation-20261124"
+    paths:
+      - "android/**"
+      - ".github/workflows/memory-engine-instrumentation.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/memory-engine-instrumentation.yml"
+
+permissions:
+  contents: read
+
+# A push and its pull_request event can target the same head branch.
+# Serialize emulator runs, but never cancel an active run: cold boot on the
+# TCG fallback can take several minutes and cancellation hides test results.
+concurrency:
+  group: memory-engine-instrumentation-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  memory-engine-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Enable KVM when available
+        shell: bash
+        run: |
+          if [[ -e /dev/kvm ]]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          fi
+          if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+            echo "KVM hardware acceleration is available."
+          else
+            echo "KVM is unavailable; allowing the emulator's TCG fallback."
+            echo "ANDROID_I_WANT_MY_TCG=yes" >> "$GITHUB_ENV"
+          fi
+
+      # This disposable key exists only in this CI runner. It does not touch
+      # the owner's release keystore or any repository signing secret.
+      - name: Create temporary CI signing key
+        shell: bash
+        run: |
+          STORE_PASSWORD="$(openssl rand -hex 24)"
+          echo "SOFIA_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "SOFIA_KEY_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "SOFIA_KEY_ALIAS=sofia-ci" >> "$GITHUB_ENV"
+          keytool -genkeypair -v \
+            -keystore android/app/sofia-release.jks \
+            -storepass "$STORE_PASSWORD" \
+            -alias sofia-ci \
+            -keypass "$STORE_PASSWORD" \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=Sofia CI,O=Temporary,C=US"
+          chmod 600 android/app/sofia-release.jks
+
+      - name: Run MemoryEngine instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: gradle -p android connectedDebugAndroidTest
