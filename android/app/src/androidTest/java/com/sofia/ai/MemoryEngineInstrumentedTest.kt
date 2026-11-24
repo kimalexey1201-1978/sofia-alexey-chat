@@ -136,6 +136,22 @@ class MemoryEngineInstrumentedTest {
     }
 
     @Test
+    fun voiceContextAlwaysIncludesSeededOwnerProfile() {
+        val memory = engine()
+
+        val voiceContext = memory.buildContext(
+            query = "Что ты знаешь обо мне?",
+            maxRecords = 8,
+            maxChars = 5000,
+            includeOwnerProfile = true
+        )
+
+        assertTrue(voiceContext.contains("ПРОФИЛЬ ВЛАДЕЛЬЦА"))
+        assertTrue(voiceContext.contains("Южной Корее"))
+        assertTrue(memory.buildContext("Что ты знаешь обо мне?").isEmpty())
+    }
+
+    @Test
     fun migratedOwnerProfileRecordsAreSensitiveAndExcludedFromModelContext() {
         val legacyPrefs = context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE)
         val legacyProfile = SofiaSecurePreferences(legacyPrefs, "owner-profile")
