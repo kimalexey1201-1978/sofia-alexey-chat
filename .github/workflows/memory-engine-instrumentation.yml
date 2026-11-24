@@ -19,6 +19,10 @@ permissions:
 jobs:
   memory-engine-tests:
     runs-on: ubuntu-latest
+    env:
+      # GitHub-hosted Linux runners may lack hardware acceleration.
+      # Force the Android emulator's supported TCG software CPU mode.
+      ANDROID_I_WANT_MY_TCG: "yes"
     steps:
       - name: Check out source
         uses: actions/checkout@v4
