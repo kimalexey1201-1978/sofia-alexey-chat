@@ -23,7 +23,21 @@ class MessageNotificationListener : NotificationListenerService() {
   val extras = notification.extras ?: return
   val messageBundles = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
   val latestMessage = messageBundles?.lastOrNull() as? Bundle
-  val isMessage = notification.category == Notification.CATEGORY_MESSAGE || latestMessage != null
+  val knownMessagingApps = setOf(
+   "com.kakao.talk",
+   "com.samsung.android.messaging",
+   "com.google.android.apps.messaging",
+   "org.telegram.messenger",
+   "com.whatsapp",
+   "jp.naver.line.android",
+   "com.facebook.orca",
+   "com.discord",
+   "com.instagram.android",
+   "com.viber.voip",
+   "com.tencent.mm"
+  )
+  val isMessage = notification.category == Notification.CATEGORY_MESSAGE ||
+   latestMessage != null || sbn.packageName in knownMessagingApps
   if (!isMessage) return
 
   val messageText = latestMessage?.getCharSequence("text")?.toString()
