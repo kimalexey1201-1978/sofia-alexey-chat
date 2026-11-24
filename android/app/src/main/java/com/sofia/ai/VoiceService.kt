@@ -15,6 +15,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.ArrayDeque
 import java.util.concurrent.Executors
 
 class VoiceService : Service(), TextToSpeech.OnInitListener {
@@ -35,6 +36,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var utteranceSequence = 0
  private var activeUtteranceId: String? = null
  private val pendingTtsUtteranceIds = mutableSetOf<String>()
+ private data class IncomingMessage(val sender: String, val text: String)
+ private val pendingIncomingMessages = ArrayDeque<IncomingMessage>()
 
  override fun onCreate() {
   super.onCreate()
@@ -47,7 +50,20 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   startRecognition()
  }
 
- override fun onStartCommand(intent: Intent?, flags: Int, startId: Int) = START_STICKY
+ override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+  if (intent?.action == ACTION_READ_INCOMING_MESSAGE) {
+   val sender = intent.getStringExtra(EXTRA_MESSAGE_SENDER)?.take(200).orEmpty()
+   val text = intent.getStringExtra(EXTRA_MESSAGE_TEXT)?.take(8000).orEmpty()
+   if (text.isNotBlank()) {
+    main.post {
+     if (pendingIncomingMessages.size >= MAX_PENDING_INCOMING_MESSAGES) pendingIncomingMessages.removeFirst()
+     pendingIncomingMessages.addLast(IncomingMessage(sender.ifBlank { "неизвестный отправитель" }, text))
+     processNextIncomingMessage()
+    }
+   }
+  }
+  return START_STICKY
+ }
  override fun onBind(intent: Intent?): IBinder? = null
 
  override fun onInit(status: Int) {
@@ -91,6 +107,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (queued != null) {
    pendingSpeech = null
    speakNow(queued)
+  } else if (pendingIncomingMessages.isNotEmpty()) {
+   processNextIncomingMessage()
   } else if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
    // Retry if the recognizer was unavailable during service creation.
    startRecognition()
@@ -143,6 +161,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    speaking = false
    requestInFlight = false
    if (!destroyed) {
+    if (pendingIncomingMessages.isNotEmpty()) {
+     processNextIncomingMessage()
+     return@post
+    }
     // Keep a short hands-free follow-up window after each spoken answer.
     waiting = true
     conversationTimeoutTask?.let { main.removeCallbacks(it) }
@@ -168,6 +190,49 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private fun status(s: String) =
   getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification(s))
 
+ private fun processNextIncomingMessage() {
+  if (destroyed || !ttsReady || speaking || requestInFlight || pendingIncomingMessages.isEmpty()) return
+  val incoming = pendingIncomingMessages.removeFirst()
+  waiting = false
+  conversationTimeoutTask?.let { main.removeCallbacks(it) }
+  conversationTimeoutTask = null
+  requestInFlight = true
+  stopRecognition()
+  status("Перевожу входящее сообщение")
+  io.execute {
+   val spokenText = try {
+    translateIncomingMessage(incoming)
+   } catch (e: Exception) {
+    Log.w(TAG, "Incoming message translation failed", e)
+    "Не удалось получить перевод. Оригинал сообщения: " + incoming.text
+   }
+   main.post {
+    if (destroyed) return@post
+    requestInFlight = false
+    val prefix = if (incoming.sender.isBlank()) "" else "Сообщение от " + incoming.sender + ". "
+    say(prefix + spokenText)
+   }
+  }
+ }
+
+ private fun translateIncomingMessage(message: IncomingMessage): String {
+  val connection = URL(TRANSLATE_ENDPOINT).openConnection() as HttpURLConnection
+  connection.requestMethod = "POST"
+  connection.connectTimeout = 15000
+  connection.readTimeout = 45000
+  connection.doOutput = true
+  connection.setRequestProperty("Content-Type", "application/json")
+  val body = JSONObject().put("sender", message.sender).put("text", message.text).toString()
+  connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+  val code = connection.responseCode
+  val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+  val responseText = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+  connection.disconnect()
+  if (code !in 200..299) throw IllegalStateException("Translation service returned HTTP " + code)
+  val translation = JSONObject(responseText).optString("translation").trim()
+  if (translation.isBlank()) throw IllegalStateException("Translation service returned an empty result")
+  return translation
+ }
  private fun startRecognition() {
   if (destroyed || restarting || speaking || requestInFlight || recognitionActive) return
   if (!SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -681,6 +746,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
  override fun onDestroy() {
   destroyed = true
+  pendingIncomingMessages.clear()
   main.removeCallbacksAndMessages(null)
   conversationTimeoutTask = null
   resetRecognizer()
@@ -695,6 +761,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val CHANNEL = "sofia_voice"
   private const val NOTIFICATION = 7301
   private const val ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/chat"
+  private const val TRANSLATE_ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/translate"
+  const val ACTION_READ_INCOMING_MESSAGE = "com.sofia.ai.READ_INCOMING_MESSAGE"
+  const val EXTRA_MESSAGE_SENDER = "message_sender"
+  const val EXTRA_MESSAGE_TEXT = "message_text"
   private const val PROFILE_PREFS = "sofia_profile"
   private const val MEMORY_PREFS = "sofia_memory"
   private const val HISTORY_KEY = "conversation_history"
@@ -702,6 +772,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val DEFAULT_ADDRESS = "мой хороший"
   private const val LEGACY_DEFAULT_ADDRESS = "мой дорогой"
   private const val MAX_HISTORY_MESSAGES = 20
+  private const val MAX_PENDING_INCOMING_MESSAGES = 20
   private const val MAX_SPOKEN_MEMORY_CHARS = 3500
   private const val MAX_TTS_CHUNK_CHARS = 3500
   private const val CONVERSATION_WINDOW_MS = 20_000L
