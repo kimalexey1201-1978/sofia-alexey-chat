@@ -16,8 +16,10 @@ class MemoryEngine(context: Context) {
     private val secure = SofiaSecurePreferences(prefs, "structured-memory")
 
     init {
+        synchronized(STORAGE_LOCK) {
         migrateLegacyProfile()
-    }
+    
+        }}
 
     enum class MemoryType(val wireName: String) {
         WORKING("working"),
@@ -56,6 +58,7 @@ class MemoryEngine(context: Context) {
         sensitive: Boolean = false,
         id: String = UUID.randomUUID().toString()
     ): MemoryRecord {
+        synchronized(STORAGE_LOCK) {
         val clean = content.trim()
         require(clean.isNotEmpty()) { "Memory content cannot be empty" }
         require(clean.length <= MAX_RECORD_CHARS) { "Memory record is too large" }
@@ -79,10 +82,12 @@ class MemoryEngine(context: Context) {
         if (index >= 0) records[index] = record else records.add(record)
         writeRecords(records)
         return record
-    }
+    
+        }}
 
     @Synchronized
     fun search(query: String, limit: Int = 20, includeSensitive: Boolean = false): List<MemoryRecord> {
+        synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
         if (terms.isEmpty()) return emptyList()
         return readRecords()
@@ -96,11 +101,13 @@ class MemoryEngine(context: Context) {
             .take(limit.coerceIn(1, 100))
             .map { it.first }
             .toList()
-    }
+    
+        }}
 
     /** Sensitive records are never added to automatic model context. */
     @Synchronized
     fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
+        synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
         if (terms.isEmpty()) return ""
         val ranked = readRecords()
@@ -123,7 +130,8 @@ class MemoryEngine(context: Context) {
             count++
         }
         return result.toString()
-    }
+    
+        }}
 
     @Synchronized
     fun summary(): String {
@@ -139,6 +147,7 @@ class MemoryEngine(context: Context) {
 
     @Synchronized
     fun exportJson(): String {
+        synchronized(STORAGE_LOCK) {
         val records = JSONArray()
         readRecords().forEach { records.put(it.toJson()) }
         return JSONObject()
@@ -147,10 +156,12 @@ class MemoryEngine(context: Context) {
             .put("exportedAt", System.currentTimeMillis())
             .put("records", records)
             .toString(2)
-    }
+    
+        }}
 
     @Synchronized
     fun importJson(json: String): ImportResult {
+        synchronized(STORAGE_LOCK) {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_IMPORT_BYTES) { "Memory file is too large" }
         val root = JSONObject(json)
         require(root.optString("format") == FORMAT_NAME) { "Not a Sofia memory file" }
@@ -177,33 +188,39 @@ class MemoryEngine(context: Context) {
         }
         writeRecords(records.values.toList())
         return ImportResult(imported, skipped, records.size)
-    }
+    
+        }}
 
-    @Synchronized
-    fun count(): Int = readRecords().size
+    fun count(): Int = synchronized(STORAGE_LOCK) { readRecords().size }
 
     @Synchronized
     fun delete(id: String): Boolean {
+        synchronized(STORAGE_LOCK) {
         val records = readRecords().toMutableList()
         val removed = records.removeAll { it.id == id }
         if (removed) writeRecords(records)
         return removed
-    }
+    
+        }}
 
     @Synchronized
     fun deleteByContent(content: String): Boolean {
+        synchronized(STORAGE_LOCK) {
         val target = content.trim()
         if (target.isEmpty()) return false
         val records = readRecords().toMutableList()
         val removed = records.removeAll { it.content.equals(target, ignoreCase = true) }
         if (removed) writeRecords(records)
         return removed
-    }
+    
+        }}
 
     @Synchronized
     fun clearAll() {
+        synchronized(STORAGE_LOCK) {
         writeRecords(emptyList())
-    }
+    
+        }}
 
     private fun migrateLegacyProfile() {
         val legacy = appContext.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE)
@@ -316,6 +333,7 @@ class MemoryEngine(context: Context) {
     }
 
     companion object {
+        private val STORAGE_LOCK = Any()
         private const val PREFS_NAME = "sofia_memory_engine"
         private const val KEY_RECORDS = "records_v1"
         private const val FORMAT_NAME = "sofia-memory"
