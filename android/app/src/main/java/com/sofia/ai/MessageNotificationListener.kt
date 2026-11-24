@@ -47,6 +47,9 @@ class MessageNotificationListener : NotificationListenerService() {
     ?.takeIf { it.isNotBlank() }
    ?: extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
     ?.takeIf { it.isNotBlank() }
+   ?: extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+    ?.joinToString("\\n") { it.toString() }
+    ?.takeIf { it.isNotBlank() }
    ?: return
 
   @Suppress("DEPRECATION")
