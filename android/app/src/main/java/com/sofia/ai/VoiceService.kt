@@ -28,6 +28,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var speaking = false
  private var requestInFlight = false
  private var pendingSpeech: String? = null
+ private lateinit var memory: SofiaMemory
  private var restartTask: Runnable? = null
 
  override fun onCreate() {
@@ -37,6 +38,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
   }
   startForeground(NOTIFICATION, notification("Ожидаю слово «София»"))
+  memory = SofiaMemory(this)
   tts = TextToSpeech(this, this)
   startRecognition()
  }
@@ -186,8 +188,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   io.execute {
    try {
     val messages = JSONArray()
-     .put(JSONObject().put("role", "system").put("content", "Ты София, личный помощник. Отвечай по-русски кратко и естественно."))
-     .put(JSONObject().put("role", "user").put("content", command))
+    val systemPrompt = "Ты София, личный помощник. Отвечай по-русски естественно. " +
+     "Учитывай профиль и память ниже. Не выдумывай факты и не утверждай, что запомнила то, что не было сохранено.\n\n" +
+     memory.profileContext()
+    messages.put(JSONObject().put("role", "system").put("content", systemPrompt))
+    memory.recentTurns().forEach { turn ->
+     messages.put(JSONObject().put("role", turn.role).put("content", turn.content))
+    }
+    messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
@@ -220,6 +228,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      else -> "Я получила пустой ответ. Повтори, пожалуйста, вопрос."
     }
     main.post {
+     memory.rememberTurn("user", command)
+     memory.rememberTurn("assistant", finalAnswer)
      status(if (code in 200..299) "Готовлю ответ" else "Ошибка ответа сервера")
      say(finalAnswer)
     }
