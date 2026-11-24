@@ -141,8 +141,23 @@ class MainActivity : Activity() {
  }
 
  private fun startVoice() {
-  val i=Intent(this,VoiceService::class.java)
-  if (Build.VERSION.SDK_INT>=Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
-  status.text="София активна. Можешь свернуть приложение. Она ждёт слово «София»."
+  try {
+   val intent = Intent(this, VoiceService::class.java)
+   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+   voiceRequested = true
+   voiceButton.text = "Остановить голосовой режим"
+   status.text = "Команда запуска отправлена. Ожидаю подтверждения голосовой службы."
+  } catch (e: Exception) {
+   voiceRequested = false
+   voiceButton.text = "Запустить голосовой режим"
+   status.text = "Не удалось запустить голосовую службу: ${e.message ?: "ошибка Android"}"
+  }
+ }
+
+ private fun stopVoice() {
+  stopService(Intent(this, VoiceService::class.java))
+  voiceRequested = false
+  voiceButton.text = "Запустить голосовой режим"
+  status.text = "Голосовой режим остановлен."
  }
 }
