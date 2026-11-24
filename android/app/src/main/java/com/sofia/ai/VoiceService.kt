@@ -52,6 +52,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (status != TextToSpeech.SUCCESS) {
    Log.e(TAG, "TextToSpeech initialization failed with status=$status")
    pendingSpeech = null
+   speaking = false
+   requestInFlight = false
    status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
    if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
     startRecognition()
@@ -62,6 +64,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (engine == null) {
    Log.e(TAG, "TextToSpeech initialization succeeded but engine is null")
    pendingSpeech = null
+   speaking = false
+   requestInFlight = false
    status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
    if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
     startRecognition()
