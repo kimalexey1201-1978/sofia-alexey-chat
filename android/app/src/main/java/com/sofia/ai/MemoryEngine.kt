@@ -84,14 +84,15 @@ class MemoryEngine(
         )
         val records = readRecords().toMutableList()
         val index = records.indexOfFirst { it.id == id }
-        if (index >= 0) {
+        val persistedRecord = if (index >= 0) {
             // Updating a stable record must not rewrite its original creation time.
-            records[index] = record.copy(createdAt = records[index].createdAt)
+            record.copy(createdAt = records[index].createdAt).also { records[index] = it }
         } else {
             records.add(record)
+            record
         }
         writeRecords(records)
-        return record
+        return persistedRecord
     }
 
     @Synchronized
