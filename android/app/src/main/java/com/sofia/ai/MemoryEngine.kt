@@ -13,7 +13,8 @@ import java.util.UUID
 class MemoryEngine(
     context: Context,
     preferencesName: String = "sofia_memory_engine",
-    legacyProfilePreferencesName: String? = "sofia_profile"
+    legacyProfilePreferencesName: String? = "sofia_profile",
+    legacyMemoryPreferencesName: String? = "sofia_memory_v1"
 ) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
@@ -21,6 +22,7 @@ class MemoryEngine(
 
     init {
         legacyProfilePreferencesName?.let(::migrateLegacyProfile)
+        legacyMemoryPreferencesName?.let(::migrateLegacyMemory)
     }
 
     enum class MemoryType(val wireName: String) {
@@ -235,6 +237,114 @@ class MemoryEngine(
             )
         }
     }
+
+    /**
+     * Imports the v1 on-device memory without modifying or deleting its source values.
+     * The old implementation encrypted each preference with AAD equal to the key name,
+     * so this migration uses the read-only legacy decryptor and writes only to v2 stores.
+     */
+    private fun migrateLegacyMemory(preferencesName: String) {
+        val legacyPrefs = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+        val legacy = SofiaSecurePreferences(legacyPrefs, "legacy-sofia-memory")
+
+        val factsRaw = legacy.getLegacyString("facts", null)
+        if (!factsRaw.isNullOrBlank()) {
+            val facts = try { JSONArray(factsRaw) } catch (e: Exception) {
+                throw IllegalStateException("Старая долговременная память повреждена. Исходные данные сохранены.", e)
+            }
+            for (i in 0 until facts.length()) {
+                val fact = facts.optString(i).trim()
+                if (fact.isNotEmpty()) {
+                    add(
+                        type = MemoryType.LONG_TERM,
+                        content = fact,
+                        source = "legacy_sofia_memory",
+                        importance = 4,
+                        tags = listOf("миграция", "долговременная память"),
+                        id = stableLegacyId("fact", fact)
+                    )
+                }
+            }
+        }
+
+        val conversationRaw = legacy.getLegacyString("conversation", null)
+        if (!conversationRaw.isNullOrBlank()) {
+            val oldTurns = try { JSONArray(conversationRaw) } catch (e: Exception) {
+                throw IllegalStateException("Старая история диалога повреждена. Исходные данные сохранены.", e)
+            }
+            val validTurns = JSONArray()
+            for (i in 0 until oldTurns.length()) {
+                val item = oldTurns.optJSONObject(i) ?: continue
+                val role = item.optString("role")
+                val content = item.optString("content").trim()
+                if ((role == "user" || role == "assistant") && content.isNotEmpty()) {
+                    validTurns.put(JSONObject().put("role", role).put("content", content))
+                    val timestamp = item.optLong("at", i.toLong()).coerceAtLeast(0)
+                    add(
+                        type = MemoryType.EPISODIC,
+                        content = "$role: $content",
+                        source = "legacy_conversation",
+                        importance = 2,
+                        tags = listOf("история диалога", role, "миграция"),
+                        sensitive = true,
+                        id = stableLegacyId("turn", "$role|$timestamp|$content")
+                    )
+                }
+            }
+            // Preserve the most recent turns for immediate conversational continuity.
+            // Existing v2 history always wins; the legacy source remains untouched.
+            if (validTurns.length() > 0) {
+                val historyPrefs = appContext.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE)
+                val historySecure = SofiaSecurePreferences(historyPrefs, "conversation-history")
+                val existing = historySecure.getString("conversation_history", null)
+                if (existing.isNullOrBlank()) {
+                    val bounded = JSONArray()
+                    val start = (validTurns.length() - 20).coerceAtLeast(0)
+                    for (i in start until validTurns.length()) bounded.put(validTurns.getJSONObject(i))
+                    historySecure.putString("conversation_history", bounded.toString())
+                }
+            }
+        }
+
+        val address = legacy.getLegacyString("preferred_address", null)?.trim().orEmpty()
+        val language = legacy.getLegacyString("language", null)?.trim().orEmpty()
+        val ownerLabel = legacy.getLegacyString("owner_label", null)?.trim().orEmpty()
+
+        // Keep profile preferences in the profile namespace consumed by VoiceService.
+        if (address.isNotEmpty() || ownerLabel.isNotEmpty()) {
+            val profilePrefs = appContext.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE)
+            val profile = SofiaSecurePreferences(profilePrefs, "owner-profile")
+            if (address.isNotEmpty() && profile.getString("preferred_address", null).isNullOrBlank()) {
+                profile.putString("preferred_address", address)
+            }
+            if (ownerLabel.isNotEmpty() && profile.getString("owner_name", null).isNullOrBlank()) {
+                profile.putString("owner_name", ownerLabel)
+            }
+        }
+        if (language.isNotEmpty()) {
+            add(
+                type = MemoryType.PROCEDURAL,
+                content = "Язык общения владельца: $language.",
+                source = "legacy_sofia_memory",
+                importance = 4,
+                tags = listOf("язык", "настройка", "миграция"),
+                id = stableLegacyId("language", language)
+            )
+        }
+        if (ownerLabel.isNotEmpty()) {
+            add(
+                type = MemoryType.LONG_TERM,
+                content = "Обозначение владельца в старом профиле: $ownerLabel.",
+                source = "legacy_sofia_memory",
+                importance = 4,
+                tags = listOf("владелец", "профиль", "миграция"),
+                id = stableLegacyId("owner-label", ownerLabel)
+            )
+        }
+    }
+
+    private fun stableLegacyId(kind: String, value: String): String =
+        "legacy-$kind-" + UUID.nameUUIDFromBytes("$kind:$value".toByteArray(Charsets.UTF_8)).toString()
 
     private fun score(record: MemoryRecord, terms: Set<String>): Int {
         val content = tokenize(record.content)
