@@ -55,7 +55,6 @@ class MemoryEngine(
 
     data class ImportResult(val imported: Int, val skipped: Int, val total: Int)
 
-    @Synchronized
     fun add(
         type: MemoryType,
         content: String,
@@ -99,7 +98,6 @@ class MemoryEngine(
     
         }}
 
-    @Synchronized
     fun search(query: String, limit: Int = 20, includeSensitive: Boolean = false): List<MemoryRecord> {
         synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
@@ -119,7 +117,6 @@ class MemoryEngine(
         }}
 
     /** Sensitive records are never added to automatic model context. */
-    @Synchronized
     fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
         synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
@@ -147,7 +144,6 @@ class MemoryEngine(
     
         }}
 
-    @Synchronized
     fun summary(): String {
         synchronized(STORAGE_LOCK) {
         val records = readRecords().filter { !it.sensitive }
@@ -161,7 +157,6 @@ class MemoryEngine(
     
         }}
 
-    @Synchronized
     fun exportJson(): String {
         synchronized(STORAGE_LOCK) {
         val records = JSONArray()
@@ -175,7 +170,6 @@ class MemoryEngine(
     
         }}
 
-    @Synchronized
     fun importJson(json: String): ImportResult {
         synchronized(STORAGE_LOCK) {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_IMPORT_BYTES) { "Memory file is too large" }
@@ -209,7 +203,6 @@ class MemoryEngine(
 
     fun count(): Int = synchronized(STORAGE_LOCK) { readRecords().size }
 
-    @Synchronized
     fun delete(id: String): Boolean {
         synchronized(STORAGE_LOCK) {
         val records = readRecords().toMutableList()
@@ -219,7 +212,6 @@ class MemoryEngine(
     
         }}
 
-    @Synchronized
     fun deleteByContent(content: String): Boolean {
         synchronized(STORAGE_LOCK) {
         val target = content.trim()
@@ -231,7 +223,6 @@ class MemoryEngine(
     
         }}
 
-    @Synchronized
     fun clearAll() {
         synchronized(STORAGE_LOCK) {
         writeRecords(emptyList())
