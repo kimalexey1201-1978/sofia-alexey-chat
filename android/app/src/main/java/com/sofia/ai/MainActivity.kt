@@ -8,7 +8,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
+import android.speech.tts.TextToSpeech
+import android.speech.tts.Voice
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.SeekBar
+import android.widget.Spinner
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -17,6 +22,9 @@ class MainActivity : Activity() {
  private lateinit var status: TextView
  private lateinit var voiceButton: Button
  private var voiceRequested = true
+ private var previewTts: TextToSpeech? = null
+ private var previewTtsReady = false
+ private val voicePrefs by lazy { getSharedPreferences("sofia_voice_settings", MODE_PRIVATE) }
  private val maxMemoryImportBytes = 5 * 1024 * 1024
  private val req = 41
  private val importRequest = 42
@@ -24,6 +32,9 @@ class MainActivity : Activity() {
 
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
+  previewTts = TextToSpeech(this) { result ->
+   previewTtsReady = result == TextToSpeech.SUCCESS
+  }
   status = TextView(this).apply {
    text = "София запускает голосовое ожидание. После разрешения микрофона приложение можно свернуть."
    textSize = 18f
@@ -35,6 +46,10 @@ class MainActivity : Activity() {
    setOnClickListener {
     if (voiceRequested) stopVoice() else requestAudioAndStart()
    }
+  }
+  val voiceSettings = Button(this).apply {
+   text = "Настройки голоса Софии"
+   setOnClickListener { openVoiceSettings() }
   }
   val importMemory = Button(this).apply {
    text = "Импортировать память Софии"
@@ -50,10 +65,108 @@ class MainActivity : Activity() {
    setPadding(24,24,24,24)
    addView(status)
    addView(voiceButton)
+   addView(voiceSettings)
    addView(importMemory)
    addView(exportMemory)
   })
   requestAudioAndStart()
+ }
+
+ private fun openVoiceSettings() {
+  val engine = previewTts
+  if (!previewTtsReady || engine == null) {
+   Toast.makeText(this, "Голосовой движок Android ещё загружается. Попробуй через несколько секунд.", Toast.LENGTH_LONG).show()
+   return
+  }
+  val voices = engine.voices.orEmpty().filter { voice ->
+   voice.locale.language == "ru" && !voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+  }.sortedWith(compareBy<Voice> { it.name })
+  if (voices.isEmpty()) {
+   AlertDialog.Builder(this)
+    .setTitle("Русские голоса не найдены")
+    .setMessage("В установленном движке Android пока нет доступных русских голосов. Проверь установку русского голосового пакета в настройках синтеза речи Android.")
+    .setPositiveButton("Понятно", null)
+    .show()
+   return
+  }
+
+  val labels = voices.map { voice ->
+   val mode = if (voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)) "онлайн" else "офлайн"
+   "${voice.name} · ${mode} · качество ${voice.quality}"
+  }
+  val voicePicker = Spinner(this).apply {
+   adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, labels)
+  }
+  val savedName = voicePrefs.getString("voice_name", null)
+  val selectedIndex = voices.indexOfFirst { it.name == savedName }.let { if (it >= 0) it else 0 }
+  voicePicker.setSelection(selectedIndex)
+
+  val pitchLabel = TextView(this).apply { textSize = 16f }
+  val pitchBar = SeekBar(this).apply { max = 100; progress = ((voicePrefs.getFloat("pitch", 1.0f) - 0.7f) / 0.8f * 100).toInt().coerceIn(0, 100) }
+  val rateLabel = TextView(this).apply { textSize = 16f }
+  val rateBar = SeekBar(this).apply { max = 100; progress = ((voicePrefs.getFloat("rate", 0.95f) - 0.75f) / 0.65f * 100).toInt().coerceIn(0, 100) }
+  fun pitchValue() = 0.7f + pitchBar.progress / 100f * 0.8f
+  fun rateValue() = 0.75f + rateBar.progress / 100f * 0.65f
+  fun refreshLabels() {
+   pitchLabel.text = "Высота голоса: ${"%.2f".format(java.util.Locale.US, pitchValue())}"
+   rateLabel.text = "Скорость речи: ${"%.2f".format(java.util.Locale.US, rateValue())}"
+  }
+  pitchBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+   override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = refreshLabels()
+   override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+   override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+  })
+  rateBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+   override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = refreshLabels()
+   override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+   override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+  })
+  refreshLabels()
+  val content = LinearLayout(this).apply {
+   orientation = LinearLayout.VERTICAL
+   setPadding(32, 8, 32, 0)
+   addView(TextView(this@MainActivity).apply { text = "Русский голос Android"; textSize = 16f })
+   addView(voicePicker)
+   addView(pitchLabel)
+   addView(pitchBar)
+   addView(rateLabel)
+   addView(rateBar)
+   addView(TextView(this@MainActivity).apply {
+    text = "Прослушай образец для каждого варианта. Обозначение голоса не гарантирует его тембр."
+    textSize = 13f
+   })
+  }
+  val dialog = AlertDialog.Builder(this)
+   .setTitle("Голос Софии")
+   .setView(content)
+   .setNegativeButton("Отмена", null)
+   .setNeutralButton("Прослушать", null)
+   .setPositiveButton("Сохранить") { _, _ ->
+    val selected = voices[voicePicker.selectedItemPosition]
+    voicePrefs.edit()
+     .putString("voice_name", selected.name)
+     .putFloat("pitch", pitchValue())
+     .putFloat("rate", rateValue())
+     .apply()
+    val update = Intent(this, VoiceService::class.java).setAction(VoiceService.ACTION_UPDATE_TTS_SETTINGS)
+    try {
+     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(update) else startService(update)
+     Toast.makeText(this, "Настройки голоса сохранены", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+     Toast.makeText(this, "Сохранено. Перезапусти голосовой режим для применения.", Toast.LENGTH_LONG).show()
+    }
+   }
+   .create()
+  dialog.setOnShowListener {
+   dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+    val selected = voices[voicePicker.selectedItemPosition]
+    engine.voice = selected
+    engine.setPitch(pitchValue())
+    engine.setSpeechRate(rateValue())
+    engine.speak("Привет. Я София. Давай проверим, насколько тебе подходит мой голос.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
+   }
+  }
+  dialog.show()
  }
 
  private fun openMemoryImport() {
@@ -130,6 +243,13 @@ class MainActivity : Activity() {
   val missing = p.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
   if (missing.isEmpty()) startVoice()
   else requestPermissions(missing.toTypedArray(), req)
+ }
+
+ override fun onDestroy() {
+  previewTts?.stop()
+  previewTts?.shutdown()
+  previewTts = null
+  super.onDestroy()
  }
 
  override fun onRequestPermissionsResult(requestCode:Int, permissions:Array<out String>, grantResults:IntArray) {
