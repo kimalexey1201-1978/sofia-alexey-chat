@@ -16,7 +16,8 @@ class MemoryEngine(
     legacyProfilePreferencesName: String? = "sofia_profile",
     legacyMemoryPreferencesName: String? = "sofia_memory_v1",
     private val profileDestinationPreferencesName: String = "sofia_profile",
-    private val conversationDestinationPreferencesName: String = "sofia_memory"
+    private val conversationDestinationPreferencesName: String = "sofia_memory",
+    seedOwnerProfile: Boolean = preferencesName == "sofia_memory_engine"
 ) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
@@ -26,6 +27,7 @@ class MemoryEngine(
         synchronized(STORAGE_LOCK) {
         legacyProfilePreferencesName?.let(::migrateLegacyProfile)
         legacyMemoryPreferencesName?.let(::migrateLegacyMemory)
+        if (seedOwnerProfile) seedOwnerKnowledge()
     
         }}
 
@@ -117,13 +119,20 @@ class MemoryEngine(
         }}
 
     /** Sensitive records are never added to automatic model context. */
-    fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
+    fun buildContext(
+        query: String,
+        maxRecords: Int = 8,
+        maxChars: Int = 3000,
+        includeOwnerProfile: Boolean = false
+    ): String {
         synchronized(STORAGE_LOCK) {
+        val records = readRecords().filter { !it.sensitive }
+        val ownerProfile = if (includeOwnerProfile) {
+            records.firstOrNull { it.id == "owner-knowledge-profile-v1" }
+        } else null
         val terms = tokenize(query)
-        if (terms.isEmpty()) return ""
-        val ranked = readRecords()
-            .asSequence()
-            .filter { !it.sensitive }
+        val ranked = records.asSequence()
+            .filter { it.id != "owner-knowledge-profile-v1" }
             .map { it to score(it, terms) }
             .filter { it.second > 0 }
             .sortedWith(compareByDescending<Pair<MemoryRecord, Int>> { it.second }
@@ -131,6 +140,13 @@ class MemoryEngine(
                 .thenByDescending { it.first.updatedAt })
         val result = StringBuilder()
         var count = 0
+        if (ownerProfile != null) {
+            val line = "- [${ownerProfile.type.wireName}] ${ownerProfile.content}"
+            if (line.length <= maxChars.coerceIn(256, 5000)) {
+                result.append(line)
+                count++
+            }
+        }
         for ((record, _) in ranked) {
             if (count >= maxRecords.coerceIn(1, 12)) break
             val line = "- [${record.type.wireName}] ${record.content}"
@@ -365,6 +381,28 @@ class MemoryEngine(
         }
     }
 
+
+    /**
+     * A versioned starter profile compiled from facts the owner has already shared.
+     * Stable ID makes initialization repeatable; updating this seed never clears other memories.
+     */
+    private fun seedOwnerKnowledge() {
+        add(
+            type = MemoryType.LONG_TERM,
+            content = OWNER_KNOWLEDGE_PROFILE,
+            source = "owner_shared_context_seed_v1",
+            confidence = 0.95,
+            importance = 5,
+            tags = listOf(
+                "обо мне", "владелец", "профиль", "биография", "предпочтения",
+                "работа", "семья", "казахстан", "корея", "софия", "проект",
+                "sofia ai", "память", "архитектура", "задачи"
+            ),
+            sensitive = false,
+            id = "owner-knowledge-profile-v1"
+        )
+    }
+
     private fun stableLegacyId(kind: String, value: String): String =
         "legacy-$kind-" + UUID.nameUUIDFromBytes("$kind:$value".toByteArray(Charsets.UTF_8)).toString()
 
@@ -489,5 +527,45 @@ class MemoryEngine(
         private const val WORKING_TTL_MS = 24L * 60L * 60L * 1000L
         private const val LEGACY_OWNER_ID = "legacy-profile-owner-name-v1"
         private const val LEGACY_ADDRESS_ID = "legacy-profile-preferred-address-v1"
+        private val OWNER_KNOWLEDGE_PROFILE = """
+ПРОФИЛЬ ВЛАДЕЛЬЦА. Эти сведения владелец ранее сообщал ChatGPT. Используй их для продолжения знакомства. Не выдумывай факты; если сведения могли устареть, уточняй.
+
+ОБЩЕНИЕ И ЯЗЫК:
+- Основной язык общения: русский. Переводы нужны между русским и корейским. При переводе с русского на корейский добавляй русскую транслитерацию; при переводе с корейского на русский она не нужна.
+- Владелец предпочитает естественную, живую речь без канцелярита, повторов и шаблонных вступлений. София говорит о себе в женском роде, спокойным мягким голосом.
+- Для голосового режима ранее было задано обращение «мой хороший». Не навязывай имя и учитывай актуальное обращение, которое владелец подтвердит.
+- Важны прямые ссылки, короткие практические инструкции и минимум лишних шагов. Не заставляй проходить один и тот же путь повторно. Не меняй работающие настройки, пароли, ключи и конфигурации без необходимости.
+- Тексты для копирования давай отдельным чистым блоком.
+
+ЖИЗНЕННЫЙ КОНТЕКСТ:
+- Владелец живёт и работает в Южной Корее; в недавних разговорах называл Чхонжу. Казахстан, особенно Караганда, важен для семьи, поездок и планов.
+- У владельца есть дети и внуки; часть семьи живёт в Казахстане. Он заботится об образовании детей и хочет помогать им с жильём.
+- Профессиональный опыт: около 15 лет во внутренней отделке и строительных работах; также рассказывал о работе в промышленной безопасности на стройках и о работе водителем автобуса.
+
+ПРОЕКТ SOFIA AI:
+- Владелец создаёт личного ИИ-помощника Sofia AI. София должна быть центральным управляющим ядром, а модели и инструменты подключаться как отдельные исполнители. Первым исполнителем планировался Google Gemini; для разработки рассматривались OpenRouter и бесплатные модели.
+- Разработка ведётся по принципу Android-first с дальнейшей поддержкой Windows, Linux и macOS.
+- Ядро должно расширяться без переписывания: реестр возможностей и инструментов, адаптеры, версионируемые API/контракты, квоты, бюджеты, совместимость, песочницы и тестирование модулей.
+- Для исполнителей нужен реестр навыков, форматов, стоимости, скорости, доверия и ошибок. Нужен независимый Critic/Verifier для проверки фактов, расчётов и кода.
+- Память должна включать рабочую, долговременную, эпизодическую и процедурную части. Нужны шифрование, аудит, права доступа, защита секретов, фильтр prompt injection и кнопка остановки.
+- Финансовые, медицинские, юридические и личные действия должны проходить подтверждение владельца.
+- Этапы задачи: приём, уточнение, план, оценка рисков/стоимости, назначение исполнителя, выполнение, независимая проверка, сборка результата, ответ, запись в память и обучение.
+- Приоритет: сначала минимальная стабильная версия, затем новые функции. Надёжность важнее количества возможностей.
+- 18 ноября 2026 года приложение впервые приняло сообщение и вернуло полноценный текстовый ответ. Это первый подтверждённый сквозной прототип.
+- В планах: активация словом «София», распознавание голоса владельца, безопасная повторная проверка личности; универсальная поддержка телефонов, часов, браслетов, наушников, очков, камер, автомобилей, умного дома и компьютеров.
+
+ПРОЕКТЫ И ДОГОВОРЁННОСТИ:
+- Гараж в Караганде: основание 7×6 м, высота 3 м. На бетонной плите по центру помещение 2×6 м, высотой 2 м. Крыша двускатная; ранее согласованы стропила 100×50 мм, OSB 1250×2250 мм, минеральная вата общей толщиной 200 мм. Не менять геометрию и размеры без согласования.
+- Для гаража обсуждались электрические тёплые полы, разные температуры этажей и зимнее энергопотребление в условиях Караганды. К расчётам планировали вернуться во время поездки в Казахстан.
+- Ранее просил искать Renault Sandero от 2020 года, автомат, до 4,3 млн тенге в Караганде и Астане; также упоминал Chevrolet Trax и Chevrolet Colorado.
+- Обсуждались небольшие квартиры в Караганде и Астане с ограничениями по районам и цене. Старые критерии проверяй перед применением: они могли измениться.
+- Планируется юбилейная поездка из Южной Кореи в Караганду, затем в Москву, Краснодар, Адыгею и Абхазию. Есть отдельный туристический бюджет и еженедельное напоминание откладывать часть зарплаты.
+
+ПРАВИЛА РАБОТЫ:
+- Разделяй подтверждённые факты, предположения и устаревшие сведения. При противоречии уточняй.
+- Не теряй согласованные параметры проектов и не меняй их самовольно.
+- В коде предпочитай узкие изменения, сохраняй рабочее состояние и проверяй сборку/тесты. Не трогай production, главную ветку, секреты и установленные приложения без явного разрешения.
+- Владелец хочет видеть практический результат и последовательное продвижение, а не только планы и обещания. София может предлагать полезные следующие шаги, но рискованные действия согласовывает заранее.
+""".trimIndent()
     }
 }

@@ -136,6 +136,55 @@ class MemoryEngineInstrumentedTest {
     }
 
     @Test
+    fun voiceOutputSanitizerRemovesEmojiShortcodesAndTextEmoticons() {
+        val spoken = VoiceOutputSanitizer.sanitize("Привет 😊 :smile: :) <3")
+        assertTrue(spoken.contains("Привет"))
+        assertFalse(spoken.contains("😊"))
+        assertFalse(spoken.contains(":smile:"))
+        assertFalse(spoken.contains(":)"))
+        assertFalse(spoken.contains("<3"))
+    }
+
+    @Test
+    fun voiceOutputSanitizerCorrectsFeminineSelfReferenceOnly() {
+        val spoken = VoiceOutputSanitizer.sanitize(
+            "Я понял, я готов, я уже проверил. Ты сказал это, а он понял."
+        )
+        assertTrue(spoken.contains("Я поняла"))
+        assertTrue(spoken.contains("я готова"))
+        assertTrue(spoken.contains("я уже проверила"))
+        assertTrue(spoken.contains("Ты сказал"))
+        assertTrue(spoken.contains("он понял"))
+    }
+
+    @Test
+    fun voiceOutputSanitizerRemovesEmojiOnlySpeechInsteadOfNamingSymbols() {
+        assertEquals("", VoiceOutputSanitizer.sanitize("😊😂❤️"))
+    }
+
+    @Test
+    fun voiceContextAlwaysIncludesSeededOwnerProfile() {
+        val memory = MemoryEngine(
+            context = context,
+            preferencesName = prefsName,
+            legacyProfilePreferencesName = null,
+            legacyMemoryPreferencesName = null,
+            seedOwnerProfile = true
+        )
+
+        val voiceContext = memory.buildContext(
+            query = "Что ты знаешь обо мне?",
+            maxRecords = 8,
+            maxChars = 5000,
+            includeOwnerProfile = true
+        )
+
+        assertTrue(voiceContext.contains("ПРОФИЛЬ ВЛАДЕЛЬЦА"))
+        assertTrue(voiceContext.contains("Южной Корее"))
+        assertTrue(memory.buildContext("Что ты знаешь обо мне?").isEmpty())
+    }
+
+    @Test
     fun migratedOwnerProfileRecordsAreSensitiveAndExcludedFromModelContext() {
         val legacyPrefs = context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE)
         val legacyProfile = SofiaSecurePreferences(legacyPrefs, "owner-profile")

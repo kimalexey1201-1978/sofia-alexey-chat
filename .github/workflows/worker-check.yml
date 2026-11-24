@@ -1,0 +1,36 @@
+name: Cloudflare Worker syntax check
+
+on:
+  push:
+    paths:
+      - "_worker.js"
+      - "wrangler.jsonc"
+      - ".github/workflows/worker-check.yml"
+  pull_request:
+    paths:
+      - "_worker.js"
+      - "wrangler.jsonc"
+      - ".github/workflows/worker-check.yml"
+
+jobs:
+  worker-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check Worker JavaScript syntax
+        run: node --check _worker.js
+      - name: Test incoming message translation route
+        run: node scripts/test-worker-translation.mjs
+      - name: Validate Wrangler configuration JSONC
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const text = fs.readFileSync("wrangler.jsonc", "utf8")
+              .replace(/\/\*[\s\S]*?\*\//g, "")
+              .replace(/(^|[^:])\/\/.*$/gm, "$1");
+            JSON.parse(text);
+            console.log("wrangler.jsonc is valid JSON-compatible configuration");
+          '
