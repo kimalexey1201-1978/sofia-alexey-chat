@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
@@ -39,6 +40,12 @@ class MainActivity : Activity() {
    text = "Импортировать память Софии"
    setOnClickListener { openMemoryImport() }
   }
+  val notificationAccess = Button(this).apply {
+   text = "Разрешить Софии читать сообщения"
+   setOnClickListener {
+    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+   }
+  }
   val exportMemory = Button(this).apply {
    text = "Экспортировать память Софии"
    setOnClickListener { openMemoryExport() }
@@ -49,6 +56,7 @@ class MainActivity : Activity() {
    setPadding(24,24,24,24)
    addView(status)
    addView(stop)
+   addView(notificationAccess)
    addView(importMemory)
    addView(exportMemory)
   })
