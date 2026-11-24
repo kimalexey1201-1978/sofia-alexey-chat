@@ -59,6 +59,7 @@ class MessageNotificationListener : NotificationListenerService() {
    ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
    ?: "неизвестный отправитель"
 
+  Log.i(TAG, "Accepted message notification package=${sbn.packageName}, chars=${messageText.length}")
   // Keep only a small in-memory deduplication window; message contents are not persisted.
   val key = sbn.key
   if (recentNotifications[key] == messageText) return
