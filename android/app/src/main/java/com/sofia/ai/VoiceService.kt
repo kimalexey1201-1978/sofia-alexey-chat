@@ -223,9 +223,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   io.execute {
    try {
     val messages = JSONArray()
-    val systemPrompt = "Ты София, личный помощник. Отвечай по-русски естественно. " +
-     "Учитывай профиль и память ниже. Не выдумывай факты и не утверждай, что запомнила то, что не было сохранено.\n\n" +
-     memory.profileContext()
+    val identity = SofiaIdentity(this)
+    val systemPrompt = identity.systemContext() + "\n\nКОНТЕКСТ ВЛАДЕЛЬЦА И ЕГО ПАМЯТЬ\n" +
+     memory.profileContext() + "\n\nОтвечай по-русски, если владелец не попросил другой язык. " +
+     "Не выдумывай факты и не утверждай, что запомнила то, что не было сохранено."
     messages.put(JSONObject().put("role", "system").put("content", systemPrompt))
     memory.recentTurns().forEach { turn ->
      messages.put(JSONObject().put("role", turn.role).put("content", turn.content))
