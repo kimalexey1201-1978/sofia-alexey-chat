@@ -2,7 +2,7 @@
 
 ## Goal
 
-Verify that local memory remains private, readable, and recoverable across normal app lifecycle events. This checklist is deliberately separate from implementation changes so that tests can be run against a known build before changing storage behavior.
+Verify that local memory remains private, readable, and recoverable across normal app lifecycle events. The checklist combines automated Android instrumentation coverage with device-only release checks. Instrumentation tests use a dedicated preference namespace and do not clear or modify the owner's production memory.
 
 ## Current storage contract
 
@@ -34,7 +34,7 @@ Verify that local memory remains private, readable, and recoverable across norma
 | MEM-13 | Save an empty or whitespace-only fact | No empty fact is added |
 | MEM-14 | Run memory reads while voice recognition is restarting | No crash, duplicate recognizer, or lost saved fact |
 
-## Release gates
+## Automated coverage added in this branch\n\n`SofiaMemoryInstrumentedTest` currently covers: fact persistence across memory-object recreation, case-insensitive deduplication and removal, the 40-turn history bound, invalid-role and blank-fact rejection, legacy plaintext migration, encryption at rest, the 500-character fact limit, and preservation of malformed facts/history payloads. These tests are committed but have not yet been executed on an Android emulator or device.\n\nThe test suite uses a separate SharedPreferences name (`sofia_memory_instrumented_test`). It must never call `clear()` on the production `sofia_memory_v1` preferences.\n\n## Release gates
 
 1. Run the Android debug build and unit/instrumentation tests.
 2. Run MEM-01 through MEM-14 on an Android device or emulator.
@@ -45,7 +45,7 @@ Verify that local memory remains private, readable, and recoverable across norma
 
 ## Known limitations to resolve before calling memory production-ready
 
-- The current repository has no dedicated memory test suite or CI workflow verified for this checklist.
+- Instrumentation tests now exist, but there is no verified Gradle wrapper or CI workflow in the repository, and the tests have not yet been executed.
 - A Keystore key invalidation or uninstall can make ciphertext unreadable. A future recovery/export design must be explicit and must never pretend that lost encrypted data was recovered.
 - The current memory API is synchronous. If memory volume grows, move persistence work off the main thread while preserving serialized writes.
 - The app currently stores the identity profile separately from encrypted owner memory. This is intentional for now; do not move identity settings into the owner-facts store without a migration plan.
