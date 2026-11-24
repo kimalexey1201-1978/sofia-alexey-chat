@@ -22,6 +22,8 @@ jobs:
           node-version: "22"
       - name: Check Worker JavaScript syntax
         run: node --check _worker.js
+      - name: Test incoming message translation route
+        run: node scripts/test-worker-translation.mjs
       - name: Validate Wrangler configuration JSONC
         run: |
           node --input-type=module -e '
