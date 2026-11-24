@@ -307,7 +307,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val storedAddress = secure.getString("preferred_address", null)?.trim()
   // The owner explicitly corrected the old default form of address.
   // Migrate only the old default; preserve any other custom preference.
-  val address = if (storedAddress.isNullOrEmpty() || storedAddress == "мой хороший") {
+  val address = if (storedAddress.isNullOrEmpty()) {
    DEFAULT_ADDRESS.also { secure.putString("preferred_address", it) }
   } else storedAddress
   return ownerName to address
@@ -479,7 +479,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Используй короткие, ясные фразы, естественный порядок слов и уместную интонацию.
      Избегай канцелярита, шаблонных вступлений, повторов вопроса, чрезмерной официальности и длинных списков.
      В голосовом разговоре не используй Markdown, эмодзи, заголовки и декоративное форматирование.
-     Обращайся к владельцу на «ты» и используй «мой дорогой» естественно, не механически в каждом предложении.
+     Обращайся к владельцу на «ты» и используй предпочтительное обращение «$preferredAddress» естественно, не механически в каждом предложении.
      Учитывай переданную историю диалога и сохраняй последовательность разговора.
      Сохраняй последовательность разговора и не проси повторять сведения, которые уже есть в истории.
     """.trimIndent() + memorySection
@@ -607,7 +607,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val MEMORY_PREFS = "sofia_memory"
   private const val HISTORY_KEY = "conversation_history"
   private const val DEFAULT_OWNER_NAME = "Алексей"
-  private const val DEFAULT_ADDRESS = "мой дорогой"
+  private const val DEFAULT_ADDRESS = "мой хороший"
   private const val MAX_HISTORY_MESSAGES = 20
   private const val CONVERSATION_WINDOW_MS = 20_000L
  }
