@@ -36,7 +36,6 @@ class MemoryEngine(
         PROCEDURAL("procedural");
 
         companion object {
-        private val STORAGE_LOCK = Any()
             fun fromWire(value: String): MemoryType? = values().firstOrNull { it.wireName == value }
         }
     }
@@ -480,6 +479,7 @@ class MemoryEngine(
     }
 
     companion object {
+        private val STORAGE_LOCK = Any()
         private const val PREFS_NAME = "sofia_memory_engine"
         private const val KEY_RECORDS = "records_v1"
         private const val FORMAT_NAME = "sofia-memory"
