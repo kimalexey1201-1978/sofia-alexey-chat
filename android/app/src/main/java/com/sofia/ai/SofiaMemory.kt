@@ -76,6 +76,23 @@ class SofiaMemory(context: Context) {
         prefs.edit().putString("conversation", bounded.toString()).apply()
     }
 
+    @Synchronized
+    fun factsSummary(): String {
+        val facts = readFacts()
+        return if (facts.isEmpty()) "Пока нет сохранённых долговременных фактов."
+        else "Вот что сохранено в моей памяти:\\n" + facts.mapIndexed { index, fact -> "${index + 1}. $fact" }.joinToString("\\n")
+    }
+
+    @Synchronized
+    fun forgetFact(fact: String): Boolean {
+        val facts = readFacts().toMutableList()
+        val index = facts.indexOfFirst { it.equals(fact.trim(), ignoreCase = true) }
+        if (index < 0) return false
+        facts.removeAt(index)
+        prefs.edit().putString("facts", JSONArray(facts).toString()).apply()
+        return true
+    }
+
     /** Save only facts explicitly confirmed by the owner or an explicit memory action. */
     @Synchronized
     fun rememberFact(fact: String) {
