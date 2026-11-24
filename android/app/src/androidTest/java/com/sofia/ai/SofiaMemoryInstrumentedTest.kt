@@ -150,4 +150,35 @@ class SofiaMemoryInstrumentedTest {
         assertEquals(encryptedAfterFirstAttempt, encryptedAfterSecondAttempt)
         assertTrue(memory.recentTurns().isEmpty())
     }
+
+    @Test
+    fun retrievalReturnsOnlyRelevantFactsAndRanksTheClosestMatchFirst() {
+        val memory = SofiaMemory(context, prefsName)
+        memory.rememberFact("Проект Sofia AI использует модульную архитектуру.")
+        memory.rememberFact("Я работаю водителем автобуса.")
+        memory.rememberFact("В проекте Sofia AI предусмотрен независимый модуль проверки.")
+
+        val results = memory.retrieveRelevantFacts("Расскажи об архитектуре проекта Sofia AI")
+
+        assertEquals(2, results.size)
+        assertTrue(results.first().contains("модульную архитектуру"))
+        assertTrue(results.none { it.contains("водителем автобуса") })
+    }
+
+    @Test
+    fun retrievalReturnsNoFactsForUnrelatedOrEmptyQueries() {
+        val memory = SofiaMemory(context, prefsName)
+        memory.rememberFact("Я работаю водителем автобуса.")
+
+        assertTrue(memory.retrieveRelevantFacts("").isEmpty())
+        assertTrue(memory.retrieveRelevantFacts("Расскажи о погоде").isEmpty())
+    }
+
+    @Test
+    fun retrievalHonorsResultLimit() {
+        val memory = SofiaMemory(context, prefsName)
+        repeat(5) { index -> memory.rememberFact("Проект Sofia содержит модуль номер $index.") }
+
+        assertEquals(2, memory.retrieveRelevantFacts("Проект Sofia модули", limit = 2).size)
+    }
 }
