@@ -181,6 +181,18 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  private fun sendCommand(command: String) {
+  val rememberMatch = Regex("^(?:запомни|сохрани в память)\\s+(.+)$", RegexOption.IGNORE_CASE)
+   .matchEntire(command.trim())
+  if (rememberMatch != null) {
+   val fact = rememberMatch.groupValues[1].trim()
+   memory.rememberFact(fact)
+   memory.rememberTurn("user", command)
+   memory.rememberTurn("assistant", "Хорошо, сохранила это в памяти на данном устройстве.")
+   waiting = false
+   requestInFlight = false
+   say("Хорошо, сохранила это в памяти на данном устройстве.")
+   return
+  }
   waiting = false
   requestInFlight = true
   stopRecognition()
