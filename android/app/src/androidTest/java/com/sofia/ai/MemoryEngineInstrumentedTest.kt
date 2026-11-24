@@ -15,6 +15,8 @@ class MemoryEngineInstrumentedTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val prefsName = "memory_engine_instrumented_test"
     private val legacyPrefsName = "memory_engine_legacy_profile_test"
+    private val profileDestinationPrefsName = "memory_engine_profile_destination_test"
+    private val historyDestinationPrefsName = "memory_engine_history_destination_test"
 
     private fun engine() = MemoryEngine(
         context = context,
@@ -28,8 +30,8 @@ class MemoryEngineInstrumentedTest {
         context.getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("memory_engine_migration_destination", Context.MODE_PRIVATE).edit().clear().commit()
-        context.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE).edit().clear().commit()
-        context.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences(profileDestinationPrefsName, Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences(historyDestinationPrefsName, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test
@@ -157,7 +159,8 @@ class MemoryEngineInstrumentedTest {
         val destination = MemoryEngine(
             context = context,
             preferencesName = "memory_engine_import_test",
-            legacyProfilePreferencesName = null
+            legacyProfilePreferencesName = null,
+            legacyMemoryPreferencesName = null
         )
         try {
             val result = destination.importJson(exported)
@@ -211,7 +214,9 @@ class MemoryEngineInstrumentedTest {
             context = context,
             preferencesName = "memory_engine_migration_destination",
             legacyProfilePreferencesName = null,
-            legacyMemoryPreferencesName = legacyPrefsName
+            legacyMemoryPreferencesName = legacyPrefsName,
+            profileDestinationPreferencesName = profileDestinationPrefsName,
+            conversationDestinationPreferencesName = historyDestinationPrefsName
         )
 
         assertTrue(migrated.search("Старый факт номер один").any {
@@ -225,14 +230,14 @@ class MemoryEngineInstrumentedTest {
         assertEquals(originalConversation, legacyPrefs.getString("conversation", null))
 
         val profile = SofiaSecurePreferences(
-            context.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE),
+            context.getSharedPreferences(profileDestinationPrefsName, Context.MODE_PRIVATE),
             "owner-profile"
         )
         assertEquals("мой хороший", profile.getString("preferred_address", null))
         assertEquals("Владелец теста", profile.getString("owner_name", null))
 
         val history = SofiaSecurePreferences(
-            context.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE),
+            context.getSharedPreferences(historyDestinationPrefsName, Context.MODE_PRIVATE),
             "conversation-history"
         ).getString("conversation_history", null)
         assertEquals(2, org.json.JSONArray(history).length())
@@ -242,12 +247,14 @@ class MemoryEngineInstrumentedTest {
             context = context,
             preferencesName = "memory_engine_migration_destination",
             legacyProfilePreferencesName = null,
-            legacyMemoryPreferencesName = legacyPrefsName
+            legacyMemoryPreferencesName = legacyPrefsName,
+            profileDestinationPreferencesName = profileDestinationPrefsName,
+            conversationDestinationPreferencesName = historyDestinationPrefsName
         )
         assertEquals(beforeReopen, reopened.count())
         assertEquals(2, org.json.JSONArray(
             SofiaSecurePreferences(
-                context.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE),
+                context.getSharedPreferences(historyDestinationPrefsName, Context.MODE_PRIVATE),
                 "conversation-history"
             ).getString("conversation_history", null)
         ).length())
@@ -261,7 +268,12 @@ class MemoryEngineInstrumentedTest {
             .putString("preferred_address", "мой хороший")
             .commit()
 
-        val migrated = MemoryEngine(context, prefsName, legacyPrefsName)
+        val migrated = MemoryEngine(
+            context,
+            prefsName,
+            legacyPrefsName,
+            legacyMemoryPreferencesName = null
+        )
         assertEquals(2, migrated.count())
 
         val encryptedName = legacy.getString("owner_name", null).orEmpty()
@@ -270,7 +282,12 @@ class MemoryEngineInstrumentedTest {
         assertTrue(encryptedAddress.startsWith("enc:v1:"))
         assertFalse(encryptedName.contains("Тестовый владелец"))
 
-        val reopened = MemoryEngine(context, prefsName, legacyPrefsName)
+        val reopened = MemoryEngine(
+            context,
+            prefsName,
+            legacyPrefsName,
+            legacyMemoryPreferencesName = null
+        )
         assertEquals(2, reopened.count())
     }
 }
