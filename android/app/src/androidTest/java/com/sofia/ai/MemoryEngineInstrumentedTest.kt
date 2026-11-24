@@ -427,6 +427,9 @@ class MemoryEngineInstrumentedTest {
         assertTrue(migrated.search("Прежний вопрос", includeSensitive = true).any {
             it.type == MemoryEngine.MemoryType.EPISODIC && it.sensitive
         })
+        val migratedOwnerLabel = migrated.search("Владелец теста", includeSensitive = true).single()
+        assertTrue(migratedOwnerLabel.sensitive)
+        assertTrue(migrated.buildContext("Владелец теста").isEmpty())
         assertEquals(originalFacts, legacyPrefs.getString("facts", null))
         assertEquals(originalConversation, legacyPrefs.getString("conversation", null))
 
