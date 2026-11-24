@@ -53,7 +53,7 @@ internal class SofiaSecurePreferences(
 
     private fun encrypt(key: String, value: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey())
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
         cipher.updateAAD(aad(key))
         val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
         return PREFIX + Base64.encodeToString(cipher.iv + ciphertext, Base64.NO_WRAP)
@@ -65,18 +65,27 @@ internal class SofiaSecurePreferences(
         val iv = payload.copyOfRange(0, IV_BYTES)
         val ciphertext = payload.copyOfRange(IV_BYTES, payload.size)
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(TAG_BITS, iv))
+        cipher.init(Cipher.DECRYPT_MODE, existingSecretKey(), GCMParameterSpec(TAG_BITS, iv))
         cipher.updateAAD(aad(key))
         return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
     private fun aad(key: String): ByteArray = "$namespace:$key".toByteArray(Charsets.UTF_8)
 
-    private fun secretKey(): SecretKey {
+    /** Never create a replacement key while decrypting existing ciphertext. */
+    private fun existingSecretKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        return keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+            ?: throw IllegalStateException(
+                "Ключ шифрования памяти Софии отсутствует. Зашифрованные данные сохранены без изменений; автоматическое создание нового ключа запрещено."
+            )
+    }
+
+    /** Key creation is allowed only on a write or plaintext migration path. */
+    private fun getOrCreateSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val existing = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
         if (existing != null) return existing
-
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         generator.init(
             KeyGenParameterSpec.Builder(
