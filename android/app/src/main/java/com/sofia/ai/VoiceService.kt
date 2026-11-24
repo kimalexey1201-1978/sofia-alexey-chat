@@ -204,7 +204,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     translateIncomingMessage(incoming)
    } catch (e: Exception) {
     Log.w(TAG, "Incoming message translation failed", e)
-    "Не удалось получить перевод. Оригинал сообщения: " + incoming.text
+    "Не удалось перевести входящее сообщение. Проверь подключение к серверу."
    }
    main.post {
     if (destroyed) return@post
