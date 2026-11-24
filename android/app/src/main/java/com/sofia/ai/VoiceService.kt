@@ -51,6 +51,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+  if (intent?.action == ACTION_UPDATE_TTS_SETTINGS) {
+   if (ttsReady) {
+    tts?.let { configureRussianVoice(it) }
+    status("Настройки голоса обновлены")
+   }
+  }
   if (intent?.action == ACTION_READ_INCOMING_MESSAGE) {
    val sender = intent.getStringExtra(EXTRA_MESSAGE_SENDER)?.take(200).orEmpty()
    val text = intent.getStringExtra(EXTRA_MESSAGE_TEXT)?.take(8000).orEmpty()
@@ -120,13 +126,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    voice.locale.language == "ru" &&
     !voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
   }
-  val localVoices = russianVoices.filterNot { voice ->
-   voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)
-  }
-  val candidates = if (localVoices.isNotEmpty()) localVoices else russianVoices
-  val selected = candidates.maxWithOrNull(
-   compareBy<android.speech.tts.Voice> { it.quality }.thenBy { -it.latency }
-  )
+  val prefs = getSharedPreferences(VOICE_PREFS, MODE_PRIVATE)
+  val requestedName = prefs.getString(VOICE_NAME_KEY, null)
+  val selected = russianVoices.firstOrNull { it.name == requestedName }
+   ?: russianVoices.filterNot { voice ->
+    voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)
+   }.maxWithOrNull(compareBy<android.speech.tts.Voice> { it.quality }.thenBy { -it.latency })
+   ?: russianVoices.maxWithOrNull(compareBy<android.speech.tts.Voice> { it.quality }.thenBy { -it.latency })
+
   if (selected != null) {
    engine.voice = selected
    Log.i(TAG, "Selected Russian TTS voice: name=${selected.name}, quality=${selected.quality}, latency=${selected.latency}")
@@ -139,9 +146,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     Log.w(TAG, "Using Android's default Russian TTS voice; no explicit Russian voice was listed")
    }
   }
-  // A slightly slower neutral rate improves intelligibility without changing pitch.
-  engine.setSpeechRate(0.95f)
-  engine.setPitch(1.0f)
+
+  val pitch = prefs.getFloat(PITCH_KEY, 1.0f).coerceIn(0.7f, 1.5f)
+  val rate = prefs.getFloat(RATE_KEY, 0.95f).coerceIn(0.5f, 2.0f)
+  engine.setPitch(pitch)
+  engine.setSpeechRate(rate)
+  Log.i(TAG, "Applied voice settings: pitch=$pitch, rate=$rate")
  }
 
  private fun completeSpeechChunk(id: String) {
@@ -763,8 +773,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/chat"
   private const val TRANSLATE_ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/translate"
   const val ACTION_READ_INCOMING_MESSAGE = "com.sofia.ai.READ_INCOMING_MESSAGE"
+  const val ACTION_UPDATE_TTS_SETTINGS = "com.sofia.ai.UPDATE_TTS_SETTINGS"
   const val EXTRA_MESSAGE_SENDER = "message_sender"
   const val EXTRA_MESSAGE_TEXT = "message_text"
+  private const val VOICE_PREFS = "sofia_voice_settings"
+  private const val VOICE_NAME_KEY = "voice_name"
+  private const val PITCH_KEY = "pitch"
+  private const val RATE_KEY = "rate"
   private const val PROFILE_PREFS = "sofia_profile"
   private const val MEMORY_PREFS = "sofia_memory"
   private const val HISTORY_KEY = "conversation_history"
