@@ -136,6 +136,33 @@ class MemoryEngineInstrumentedTest {
     }
 
     @Test
+    fun voiceOutputSanitizerRemovesEmojiShortcodesAndTextEmoticons() {
+        val spoken = VoiceOutputSanitizer.sanitize("Привет 😊 :smile: :) <3")
+        assertTrue(spoken.contains("Привет"))
+        assertFalse(spoken.contains("😊"))
+        assertFalse(spoken.contains(":smile:"))
+        assertFalse(spoken.contains(":)"))
+        assertFalse(spoken.contains("<3"))
+    }
+
+    @Test
+    fun voiceOutputSanitizerCorrectsFeminineSelfReferenceOnly() {
+        val spoken = VoiceOutputSanitizer.sanitize(
+            "Я понял, я готов, я уже проверил. Ты сказал это, а он понял."
+        )
+        assertTrue(spoken.contains("Я поняла"))
+        assertTrue(spoken.contains("я готова"))
+        assertTrue(spoken.contains("я уже проверила"))
+        assertTrue(spoken.contains("Ты сказал"))
+        assertTrue(spoken.contains("он понял"))
+    }
+
+    @Test
+    fun voiceOutputSanitizerRemovesEmojiOnlySpeechInsteadOfNamingSymbols() {
+        assertEquals("", VoiceOutputSanitizer.sanitize("😊😂❤️"))
+    }
+
+    @Test
     fun voiceContextAlwaysIncludesSeededOwnerProfile() {
         val memory = MemoryEngine(
             context = context,
