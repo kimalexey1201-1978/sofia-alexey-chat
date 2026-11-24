@@ -260,7 +260,85 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    .apply()
  }
 
+ /** Handle explicit owner memory commands locally; no network request is needed. */
+ private fun handleMemoryCommand(command: String): Boolean {
+  val engine = try { MemoryEngine(this) } catch (e: Exception) {
+   Log.e(TAG, "Structured memory could not be opened", e)
+   waiting = false
+   requestInFlight = false
+   say("Не могу безопасно открыть память. Я сохранила исходные данные без изменений. Нужна проверка.")
+   return true
+  }
+  val trimmed = command.trim()
+  val actions = listOf(
+   Triple(Regex("^(?:запомни надолго|сохрани надолго)\\s+(.+)$", RegexOption.IGNORE_CASE), MemoryEngine.MemoryType.LONG_TERM, 5),
+   Triple(Regex("^(?:запомни правило|сохрани правило)\\s+(.+)$", RegexOption.IGNORE_CASE), MemoryEngine.MemoryType.PROCEDURAL, 5),
+   Triple(Regex("^(?:запомни событие|сохрани событие)\\s+(.+)$", RegexOption.IGNORE_CASE), MemoryEngine.MemoryType.EPISODIC, 4),
+   Triple(Regex("^(?:запомни временно|сохрани временно)\\s+(.+)$", RegexOption.IGNORE_CASE), MemoryEngine.MemoryType.WORKING, 3)
+  )
+  for ((regex, type, importance) in actions) {
+   val match = regex.matchEntire(trimmed) ?: continue
+   return try {
+    engine.add(
+     type = type,
+     content = match.groupValues[1].trim(),
+     importance = importance,
+     tags = when (type) {
+      MemoryEngine.MemoryType.LONG_TERM -> listOf("долговременно", "владелец")
+      MemoryEngine.MemoryType.PROCEDURAL -> listOf("правило", "процедура")
+      MemoryEngine.MemoryType.EPISODIC -> listOf("событие", "история")
+      MemoryEngine.MemoryType.WORKING -> listOf("временно", "текущая задача")
+     }
+    )
+    waiting = false
+    requestInFlight = false
+    say(when (type) {
+     MemoryEngine.MemoryType.LONG_TERM -> "Сохранила это в зашифрованной долговременной памяти."
+     MemoryEngine.MemoryType.PROCEDURAL -> "Сохранила это как постоянное рабочее правило."
+     MemoryEngine.MemoryType.EPISODIC -> "Сохранила это событие в истории."
+     MemoryEngine.MemoryType.WORKING -> "Сохранила это во временной памяти на сутки."
+    })
+    true
+   } catch (e: Exception) {
+    Log.e(TAG, "Could not save structured memory", e)
+    waiting = false
+    requestInFlight = false
+    say("Не удалось сохранить запись. Исходная память не была заменена.")
+    true
+   }
+  }
+
+  val forget = Regex("^(?:удали из памяти|забудь факт)\\s+(.+)$", RegexOption.IGNORE_CASE)
+   .matchEntire(trimmed)
+  if (forget != null) {
+   val removed = try { engine.deleteByContent(forget.groupValues[1]) } catch (e: Exception) {
+    Log.e(TAG, "Could not delete structured memory", e)
+    false
+   }
+   waiting = false
+   requestInFlight = false
+   say(if (removed) "Удаление точной записи из памяти выполнено."
+       else "Не нашла точную запись или память требует проверки. Другие записи не изменяла.")
+   return true
+  }
+
+  if (trimmed.lowercase(Locale("ru", "RU")) in setOf(
+    "что ты помнишь", "что ты помнишь обо мне", "покажи свою память"
+   )) {
+   val summary = try { engine.summary() } catch (e: Exception) {
+    Log.e(TAG, "Could not read memory summary", e)
+    "Не могу безопасно прочитать память. Исходные данные сохранены без изменений."
+   }
+   waiting = false
+   requestInFlight = false
+   say(summary)
+   return true
+  }
+  return false
+ }
+
  private fun sendCommand(command: String) {
+  if (handleMemoryCommand(command)) return
   waiting = false
   requestInFlight = true
   stopRecognition()
