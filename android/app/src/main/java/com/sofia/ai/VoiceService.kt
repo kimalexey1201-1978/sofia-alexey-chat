@@ -220,21 +220,18 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  private fun ownerProfile(): Pair<String, String> {
   val prefs = getSharedPreferences(PROFILE_PREFS, MODE_PRIVATE)
-  if (!prefs.contains("owner_name") || !prefs.contains("preferred_address")) {
-   prefs.edit()
-    .putString("owner_name", DEFAULT_OWNER_NAME)
-    .putString("preferred_address", DEFAULT_ADDRESS)
-    .apply()
-  }
-  val ownerName = prefs.getString("owner_name", DEFAULT_OWNER_NAME)?.trim()
+  val secure = SofiaSecurePreferences(prefs)
+  // Existing plaintext profile values are migrated in place after encryption succeeds.
+  val ownerName = secure.getString("owner_name", DEFAULT_OWNER_NAME)?.trim()
    ?.takeIf { it.isNotEmpty() } ?: DEFAULT_OWNER_NAME
-  val address = prefs.getString("preferred_address", DEFAULT_ADDRESS)?.trim()
+  val address = secure.getString("preferred_address", DEFAULT_ADDRESS)?.trim()
    ?.takeIf { it.isNotEmpty() } ?: DEFAULT_ADDRESS
   return ownerName to address
  }
 
  private fun loadHistory(): JSONArray {
-  val raw = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE).getString(HISTORY_KEY, null)
+  val prefs = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE)
+  val raw = SofiaSecurePreferences(prefs).getString(HISTORY_KEY, null)
   return try {
    val stored = if (raw.isNullOrBlank()) JSONArray() else JSONArray(raw)
    val recent = JSONArray()
@@ -255,9 +252,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  private fun saveHistory(history: JSONArray) {
-  getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE).edit()
-   .putString(HISTORY_KEY, history.toString())
-   .apply()
+  val prefs = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE)
+  SofiaSecurePreferences(prefs).putString(HISTORY_KEY, history.toString())
  }
 
  /** Handle explicit owner memory commands locally; no network request is needed. */
