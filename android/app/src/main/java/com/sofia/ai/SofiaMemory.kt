@@ -4,6 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.util.Locale
 
 /**
  * App-private persistent memory for Sofia.
@@ -30,11 +31,14 @@ class SofiaMemory(
     data class Turn(val role: String, val content: String)
 
     @Synchronized
-    fun profileContext(): String {
+    fun profileContext(query: String? = null): String {
         val address = securePrefs.getString("preferred_address", "").orEmpty()
         val language = securePrefs.getString("language", "Russian").orEmpty()
         val owner = securePrefs.getString("owner_label", "").orEmpty()
-        val facts = readFactsOrNull().orEmpty()
+        val allFacts = readFactsOrNull().orEmpty()
+        // A normal request receives only relevant facts; an explicit profile
+        // request without a query retains the complete profile behavior.
+        val facts = if (query.isNullOrBlank()) allFacts else retrieveRelevantFacts(query)
         return buildString {
             append("Я София, личный помощник владельца этого устройства. ")
             append("Основной язык общения: ").append(language).append(". ")
@@ -42,10 +46,57 @@ class SofiaMemory(
             else append("Не называй владельца по имени и не придумывай обращение. ")
             if (address.isNotBlank()) append("Предпочтительное обращение: ").append(address).append(". ")
             if (facts.isNotEmpty()) {
-                append("\nДолговременная память владельца (сохранённые факты):\n")
+                append("\nРелевантные сведения из долговременной памяти владельца:\n")
                 facts.forEach { append("- ").append(it).append("\n") }
+            } else if (!query.isNullOrBlank() && allFacts.isNotEmpty()) {
+                append("\nВ долговременной памяти не найдено фактов, явно связанных с текущим вопросом. Не делай выводов на их основе. ")
             }
         }
+    }
+
+    /**
+     * Small deterministic retrieval layer for the current local fact store.
+     * It ranks only explicit saved facts and never creates or rewrites memories.
+     */
+    @Synchronized
+    fun retrieveRelevantFacts(query: String, limit: Int = 8): List<String> {
+        val cleanQuery = normalizeForSearch(query)
+        if (cleanQuery.isBlank() || limit <= 0) return emptyList()
+        val queryTokens = searchTokens(cleanQuery)
+        if (queryTokens.isEmpty()) return emptyList()
+        val facts = readFactsOrNull() ?: return emptyList()
+
+        return facts.mapIndexedNotNull { index, fact ->
+            val factNormalized = normalizeForSearch(fact)
+            val factTokens = searchTokens(factNormalized)
+            val overlap = queryTokens.intersect(factTokens).size
+            val phraseBonus = if (cleanQuery.length >= 4 && factNormalized.contains(cleanQuery)) 3 else 0
+            val score = overlap * 2 + phraseBonus
+            if (score > 0) Triple(index, score, fact) else null
+        }
+            .sortedWith(compareByDescending<Triple<Int, Int, String>> { it.second }.thenBy { it.first })
+            .take(limit.coerceAtMost(8))
+            .map { it.third }
+    }
+
+    private fun normalizeForSearch(value: String): String =
+        value.lowercase(Locale.ROOT)
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .trim()
+
+    private fun searchTokens(value: String): Set<String> {
+        val ignored = setOf(
+            "это", "как", "что", "где", "когда", "почему", "зачем", "мне", "меня",
+            "мои", "мой", "моя", "мое", "ты", "тебя", "твой", "твоя", "про", "для",
+            "или", "есть", "был", "была", "были", "будет", "буду", "сейчас", "уже",
+            "который", "которая", "которые", "этот", "эта", "эти", "тот", "там",
+            "здесь", "пожалуйста", "помнишь", "помни", "сохрани", "запомни"
+        )
+        return Regex("[\\p{L}\\p{N}]{2,}")
+            .findAll(value)
+            .map { it.value }
+            .filterNot { it in ignored }
+            .toSet()
     }
 
     @Synchronized
