@@ -229,10 +229,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   return ownerName to address
  }
 
- private fun loadHistory(): JSONArray {
-  val prefs = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE)
-  val raw = SofiaSecurePreferences(prefs, "conversation-history").getString(HISTORY_KEY, null)
+ private fun loadHistory(): JSONArray? {
   return try {
+   val prefs = getSharedPreferences(MEMORY_PREFS, MODE_PRIVATE)
+   val raw = SofiaSecurePreferences(prefs, "conversation-history").getString(HISTORY_KEY, null)
    val stored = if (raw.isNullOrBlank()) JSONArray() else JSONArray(raw)
    val recent = JSONArray()
    val start = (stored.length() - MAX_HISTORY_MESSAGES).coerceAtLeast(0)
@@ -246,8 +246,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    }
    recent
   } catch (e: Exception) {
-   Log.w(TAG, "Saved conversation history is unreadable; starting a fresh history", e)
-   JSONArray()
+   // Continue chatting without history, but never save over bytes that may be recoverable.
+   Log.w(TAG, "Saved conversation history is unreadable; preserving stored bytes", e)
+   null
   }
  }
 
@@ -345,7 +346,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   status("Выполняю команду")
   io.execute {
    try {
-    val (ownerName, preferredAddress) = ownerProfile()
+    val (ownerName, preferredAddress) = try {
+     ownerProfile()
+    } catch (profileError: Exception) {
+     // Keep ordinary chat available while preserving an unreadable profile for recovery.
+     Log.e(TAG, "Owner profile unavailable; using safe defaults without modifying stored bytes", profileError)
+     DEFAULT_OWNER_NAME to DEFAULT_ADDRESS
+    }
     val memoryContext = try { MemoryEngine(this).buildContext(command) } catch (memoryError: Exception) {
      // A damaged memory store must not prevent ordinary chat; leave its raw data untouched.
      Log.e(TAG, "Structured memory unavailable; continuing without memory context", memoryError)
@@ -368,7 +375,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     val messages = JSONArray()
      .put(JSONObject().put("role", "system").put("content", systemPrompt))
     val history = loadHistory()
-    for (i in 0 until history.length()) messages.put(history.getJSONObject(i))
+    if (history != null) {
+     for (i in 0 until history.length()) messages.put(history.getJSONObject(i))
+    }
     messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
@@ -401,7 +410,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      root.has("error") -> "Сервис ответа временно недоступен."
      else -> "Я получила пустой ответ. Повтори, пожалуйста, вопрос."
     }
-    if (code in 200..299 && answer.isNotBlank()) {
+    if (code in 200..299 && answer.isNotBlank() && history != null) {
      history.put(JSONObject().put("role", "user").put("content", command))
      history.put(JSONObject().put("role", "assistant").put("content", answer))
      val trimmed = JSONArray()
