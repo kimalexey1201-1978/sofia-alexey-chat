@@ -98,8 +98,8 @@ class MemoryEngine(
         return persistedRecord
     }
 
-        fun search(query: String, limit: Int = 20, includeSensitive: B
-        synchronized(STORAGE_LOCK) {oolean = false): List<MemoryRecord> {
+        fun search(query: String, limit: Int = 20, includeSensitive: Boolean = false): List<MemoryRecord> {
+        synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
         if (terms.isEmpty()) return emptyList()
         return readRecords()
@@ -116,8 +116,8 @@ class MemoryEngine(
     }
 
     /** Sensitive records are never added to automatic model context. */
-        fun buildC
-        synchronized(STORAGE_LOCK) {ontext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
+        fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
+        synchronized(STORAGE_LOCK) {
         val terms = tokenize(query)
         if (terms.isEmpty()) return ""
         val ranked = readRecords()
@@ -136,38 +136,38 @@ class MemoryEngine(
             val extra = line.length + if (result.isEmpty()) 0 else 1
             if (result.length + extra > maxChars.coerceIn(256, 5000)) continue
             if (result.isNotEmpty()) result.append('\n')
-            result.app
-        synchronized(STORAGE_LOCK) {end(line)
+            result.append(line)
             count++
         }
         return result.toString()
     }
 
         fun summary(): String {
+        synchronized(STORAGE_LOCK) {
         val records = readRecords().filter { !it.sensitive }
         if (records.isEmpty()) return "Структурированная память пока пуста."
         return records.sortedWith(compareBy<MemoryRecord> { it.type.ordinal }
             .thenByDescending { it.importance }
             .thenByDescending { it.updatedAt })
             .take(60)
-            .mapIndexed { inde
-        synchronized(STORAGE_LOCK) {x, record -> "${index + 1}. [${record.type.wireName}] ${record.content}" }
+            .mapIndexed { index, record -> "${index + 1}. [${record.type.wireName}] ${record.content}" }
             .joinToString("\n")
     }
 
         fun exportJson(): String {
+        synchronized(STORAGE_LOCK) {
         val records = JSONArray()
         readRecords().forEach { records.put(it.toJson()) }
         return JSONObject()
             .put("format", FORMAT_NAME)
-            .put("schemaVersion", SCHEMA_VERS
-        synchronized(STORAGE_LOCK) {ION)
+            .put("schemaVersion", SCHEMA_VERSION)
             .put("exportedAt", System.currentTimeMillis())
             .put("records", records)
             .toString(2)
     }
 
         fun importJson(json: String): ImportResult {
+        synchronized(STORAGE_LOCK) {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_IMPORT_BYTES) { "Memory file is too large" }
         val root = JSONObject(json)
         require(root.optString("format") == FORMAT_NAME) { "Not a Sofia memory file" }
@@ -190,8 +190,7 @@ class MemoryEngine(
                 imported++
             } else {
                 skipped++
-    
-        synchronized(STORAGE_LOCK) {        }
+            }
         }
         writeRecords(records.values.toList())
         return ImportResult(imported, skipped, records.size)
@@ -199,8 +198,8 @@ class MemoryEngine(
 
         fun count(): Int = synchronized(STORAGE_LOCK) { readRecords().size }
 
-        fun delete(
-        synchronized(STORAGE_LOCK) {id: String): Boolean {
+        fun delete(id: String): Boolean {
+        synchronized(STORAGE_LOCK) {
         val records = readRecords().toMutableList()
         val removed = records.removeAll { it.id == id }
         if (removed) writeRecords(records)
@@ -208,33 +207,34 @@ class MemoryEngine(
     }
 
         fun deleteByContent(content: String): Boolean {
-        val target = 
-        synchronized(STORAGE_LOCK) {content.trim()
-        if (target.isEmp
-        }
-    ty()) return false
-        val record
-        }
-    s = readRecords().toMutableList()
-   
-        }
-         val removed = records.removeAll 
-        }
-    { it.content.equals(target, ignoreCas
-        }
-    e = true) }
-        if (removed) writ
-        }
-    eRecords(records)
-        return remo
-        }
-    ved
+        synchronized(STORAGE_LOCK) {
+        val target = content.trim()
+        if (target.isEmpty()) return false
+        val records = readRecords().toMutableList()
+        val removed = records.removeAll { it.content.equals(target, ignoreCase = true) }
+        if (removed) writeRecords(records)
+        return removed
     }
 
         fun clearAll() {
- 
+        synchronized(STORAGE_LOCK) {
+        writeRecords(emptyList())
+    
         }
-           writeRecords(emptyList())
+    
+        }
+    
+        }
+    
+        }
+    
+        }
+    
+        }
+    
+        }
+    
+        }
     
         }
     }
