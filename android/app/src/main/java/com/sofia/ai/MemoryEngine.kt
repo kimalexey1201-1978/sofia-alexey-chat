@@ -118,10 +118,17 @@ class MemoryEngine(
         }}
 
     /** Sensitive records are never added to automatic model context. */
-    fun buildContext(query: String, maxRecords: Int = 8, maxChars: Int = 3000): String {
+    fun buildContext(
+        query: String,
+        maxRecords: Int = 8,
+        maxChars: Int = 3000,
+        includeOwnerProfile: Boolean = false
+    ): String {
         synchronized(STORAGE_LOCK) {
         val records = readRecords().filter { !it.sensitive }
-        val ownerProfile = records.firstOrNull { it.id == "owner-knowledge-profile-v1" }
+        val ownerProfile = if (includeOwnerProfile) {
+            records.firstOrNull { it.id == "owner-knowledge-profile-v1" }
+        } else null
         val terms = tokenize(query)
         val ranked = records.asSequence()
             .filter { it.id != "owner-knowledge-profile-v1" }
