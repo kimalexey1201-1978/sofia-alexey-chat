@@ -5,7 +5,8 @@ export default {
     const cors = {
       "Access-Control-Allow-Origin": "https://kimalexey1201-1978.github.io",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type"
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Expose-Headers": "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset"
     };
 
     if (url.pathname === "/api/chat") {
@@ -53,9 +54,21 @@ export default {
 
         const data = await upstream.json();
 
+        // Forward only safe rate-limit diagnostics. Never expose provider credentials.
+        const responseHeaders = new Headers(cors);
+        for (const name of [
+          "Retry-After",
+          "X-RateLimit-Limit",
+          "X-RateLimit-Remaining",
+          "X-RateLimit-Reset"
+        ]) {
+          const value = upstream.headers.get(name);
+          if (value !== null) responseHeaders.set(name, value);
+        }
+
         return Response.json(data, {
           status: upstream.status,
-          headers: cors
+          headers: responseHeaders
         });
 
       } catch (error) {
