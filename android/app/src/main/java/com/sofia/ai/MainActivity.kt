@@ -148,24 +148,33 @@ class MainActivity : Activity() {
      .putFloat("pitch", pitchValue())
      .putFloat("rate", rateValue())
      .apply()
-    val update = Intent(this, VoiceService::class.java).setAction(VoiceService.ACTION_UPDATE_TTS_SETTINGS)
-    try {
-     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(update) else startService(update)
-     Toast.makeText(this, "Настройки голоса сохранены", Toast.LENGTH_SHORT).show()
-    } catch (e: Exception) {
-     Toast.makeText(this, "Сохранено. Перезапусти голосовой режим для применения.", Toast.LENGTH_LONG).show()
+    if (VoiceService.isRunning) {
+     val update = Intent(this, VoiceService::class.java).setAction(VoiceService.ACTION_UPDATE_TTS_SETTINGS)
+     try {
+      startService(update)
+      Toast.makeText(this, "Настройки сохранены и применяются", Toast.LENGTH_SHORT).show()
+     } catch (e: Exception) {
+      Toast.makeText(this, "Настройки сохранены. Перезапусти голосовой режим для применения.", Toast.LENGTH_LONG).show()
+     }
+    } else {
+     Toast.makeText(this, "Настройки сохранены. Они применятся при следующем запуске голосового режима.", Toast.LENGTH_LONG).show()
     }
    }
    .create()
   dialog.setOnShowListener {
    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
     val selected = voices[voicePicker.selectedItemPosition]
-    engine.voice = selected
-    engine.setPitch(pitchValue())
-    engine.setSpeechRate(rateValue())
-    engine.speak("Привет. Я София. Давай проверим, насколько тебе подходит мой голос.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
+    try {
+     engine.voice = selected
+     engine.setPitch(pitchValue())
+     engine.setSpeechRate(rateValue())
+     engine.speak("Привет. Я София. Давай проверим, насколько тебе подходит мой голос.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
+    } catch (e: Exception) {
+     Toast.makeText(this, "Не удалось прослушать выбранный голос: ${e.message ?: "ошибка TTS"}", Toast.LENGTH_LONG).show()
+    }
    }
   }
+  dialog.setOnDismissListener { engine.stop() }
   dialog.show()
  }
 

@@ -46,6 +46,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
   }
   startForeground(NOTIFICATION, notification("Ожидаю слово «София»"))
+  isRunning = true
   tts = TextToSpeech(this, this)
   startRecognition()
  }
@@ -756,6 +757,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
  override fun onDestroy() {
   destroyed = true
+  isRunning = false
   pendingIncomingMessages.clear()
   main.removeCallbacksAndMessages(null)
   conversationTimeoutTask = null
@@ -767,6 +769,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  companion object {
+  @Volatile
+  var isRunning: Boolean = false
+   private set
+
   private const val TAG = "SofiaVoice"
   private const val CHANNEL = "sofia_voice"
   private const val NOTIFICATION = 7301
