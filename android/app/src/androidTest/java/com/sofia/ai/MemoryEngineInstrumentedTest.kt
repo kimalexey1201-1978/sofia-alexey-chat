@@ -86,6 +86,28 @@ class MemoryEngineInstrumentedTest {
     }
 
     @Test
+    fun migratedOwnerProfileRecordsAreSensitiveAndExcludedFromModelContext() {
+        val legacyPrefs = context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE)
+        val legacyProfile = SofiaSecurePreferences(legacyPrefs, "owner-profile")
+        legacyProfile.putString("owner_name", "Private Owner Name")
+        legacyProfile.putString("preferred_address", "Private Voice Address")
+
+        val memory = MemoryEngine(
+            context = context,
+            preferencesName = prefsName,
+            legacyProfilePreferencesName = legacyPrefsName,
+            legacyMemoryPreferencesName = null
+        )
+
+        val migrated = memory.search("Private Owner", includeSensitive = true)
+        assertEquals(1, migrated.size)
+        assertTrue(migrated.single().sensitive)
+        assertTrue(memory.search("Private Voice Address", includeSensitive = true).single().sensitive)
+        assertTrue(memory.buildContext("Private Owner Name").isEmpty())
+        assertTrue(memory.buildContext("Private Voice Address").isEmpty())
+    }
+
+    @Test
     fun encryptedRecordsAreNotStoredAsPlaintext() {
         val memory = engine()
         memory.add(
