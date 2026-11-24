@@ -502,7 +502,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private fun speechText(markdown: String): String {
   // Keep the spoken answer natural: remove Markdown syntax and visual-only emoji.
   return markdown
-   .replace(Regex("(?s)\`\`\`[^\\n]*\\n?(.*?)\`\`\`"), "$1")
+   .replace(Regex("(?s)\\x60\\x60\\x60[^\\n]*\\n?(.*?)\\x60\\x60\\x60"), "$1")
    .replace(Regex("\\[([^\\]]+)\\]\\((?:https?://)?[^)]+\\)"), "$1")
    .replace(Regex("(?m)^\\s{0,3}#{1,6}\\s*"), "")
    .replace(Regex("(?m)^\\s*[-+*]\\s+"), "")
