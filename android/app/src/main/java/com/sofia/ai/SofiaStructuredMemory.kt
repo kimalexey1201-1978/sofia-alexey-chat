@@ -161,9 +161,9 @@ internal class SofiaStructuredMemory(context: Context) {
                     if (record != null) add(record)
                 }
             }
-        } catch (_: JSONException) {
-            // Keep the encrypted source untouched for recovery; never overwrite it with an empty list.
-            emptyList()
+        } catch (e: JSONException) {
+            // Abort writes on malformed data so the original encrypted value remains recoverable.
+            throw IllegalStateException("Структурированная память повреждена. Исходные данные сохранены.", e)
         }
         val cutoff = System.currentTimeMillis() - WORKING_TTL_MS
         return parsed.filter { it.type != Type.WORKING || it.updatedAt >= cutoff }
