@@ -9,9 +9,20 @@ const DOMAINS = new Set([
   "preference", "user_fact", "project",
   "procedure", "knowledge_reference", "ephemeral"
 ]);
+const SOURCE_TYPES = new Set([
+  "user_message", "user_approval", "project_artifact",
+  "connected_source", "assistant_inference", "system_event"
+]);
 const ASSERTIONS = new Set([
   "user_stated", "user_confirmed", "externally_verified",
   "assistant_inferred", "observed"
+]);
+const ITEM_STATUSES = new Set([
+  "candidate", "pending_approval", "active", "stale",
+  "superseded", "restricted", "deletion_pending", "deleted", "expired"
+]);
+const SENSITIVITIES = new Set([
+  "public", "personal", "sensitive", "highly_sensitive", "secret_prohibited"
 ]);
 const RETENTION_CLASSES = new Set([
   "ephemeral", "session", "project_lifecycle",
@@ -86,6 +97,7 @@ export function evaluateMemoryWriteAdmission(input) {
       !isNonEmptyString(candidate.content) ||
       candidate.content.length > 12000 ||
       !candidate.source || typeof candidate.source !== "object" ||
+      !SOURCE_TYPES.has(candidate.source.source_type) ||
       !isNonEmptyString(candidate.source.source_id) ||
       !ASSERTIONS.has(candidate.source.assertion_kind) ||
       !isNonEmptyString(candidate.observed_at) ||
@@ -95,7 +107,8 @@ export function evaluateMemoryWriteAdmission(input) {
       !isNonEmptyString(candidate.purpose) ||
       !candidate.retention ||
       !RETENTION_CLASSES.has(candidate.retention.retention_class) ||
-      !isNonEmptyString(candidate.sensitivity)) {
+      !SENSITIVITIES.has(candidate.sensitivity) ||
+      !ITEM_STATUSES.has(candidate.status)) {
     return result(input, "REJECT", "MEMORY_CANDIDATE_INVALID");
   }
 
