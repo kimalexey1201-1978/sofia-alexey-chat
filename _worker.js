@@ -20,11 +20,11 @@ export default {
           return Response.json({ error: "Service is not configured" }, { status: 503, headers: cors });
         }
         const declaredLength = Number(request.headers.get("Content-Length") || "0");
-        if (declaredLength > 20000) {
+        if (declaredLength > 40000) {
           return Response.json({ error: "Request body is too large" }, { status: 413, headers: cors });
         }
         const rawBody = await request.text();
-        if (new TextEncoder().encode(rawBody).byteLength > 20000) {
+        if (new TextEncoder().encode(rawBody).byteLength > 40000) {
           return Response.json({ error: "Request body is too large" }, { status: 413, headers: cors });
         }
         let body;
@@ -139,7 +139,7 @@ export default {
           allowedRoles.has(message.role) &&
           typeof message.content === "string" &&
           message.content.length > 0 &&
-          message.content.length <= 20000
+          message.content.length <= 40000
         );
         if (!validMessages) {
           return Response.json(
