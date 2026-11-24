@@ -41,12 +41,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  override fun onCreate() {
   super.onCreate()
-  isRunning = true
   if (Build.VERSION.SDK_INT >= 26) {
    val ch = NotificationChannel(CHANNEL, "Голосовой режим Софии", NotificationManager.IMPORTANCE_LOW)
    getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
   }
   startForeground(NOTIFICATION, notification("Ожидаю слово «София»"))
+  isRunning = true
   tts = TextToSpeech(this, this)
   startRecognition()
  }
