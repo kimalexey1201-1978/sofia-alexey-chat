@@ -345,12 +345,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val normalized = norm(command)
   val asksHowToAddress = listOf(
    Regex("как (?:ты )?(?:будешь )?(?:ко мне )?обращаться"),
+   Regex("как (?:ты )?(?:ко мне )?(?:будешь )?обращаться"),
    Regex("как (?:ты )?(?:будешь )?меня называть"),
+   Regex("как ты меня будешь называть"),
    Regex("как мне к тебе обращаться"),
    Regex("как ты ко мне обращаешься"),
    Regex("как обращаться ко мне"),
    Regex("как меня называть"),
-   Regex("чем ты будешь меня называть")
+   Regex("чем ты будешь меня называть"),
+   Regex("как ты хочешь ко мне обращаться")
   ).any { it.containsMatchIn(normalized) }
   if (!asksHowToAddress) return false
   waiting = false
