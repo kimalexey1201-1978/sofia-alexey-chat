@@ -80,7 +80,7 @@ class SofiaMemory(context: Context) {
     fun factsSummary(): String {
         val facts = readFacts()
         return if (facts.isEmpty()) "Пока нет сохранённых долговременных фактов."
-        else "Вот что сохранено в моей памяти:\\n" + facts.mapIndexed { index, fact -> "${index + 1}. $fact" }.joinToString("\\n")
+        else "Вот что сохранено в моей памяти:\n" + facts.mapIndexed { index, fact -> "${index + 1}. $fact" }.joinToString("\n")
     }
 
     @Synchronized
