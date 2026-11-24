@@ -19,13 +19,17 @@ class MemoryEngineInstrumentedTest {
     private fun engine() = MemoryEngine(
         context = context,
         preferencesName = prefsName,
-        legacyProfilePreferencesName = null
+        legacyProfilePreferencesName = null,
+        legacyMemoryPreferencesName = null
     )
 
     @After
     fun cleanUp() {
         context.getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("memory_engine_migration_destination", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test
@@ -163,6 +167,90 @@ class MemoryEngineInstrumentedTest {
             context.getSharedPreferences("memory_engine_import_test", Context.MODE_PRIVATE)
                 .edit().clear().commit()
         }
+    }
+
+    private fun encryptLegacy(value: String, keyName: String): String {
+        val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val secret = keyStore.getKey("sofia_memory_aes_gcm_v1", null) as javax.crypto.SecretKey
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secret)
+        cipher.updateAAD(keyName.toByteArray(Charsets.UTF_8))
+        val encrypted = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+        return "enc:v1:" + android.util.Base64.encodeToString(cipher.iv + encrypted, android.util.Base64.NO_WRAP)
+    }
+
+    @Test
+    fun legacyV1FactsConversationAndProfileMigrateWithoutChangingSource() {
+        // Create the same Android Keystore key used by the legacy implementation.
+        engine().add(
+            type = MemoryEngine.MemoryType.LONG_TERM,
+            content = "keystore bootstrap",
+            id = "bootstrap"
+        )
+        val legacyPrefs = context.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE)
+        val facts = org.json.JSONArray()
+            .put("Старый факт номер один")
+            .put("Старый факт номер два")
+        val turns = org.json.JSONArray()
+            .put(org.json.JSONObject().put("role", "user").put("content", "Прежний вопрос").put("at", 100L))
+            .put(org.json.JSONObject().put("role", "assistant").put("content", "Прежний ответ").put("at", 200L))
+        val sourceValues = mapOf(
+            "facts" to facts.toString(),
+            "conversation" to turns.toString(),
+            "preferred_address" to "мой хороший",
+            "language" to "Russian",
+            "owner_label" to "Владелец теста"
+        )
+        sourceValues.forEach { (key, value) ->
+            legacyPrefs.edit().putString(key, encryptLegacy(value, key)).commit()
+        }
+        val originalFacts = legacyPrefs.getString("facts", null)
+        val originalConversation = legacyPrefs.getString("conversation", null)
+
+        val migrated = MemoryEngine(
+            context = context,
+            preferencesName = "memory_engine_migration_destination",
+            legacyProfilePreferencesName = null,
+            legacyMemoryPreferencesName = legacyPrefsName
+        )
+
+        assertTrue(migrated.search("Старый факт номер один").any {
+            it.type == MemoryEngine.MemoryType.LONG_TERM && it.content == "Старый факт номер один"
+        })
+        assertTrue(migrated.search("Старый факт номер два").any { it.content == "Старый факт номер два" })
+        assertTrue(migrated.search("Прежний вопрос", includeSensitive = true).any {
+            it.type == MemoryEngine.MemoryType.EPISODIC && it.sensitive
+        })
+        assertEquals(originalFacts, legacyPrefs.getString("facts", null))
+        assertEquals(originalConversation, legacyPrefs.getString("conversation", null))
+
+        val profile = SofiaSecurePreferences(
+            context.getSharedPreferences("sofia_profile", Context.MODE_PRIVATE),
+            "owner-profile"
+        )
+        assertEquals("мой хороший", profile.getString("preferred_address", null))
+        assertEquals("Владелец теста", profile.getString("owner_name", null))
+
+        val history = SofiaSecurePreferences(
+            context.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE),
+            "conversation-history"
+        ).getString("conversation_history", null)
+        assertEquals(2, org.json.JSONArray(history).length())
+
+        val beforeReopen = migrated.count()
+        val reopened = MemoryEngine(
+            context = context,
+            preferencesName = "memory_engine_migration_destination",
+            legacyProfilePreferencesName = null,
+            legacyMemoryPreferencesName = legacyPrefsName
+        )
+        assertEquals(beforeReopen, reopened.count())
+        assertEquals(2, org.json.JSONArray(
+            SofiaSecurePreferences(
+                context.getSharedPreferences("sofia_memory", Context.MODE_PRIVATE),
+                "conversation-history"
+            ).getString("conversation_history", null)
+        ).length())
     }
 
     @Test
