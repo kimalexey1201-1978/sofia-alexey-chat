@@ -463,7 +463,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val utteranceId = "sofia-response-${++utteranceSequence}"
   activeUtteranceId = utteranceId
   val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-  if (result == TextToSpeech.ERROR) {
+  if (result != TextToSpeech.SUCCESS) {
+   // A rejected utterance will not reliably produce a completion callback.
+   if (activeUtteranceId == utteranceId) activeUtteranceId = null
    speaking = false
    requestInFlight = false
    status("Не удалось озвучить ответ")
