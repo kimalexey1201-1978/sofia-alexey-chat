@@ -17,10 +17,11 @@ permissions:
   contents: read
 
 # A push and its pull_request event can target the same head branch.
-# Keep only one emulator run active for that branch.
+# Serialize emulator runs, but never cancel an active run: cold boot on the
+# TCG fallback can take several minutes and cancellation hides test results.
 concurrency:
   group: memory-engine-instrumentation-${{ github.event.pull_request.head.ref || github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   memory-engine-tests:
