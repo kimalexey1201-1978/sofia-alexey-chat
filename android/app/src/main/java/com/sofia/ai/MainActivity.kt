@@ -15,6 +15,8 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
  private lateinit var status: TextView
+ private lateinit var voiceButton: Button
+ private var voiceRequested = true
  private val maxMemoryImportBytes = 5 * 1024 * 1024
  private val req = 41
  private val importRequest = 42
@@ -28,11 +30,10 @@ class MainActivity : Activity() {
    gravity = Gravity.CENTER
    setPadding(24,24,24,24)
   }
-  val stop = Button(this).apply {
+  voiceButton = Button(this).apply {
    text = "Остановить голосовой режим"
    setOnClickListener {
-    stopService(Intent(this@MainActivity, VoiceService::class.java))
-    status.text = "Голосовой режим остановлен."
+    if (voiceRequested) stopVoice() else requestAudioAndStart()
    }
   }
   val importMemory = Button(this).apply {
@@ -48,7 +49,7 @@ class MainActivity : Activity() {
    gravity=Gravity.CENTER
    setPadding(24,24,24,24)
    addView(status)
-   addView(stop)
+   addView(voiceButton)
    addView(importMemory)
    addView(exportMemory)
   })
