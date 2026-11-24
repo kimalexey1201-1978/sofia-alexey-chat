@@ -139,7 +139,7 @@ export default {
           allowedRoles.has(message.role) &&
           typeof message.content === "string" &&
           message.content.length > 0 &&
-          message.content.length <= 40000
+          message.content.length <= 20000
         );
         if (!validMessages) {
           return Response.json(
