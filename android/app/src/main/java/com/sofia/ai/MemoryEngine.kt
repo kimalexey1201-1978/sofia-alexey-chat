@@ -437,17 +437,25 @@ class MemoryEngine(
         val type = MemoryType.fromWire(optString("type")) ?: return null
         val content = optString("content").trim()
             .takeIf { it.isNotEmpty() && it.length <= MAX_RECORD_CHARS } ?: return null
+        val now = System.currentTimeMillis()
+        val createdAt = optLong("createdAt", now)
+        val updatedAt = optLong("updatedAt", now)
+        // Reject impossible chronology instead of silently normalizing imported metadata.
+        if (createdAt < 0L || updatedAt < createdAt) return null
+
         val tagsArray = optJSONArray("tags") ?: JSONArray()
-        val tags = (0 until tagsArray.length())
-            .mapNotNull { tagsArray.optString(it).trim().takeIf(String::isNotEmpty) }
-            .take(30)
+        val tags = ArrayList<String>(minOf(tagsArray.length(), 30))
+        for (i in 0 until minOf(tagsArray.length(), 30)) {
+            val tag = tagsArray.optString(i).trim()
+            if (tag.isNotEmpty()) tags.add(tag)
+        }
         return MemoryRecord(
             id = id,
             type = type,
             content = content,
-            source = optString("source", "import").take(200),
-            createdAt = optLong("createdAt", System.currentTimeMillis()).coerceAtLeast(0),
-            updatedAt = optLong("updatedAt", System.currentTimeMillis()).coerceAtLeast(0),
+            source = optString("source", "import").trim().take(200),
+            createdAt = createdAt,
+            updatedAt = updatedAt,
             confidence = optDouble("confidence", 1.0).coerceIn(0.0, 1.0),
             importance = optInt("importance", 3).coerceIn(1, 5),
             tags = tags,
