@@ -34,7 +34,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var conversationTimeoutTask: Runnable? = null
  private var utteranceSequence = 0
  private var activeUtteranceId: String? = null
- private var pendingTtsChunks = 0
+ private val pendingTtsUtteranceIds = mutableSetOf<String>()
 
  override fun onCreate() {
   super.onCreate()
@@ -128,9 +128,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
 
  private fun completeSpeechChunk(id: String) {
   main.post {
-   if (activeUtteranceId != id) return@post
-   pendingTtsChunks = (pendingTtsChunks - 1).coerceAtLeast(0)
-   if (pendingTtsChunks == 0) finishUtterance(id)
+   if (pendingTtsUtteranceIds.remove(id) && pendingTtsUtteranceIds.isEmpty()) {
+    val responseId = activeUtteranceId ?: return@post
+    finishUtterance(responseId)
+   }
   }
  }
 
@@ -618,28 +619,29 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val spokenText = VoiceOutputSanitizer.sanitize(text)
   if (spokenText.isBlank()) {
    Log.w(TAG, "Skipped a voice response containing no speakable text after visual-symbol filtering")
-   pendingTtsChunks = 0
+   pendingTtsUtteranceIds.clear()
    finishUtterance(utteranceId)
    return
   }
   // Split long answers into Android TTS-sized utterances. Keep one response ID
   // and open the follow-up window only after every chunk has completed.
   val chunks = splitForTts(spokenText, MAX_TTS_CHUNK_CHARS)
-  pendingTtsChunks = chunks.size
-  var rejectedChunks = 0
+  pendingTtsUtteranceIds.clear()
+  val rejectedIds = ArrayList<String>()
   chunks.forEachIndexed { index, chunk ->
+   val chunkId = utteranceId + "-chunk-" + index
+   pendingTtsUtteranceIds.add(chunkId)
    val mode = if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
-   val result = tts?.speak(chunk, mode, null, utteranceId) ?: TextToSpeech.ERROR
+   val result = tts?.speak(chunk, mode, null, chunkId) ?: TextToSpeech.ERROR
    if (result != TextToSpeech.SUCCESS) {
-    rejectedChunks++
+    rejectedIds.add(chunkId)
     Log.e(TAG, "TextToSpeech rejected response chunk " + (index + 1) + "/" + chunks.size)
    }
   }
-  if (rejectedChunks > 0) {
+  if (rejectedIds.isNotEmpty()) {
    main.post {
-    if (activeUtteranceId != utteranceId) return@post
-    pendingTtsChunks = (pendingTtsChunks - rejectedChunks).coerceAtLeast(0)
-    if (pendingTtsChunks == 0) {
+    rejectedIds.forEach { pendingTtsUtteranceIds.remove(it) }
+    if (pendingTtsUtteranceIds.isEmpty() && activeUtteranceId == utteranceId) {
      status("Не удалось озвучить часть ответа")
      finishUtterance(utteranceId)
     }
