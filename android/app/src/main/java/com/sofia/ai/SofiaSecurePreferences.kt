@@ -59,14 +59,36 @@ internal class SofiaSecurePreferences(
         return PREFIX + Base64.encodeToString(cipher.iv + ciphertext, Base64.NO_WRAP)
     }
 
-    private fun decrypt(key: String, encoded: String): String {
+    /**
+     * Read-only bridge for values encrypted by the pre-namespace implementation.
+     * Legacy ciphertext used the preference key itself as GCM AAD. This method
+     * deliberately does not rewrite the source value; migration writes into the
+     * destination store only after parsing and validating the complete payload.
+     */
+    @Synchronized
+    fun getLegacyString(key: String, defaultValue: String?): String? {
+        val stored = prefs.getString(key, null) ?: return defaultValue
+        if (!stored.startsWith(PREFIX)) return stored
+        return try {
+            decryptWithAad(key.toByteArray(Charsets.UTF_8), stored.removePrefix(PREFIX))
+        } catch (e: Exception) {
+            throw IllegalStateException(
+                "Не удалось прочитать старую зашифрованную память Софии. Исходные данные сохранены.", e
+            )
+        }
+    }
+
+    private fun decrypt(key: String, encoded: String): String =
+        decryptWithAad(aad(key), encoded)
+
+    private fun decryptWithAad(aad: ByteArray, encoded: String): String {
         val payload = Base64.decode(encoded, Base64.NO_WRAP)
         require(payload.size > IV_BYTES) { "Invalid encrypted payload" }
         val iv = payload.copyOfRange(0, IV_BYTES)
         val ciphertext = payload.copyOfRange(IV_BYTES, payload.size)
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(TAG_BITS, iv))
-        cipher.updateAAD(aad(key))
+        cipher.updateAAD(aad)
         return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
