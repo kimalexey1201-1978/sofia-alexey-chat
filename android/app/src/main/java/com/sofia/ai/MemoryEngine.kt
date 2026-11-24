@@ -217,6 +217,7 @@ class MemoryEngine(context: Context) {
                 source = "legacy_sofia_profile",
                 importance = 5,
                 tags = listOf("владелец", "имя", "профиль"),
+                sensitive = true,
                 id = LEGACY_OWNER_ID
             )
         }
@@ -227,6 +228,7 @@ class MemoryEngine(context: Context) {
                 source = "legacy_sofia_profile",
                 importance = 5,
                 tags = listOf("владелец", "обращение", "голос"),
+                sensitive = true,
                 id = LEGACY_ADDRESS_ID
             )
         }
