@@ -53,7 +53,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val locationEnabled = try { getSystemService(LocationManager::class.java)?.isLocationEnabled == true } catch (_: Exception) { false }
   if (Build.VERSION.SDK_INT >= 29) {
    var serviceTypes = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-   if (locationGranted && locationEnabled && Build.VERSION.SDK_INT >= 34) {
+   if (locationGranted && locationEnabled) {
     serviceTypes = serviceTypes or android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
    }
    startForeground(NOTIFICATION, notification("Ожидаю слово «София»"), serviceTypes)
