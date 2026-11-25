@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.*
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -58,15 +57,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    val ch = NotificationChannel(CHANNEL, "Голосовой режим Софии", NotificationManager.IMPORTANCE_LOW)
    getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
   }
-  val locationGranted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-   checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-  val locationEnabled = try { getSystemService(LocationManager::class.java)?.isLocationEnabled == true } catch (_: Exception) { false }
   if (Build.VERSION.SDK_INT >= 29) {
-   var serviceTypes = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-   if (locationGranted && locationEnabled) {
-    serviceTypes = serviceTypes or android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-   }
-   startForeground(NOTIFICATION, notification("Ожидаю слово «София»"), serviceTypes)
+   startForeground(
+    NOTIFICATION,
+    notification("Ожидаю слово «София»"),
+    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+   )
   } else {
    startForeground(NOTIFICATION, notification("Ожидаю слово «София»"))
   }
@@ -732,14 +728,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Log.w(TAG, "Personal memory context is empty for request; no profile facts were attached")
     }
     val deviceContext = try { DeviceContext.snapshot(this) } catch (deviceError: Exception) {
-     Log.w(TAG, "Device clock/location context unavailable", deviceError)
-     "Системное время Android недоступно для чтения. Геолокация недоступна."
+     Log.w(TAG, "Device clock context unavailable", deviceError)
+     "Системное время Android недоступно для чтения."
     }
     Log.i(TAG, "Command preparation: device context ready after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms")
     val deviceSection = """
      ТЕКУЩИЕ ДАННЫЕ УСТРОЙСТВА (получены локально с Android, не из интернета):
      $deviceContext
-     Если владелец спрашивает время или дату, используй системное время выше. Если спрашивает местоположение, используй координаты и точность выше. Не выдумывай адрес или населённый пункт по одним координатам. Если координаты отсутствуют или устарели, честно сообщи об этом. Эти данные могут быть устаревшими, если указано их время получения.
+     Если владелец спрашивает время или дату, используй системное время выше. Геолокация в этой версии приложения отключена. Не утверждай, что знаешь текущее местоположение владельца, и не угадывай его по часовому поясу или другим косвенным признакам.
     """.trimIndent()
     val memorySection = if (memoryContext.isBlank()) "" else """
 
