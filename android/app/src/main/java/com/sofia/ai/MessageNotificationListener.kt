@@ -61,6 +61,10 @@ class MessageNotificationListener : NotificationListenerService() {
    recentNotifications.remove(first)
   }
 
+  // Do not wake or start the foreground voice assistant just because a notification arrived.
+  // Messages are cached only while the owner has explicitly started Sofia's voice mode.
+  if (!VoiceService.isRunning) return
+
   try {
    startService(
     Intent(this, VoiceService::class.java)
