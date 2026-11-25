@@ -2,27 +2,23 @@ package com.sofia.ai
 
 import android.app.Notification
 import android.app.Person
-import android.content.Intent
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import java.util.LinkedHashMap
+import org.json.JSONObject
 
 /**
- * Processes message notifications only from the explicitly approved messaging apps.
+ * Caches the latest notification text from Samsung Messages and WhatsApp.
  *
- * Android grants notification access at the listener level, not per source app. Therefore
- * the package allowlist is checked before notification extras or message text are read.
- * The owner must explicitly enable this listener in Android Notification Access settings.
+ * Notifications are never spoken or forwarded to VoiceService automatically.
+ * Reading is performed only after the owner gives the matching voice command.
  */
 class MessageNotificationListener : NotificationListenerService() {
- private val recentNotifications = LinkedHashMap<String, String>()
 
  override fun onNotificationPosted(sbn: StatusBarNotification) {
-  // Enforce the source allowlist before inspecting any notification content.
-  if (sbn.packageName !in ALLOWED_MESSAGE_PACKAGES) return
-  if (sbn.packageName == packageName) return
+  val packageName = sbn.packageName
+  if (packageName !in ALLOWED_MESSAGE_PACKAGES || packageName == packageName) return
 
   val notification = sbn.notification ?: return
   if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
@@ -49,42 +45,31 @@ class MessageNotificationListener : NotificationListenerService() {
    ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
    ?: "неизвестный отправитель"
 
-  // Log only the approved source package and message length, never message content.
-  Log.i(TAG, "Accepted message notification package=${sbn.packageName}, chars=${messageText.length}")
-
-  // Keep a small in-memory deduplication window; message contents are not persisted here.
-  val key = sbn.key
-  if (recentNotifications[key] == messageText) return
-  recentNotifications[key] = messageText
-  while (recentNotifications.size > 100) {
-   val first = recentNotifications.keys.firstOrNull() ?: break
-   recentNotifications.remove(first)
+  val key = when (packageName) {
+   SAMSUNG_MESSAGES_PACKAGE -> LAST_SAMSUNG_MESSAGE_KEY
+   WHATSAPP_PACKAGE -> LAST_WHATSAPP_MESSAGE_KEY
+   else -> return
   }
+  val payload = JSONObject()
+   .put("sender", sender.take(200))
+   .put("text", messageText.take(8000))
+   .toString()
 
-  try {
-   startService(
-    Intent(this, VoiceService::class.java)
-     .setAction(VoiceService.ACTION_READ_INCOMING_MESSAGE)
-     .putExtra(VoiceService.EXTRA_MESSAGE_SENDER, sender.take(200))
-     .putExtra(VoiceService.EXTRA_MESSAGE_TEXT, messageText.take(8000))
-   )
-  } catch (e: Exception) {
-   Log.w(TAG, "Could not hand an incoming message to the active voice service", e)
-  }
- }
-
- override fun onNotificationRemoved(sbn: StatusBarNotification) {
-  recentNotifications.remove(sbn.key)
+  // Persist separate source slots. No service start, speech, reply, or send action occurs here.
+  val saved = getSharedPreferences(INCOMING_MESSAGES_PREFS, MODE_PRIVATE)
+   .edit()
+   .putString(key, payload)
+   .commit()
+  if (!saved) Log.w(TAG, "Could not cache latest message for source=$packageName")
  }
 
  companion object {
   private const val TAG = "SofiaMessageListener"
-
-  // Samsung Messages, Google Messages, and WhatsApp only.
-  private val ALLOWED_MESSAGE_PACKAGES = setOf(
-   "com.samsung.android.messaging",
-   "com.google.android.apps.messaging",
-   "com.whatsapp"
-  )
+  private const val INCOMING_MESSAGES_PREFS = "sofia_incoming_messages"
+  private const val LAST_SAMSUNG_MESSAGE_KEY = "last_samsung_message"
+  private const val LAST_WHATSAPP_MESSAGE_KEY = "last_whatsapp_message"
+  private const val SAMSUNG_MESSAGES_PACKAGE = "com.samsung.android.messaging"
+  private const val WHATSAPP_PACKAGE = "com.whatsapp"
+  private val ALLOWED_MESSAGE_PACKAGES = setOf(SAMSUNG_MESSAGES_PACKAGE, WHATSAPP_PACKAGE)
  }
 }
