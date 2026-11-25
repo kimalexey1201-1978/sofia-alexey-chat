@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
+import android.speech.tts.UtteranceProgressListener
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.SeekBar
@@ -139,6 +140,8 @@ class MainActivity : Activity() {
   var auditionedVoiceName: String? = null
   var auditionedPitch: Float? = null
   var auditionedRate: Float? = null
+  var auditionedPreviewId: String? = null
+  var previewCompleted = false
   val dialog = AlertDialog.Builder(this)
    .setTitle("Голос Софии")
    .setView(content)
@@ -149,10 +152,10 @@ class MainActivity : Activity() {
   dialog.setOnShowListener {
    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
     val selected = voices[voicePicker.selectedItemPosition]
-    if (auditionedVoiceName != selected.name ||
+    if (!previewCompleted || auditionedVoiceName != selected.name ||
      auditionedPitch != pitchValue() ||
      auditionedRate != rateValue()) {
-     Toast.makeText(this, "Сначала прослушай именно этот голос с текущими настройками.", Toast.LENGTH_LONG).show()
+     Toast.makeText(this, "Сначала полностью прослушай именно этот голос с текущими настройками.", Toast.LENGTH_LONG).show()
      return@setOnClickListener
     }
     voicePrefs.edit()
@@ -179,13 +182,32 @@ class MainActivity : Activity() {
      engine.voice = selected
      engine.setPitch(pitchValue())
      engine.setSpeechRate(rateValue())
-     val result = engine.speak("Привет, я София. Я внимательно тебя слушаю. Я уже проверила настройки, подготовила ответ и сейчас спокойно объясню, что получилось. Если захочешь, мы можем сменить тему и продолжить разговор.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
-     if (result == TextToSpeech.SUCCESS) {
-      auditionedVoiceName = selected.name
-      auditionedPitch = pitchValue()
-      auditionedRate = rateValue()
-     } else {
+     previewCompleted = false
+     auditionedVoiceName = selected.name
+     auditionedPitch = pitchValue()
+     auditionedRate = rateValue()
+     val previewId = "sofia-voice-preview-${System.nanoTime()}"
+     auditionedPreviewId = previewId
+     engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+      override fun onStart(utteranceId: String) {}
+      override fun onDone(utteranceId: String) {
+       if (utteranceId == auditionedPreviewId) runOnUiThread { previewCompleted = true }
+      }
+      @Deprecated("Deprecated in Java")
+      override fun onError(utteranceId: String) {
+       if (utteranceId == auditionedPreviewId) runOnUiThread { previewCompleted = false }
+      }
+      override fun onError(utteranceId: String, errorCode: Int) {
+       if (utteranceId == auditionedPreviewId) runOnUiThread { previewCompleted = false }
+      }
+      override fun onStop(utteranceId: String, interrupted: Boolean) {
+       if (utteranceId == auditionedPreviewId) runOnUiThread { previewCompleted = false }
+      }
+     })
+     val result = engine.speak("Привет, я София. Я внимательно тебя слушаю. Я уже проверила настройки, подготовила ответ и сейчас спокойно объясню, что получилось. Если захочешь, мы можем сменить тему и продолжить разговор.", TextToSpeech.QUEUE_FLUSH, null, previewId)
+     if (result != TextToSpeech.SUCCESS) {
       auditionedVoiceName = null
+      auditionedPreviewId = null
       Toast.makeText(this, "Android не смог запустить прослушивание этого голоса.", Toast.LENGTH_LONG).show()
      }
     } catch (e: Exception) {
