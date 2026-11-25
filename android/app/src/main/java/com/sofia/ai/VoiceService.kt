@@ -82,17 +82,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     status("Настройки голоса обновлены")
    }
   }
-  if (intent?.action == ACTION_READ_INCOMING_MESSAGE) {
-   val sender = intent.getStringExtra(EXTRA_MESSAGE_SENDER)?.take(200).orEmpty()
-   val text = intent.getStringExtra(EXTRA_MESSAGE_TEXT)?.take(8000).orEmpty()
-   if (text.isNotBlank()) {
-    main.post {
-     if (pendingIncomingMessages.size >= MAX_PENDING_INCOMING_MESSAGES) pendingIncomingMessages.removeFirst()
-     pendingIncomingMessages.addLast(IncomingMessage(sender.ifBlank { "неизвестный отправитель" }, text))
-     processNextIncomingMessage()
-    }
-   }
-  }
   return START_STICKY
  }
  override fun onBind(intent: Intent?): IBinder? = null
@@ -507,14 +496,57 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     waiting = true
     say("Я слушаю")
     status("София проснулась, жду команду")
-   } else sendCommand(rest)
+   } else if (!handleMessageReadCommand(rest)) sendCommand(rest)
    return true
   }
   if (text != "софия") {
-   sendCommand(raw)
+   if (!handleMessageReadCommand(text)) sendCommand(raw)
    return true
   }
   return false
+ }
+
+ private fun handleMessageReadCommand(command: String): Boolean {
+  val whatsappCommands = setOf(
+   "зачитай последнее сообщение на whatsapp",
+   "прочитай последнее сообщение на whatsapp",
+   "зачитай последнее сообщение в whatsapp",
+   "прочитай последнее сообщение в whatsapp"
+  )
+  val samsungCommands = setOf(
+   "зачитай последнее сообщение",
+   "прочитай последнее сообщение",
+   "зачитай последнее смс",
+   "прочитай последнее смс"
+  )
+  val packageName = when (command) {
+   in whatsappCommands -> WHATSAPP_PACKAGE
+   in samsungCommands -> SAMSUNG_MESSAGES_PACKAGE
+   else -> return false
+  }
+  val prefs = getSharedPreferences(INCOMING_MESSAGES_PREFS, MODE_PRIVATE)
+  val key = if (packageName == WHATSAPP_PACKAGE) LAST_WHATSAPP_MESSAGE_KEY else LAST_SAMSUNG_MESSAGE_KEY
+  val stored = prefs.getString(key, null)
+  if (stored.isNullOrBlank()) {
+   say(if (packageName == WHATSAPP_PACKAGE) "В WhatsApp пока нет доступного входящего сообщения." else "В Samsung Messages пока нет доступного входящего сообщения.")
+   return true
+  }
+  try {
+   val message = JSONObject(stored)
+   val sender = message.optString("sender", "неизвестный отправитель")
+   val body = message.optString("text").take(8000)
+   if (body.isBlank()) {
+    say("Последнее сообщение пустое или недоступно.")
+    return true
+   }
+   if (pendingIncomingMessages.size >= MAX_PENDING_INCOMING_MESSAGES) pendingIncomingMessages.removeFirst()
+   pendingIncomingMessages.addLast(IncomingMessage(sender, body))
+   processNextIncomingMessage()
+  } catch (e: Exception) {
+   Log.w(TAG, "Could not read cached incoming message", e)
+   say("Не удалось прочитать последнее сообщение.")
+  }
+  return true
  }
 
  private fun ownerProfile(): Pair<String, String> {
@@ -1040,11 +1072,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val NOTIFICATION = 7301
   private const val ENDPOINT = "https://feat-priority-natural-female-voice-20261125-sofia.kim-alexey1201.workers.dev/api/chat"
   private const val TRANSLATE_ENDPOINT = "https://feat-priority-natural-female-voice-20261125-sofia.kim-alexey1201.workers.dev/api/translate"
-  const val ACTION_READ_INCOMING_MESSAGE = "com.sofia.ai.READ_INCOMING_MESSAGE"
   const val ACTION_UPDATE_TTS_SETTINGS = "com.sofia.ai.UPDATE_TTS_SETTINGS"
-  const val EXTRA_MESSAGE_SENDER = "message_sender"
-  const val EXTRA_MESSAGE_TEXT = "message_text"
   private const val VOICE_PREFS = "sofia_voice_settings"
+  private const val INCOMING_MESSAGES_PREFS = "sofia_incoming_messages"
+  private const val LAST_SAMSUNG_MESSAGE_KEY = "last_samsung_message"
+  private const val LAST_WHATSAPP_MESSAGE_KEY = "last_whatsapp_message"
+  private const val SAMSUNG_MESSAGES_PACKAGE = "com.samsung.android.messaging"
+  private const val WHATSAPP_PACKAGE = "com.whatsapp"
   private const val VOICE_NAME_KEY = "voice_name"
   private const val PITCH_KEY = "pitch"
   private const val RATE_KEY = "rate"
