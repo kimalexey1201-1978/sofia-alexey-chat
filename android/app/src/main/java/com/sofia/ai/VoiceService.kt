@@ -636,6 +636,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   stopRecognition()
   status("Выполняю команду")
   io.execute {
+   var streamResponseId: String? = null
    try {
     val (ownerName, preferredAddress) = try {
      ownerProfile()
@@ -708,7 +709,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     messages.put(JSONObject().put("role", "system").put("content", voiceOutputContract))
     messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
-    var streamResponseId: String? = null
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
     connection.connectTimeout = 15000
