@@ -1033,7 +1033,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val TAG = "SofiaVoice"
   private const val CHANNEL = "sofia_voice"
   private const val NOTIFICATION = 7301
-  private const val ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/chat"
+  private const val ENDPOINT = "https://fix-voice-response-streaming-20261125-sofia.kim-alexey1201.workers.dev/api/chat"
   private const val TRANSLATE_ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/translate"
   const val ACTION_READ_INCOMING_MESSAGE = "com.sofia.ai.READ_INCOMING_MESSAGE"
   const val ACTION_UPDATE_TTS_SETTINGS = "com.sofia.ai.UPDATE_TTS_SETTINGS"
