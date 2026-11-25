@@ -141,8 +141,25 @@ class MainActivity : Activity() {
    .setView(content)
    .setNegativeButton("Отмена", null)
    .setNeutralButton("Прослушать", null)
-   .setPositiveButton("Сохранить") { _, _ ->
+  var auditionedVoiceName: String? = null
+  var auditionedPitch: Float? = null
+  var auditionedRate: Float? = null
+  val dialog = AlertDialog.Builder(this)
+   .setTitle("Голос Софии")
+   .setView(content)
+   .setNegativeButton("Отмена", null)
+   .setNeutralButton("Прослушать", null)
+   .setPositiveButton("Сохранить", null)
+   .create()
+  dialog.setOnShowListener {
+   dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
     val selected = voices[voicePicker.selectedItemPosition]
+    if (auditionedVoiceName != selected.name ||
+     auditionedPitch != pitchValue() ||
+     auditionedRate != rateValue()) {
+     Toast.makeText(this, "Сначала прослушай именно этот голос с текущими настройками.", Toast.LENGTH_LONG).show()
+     return@setOnClickListener
+    }
     voicePrefs.edit()
      .putString("voice_name", selected.name)
      .putFloat("pitch", pitchValue())
@@ -159,17 +176,25 @@ class MainActivity : Activity() {
     } else {
      Toast.makeText(this, "Настройки сохранены. Они применятся при следующем запуске голосового режима.", Toast.LENGTH_LONG).show()
     }
+    dialog.dismiss()
    }
-   .create()
-  dialog.setOnShowListener {
    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
     val selected = voices[voicePicker.selectedItemPosition]
     try {
      engine.voice = selected
      engine.setPitch(pitchValue())
      engine.setSpeechRate(rateValue())
-     engine.speak("Привет, я София. Я внимательно тебя слушаю. Я уже проверила настройки, подготовила ответ и сейчас спокойно объясню, что получилось. Если захочешь, мы можем сменить тему и продолжить разговор.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
+     val result = engine.speak("Привет, я София. Я внимательно тебя слушаю. Я уже проверила настройки, подготовила ответ и сейчас спокойно объясню, что получилось. Если захочешь, мы можем сменить тему и продолжить разговор.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
+     if (result == TextToSpeech.SUCCESS) {
+      auditionedVoiceName = selected.name
+      auditionedPitch = pitchValue()
+      auditionedRate = rateValue()
+     } else {
+      auditionedVoiceName = null
+      Toast.makeText(this, "Android не смог запустить прослушивание этого голоса.", Toast.LENGTH_LONG).show()
+     }
     } catch (e: Exception) {
+     auditionedVoiceName = null
      Toast.makeText(this, "Не удалось прослушать выбранный голос: ${e.message ?: "ошибка TTS"}", Toast.LENGTH_LONG).show()
     }
    }
