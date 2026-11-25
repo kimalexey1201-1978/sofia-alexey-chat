@@ -2,44 +2,34 @@ package com.sofia.ai
 
 import android.app.Notification
 import android.app.Person
-import android.service.notification.NotificationListenerService
-import android.service.notification.StatusBarNotification
 import android.content.Intent
 import android.os.Bundle
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
 import android.util.Log
 import java.util.LinkedHashMap
 
 /**
- * Reads only notifications explicitly classified by Android as messages.
- * The user must enable this listener in Android's Notification Access settings.
+ * Processes message notifications only from the explicitly approved messaging apps.
+ *
+ * Android grants notification access at the listener level, not per source app. Therefore
+ * the package allowlist is checked before notification extras or message text are read.
+ * The owner must explicitly enable this listener in Android Notification Access settings.
  */
 class MessageNotificationListener : NotificationListenerService() {
  private val recentNotifications = LinkedHashMap<String, String>()
 
  override fun onNotificationPosted(sbn: StatusBarNotification) {
+  // Enforce the source allowlist before inspecting any notification content.
+  if (sbn.packageName !in ALLOWED_MESSAGE_PACKAGES) return
   if (sbn.packageName == packageName) return
+
   val notification = sbn.notification ?: return
   if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
 
   val extras = notification.extras ?: return
   val messageBundles = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
   val latestMessage = messageBundles?.lastOrNull() as? Bundle
-  val knownMessagingApps = setOf(
-   "com.kakao.talk",
-   "com.samsung.android.messaging",
-   "com.google.android.apps.messaging",
-   "org.telegram.messenger",
-   "com.whatsapp",
-   "jp.naver.line.android",
-   "com.facebook.orca",
-   "com.discord",
-   "com.instagram.android",
-   "com.viber.voip",
-   "com.tencent.mm"
-  )
-  val isMessage = notification.category == Notification.CATEGORY_MESSAGE ||
-   latestMessage != null || sbn.packageName in knownMessagingApps
-  if (!isMessage) return
 
   val messageText = latestMessage?.getCharSequence("text")?.toString()
    ?.takeIf { it.isNotBlank() }
@@ -59,8 +49,10 @@ class MessageNotificationListener : NotificationListenerService() {
    ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
    ?: "неизвестный отправитель"
 
+  // Log only the approved source package and message length, never message content.
   Log.i(TAG, "Accepted message notification package=${sbn.packageName}, chars=${messageText.length}")
-  // Keep only a small in-memory deduplication window; message contents are not persisted.
+
+  // Keep a small in-memory deduplication window; message contents are not persisted here.
   val key = sbn.key
   if (recentNotifications[key] == messageText) return
   recentNotifications[key] = messageText
@@ -69,10 +61,15 @@ class MessageNotificationListener : NotificationListenerService() {
    recentNotifications.remove(first)
   }
 
+  // Do not wake or start the foreground voice assistant just because a notification arrived.
+  // Messages are cached only while the owner has explicitly started Sofia's voice mode.
+  if (!VoiceService.isRunning) return
+
   try {
    startService(
     Intent(this, VoiceService::class.java)
-     .setAction(VoiceService.ACTION_READ_INCOMING_MESSAGE)
+     .setAction(VoiceService.ACTION_CACHE_INCOMING_MESSAGE)
+     .putExtra(VoiceService.EXTRA_MESSAGE_SOURCE, if (sbn.packageName == "com.whatsapp") "whatsapp" else "sms")
      .putExtra(VoiceService.EXTRA_MESSAGE_SENDER, sender.take(200))
      .putExtra(VoiceService.EXTRA_MESSAGE_TEXT, messageText.take(8000))
    )
@@ -87,5 +84,12 @@ class MessageNotificationListener : NotificationListenerService() {
 
  companion object {
   private const val TAG = "SofiaMessageListener"
+
+  // Samsung Messages, Google Messages, and WhatsApp only.
+  private val ALLOWED_MESSAGE_PACKAGES = setOf(
+   "com.samsung.android.messaging",
+   "com.google.android.apps.messaging",
+   "com.whatsapp"
+  )
  }
 }
