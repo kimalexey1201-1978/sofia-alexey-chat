@@ -50,7 +50,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private data class PendingStreamChunk(val responseId: String, val chunkId: String, val text: String, val queueMode: Int)
  private val pendingStreamingChunks = ArrayDeque<PendingStreamChunk>()
  private data class IncomingMessage(val sender: String, val text: String)
- private val pendingIncomingMessages = ArrayDeque<IncomingMessage>()
+ // Keep only the latest message from each source in memory; never auto-read or persist message text.
+ private var lastSmsMessage: IncomingMessage? = null
+ private var lastWhatsAppMessage: IncomingMessage? = null
 
  override fun onCreate() {
   super.onCreate()
@@ -82,14 +84,19 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     status("Настройки голоса обновлены")
    }
   }
-  if (intent?.action == ACTION_READ_INCOMING_MESSAGE) {
+  if (intent?.action == ACTION_CACHE_INCOMING_MESSAGE) {
+   val source = intent.getStringExtra(EXTRA_MESSAGE_SOURCE)
    val sender = intent.getStringExtra(EXTRA_MESSAGE_SENDER)?.take(200).orEmpty()
    val text = intent.getStringExtra(EXTRA_MESSAGE_TEXT)?.take(8000).orEmpty()
    if (text.isNotBlank()) {
-    main.post {
-     if (pendingIncomingMessages.size >= MAX_PENDING_INCOMING_MESSAGES) pendingIncomingMessages.removeFirst()
-     pendingIncomingMessages.addLast(IncomingMessage(sender.ifBlank { "неизвестный отправитель" }, text))
-     processNextIncomingMessage()
+    val message = IncomingMessage(sender.ifBlank { "неизвестный отправитель" }, text)
+    when (source) {
+     "sms" -> lastSmsMessage = message
+     "whatsapp" -> lastWhatsAppMessage = message
+     else -> Log.w(TAG, "Ignored incoming message with unknown source")
+    }
+    if (source == "sms" || source == "whatsapp") {
+     Log.i(TAG, "Cached latest $source message; chars=${text.length}")
     }
    }
   }
@@ -167,8 +174,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (queued != null) {
    pendingSpeech = null
    speakNow(queued)
-  } else if (pendingIncomingMessages.isNotEmpty()) {
-   processNextIncomingMessage()
   } else if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
    // Retry if the recognizer was unavailable during service creation.
    startRecognition()
@@ -305,11 +310,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    speaking = false
    requestInFlight = false
    if (!destroyed) {
-    if (pendingIncomingMessages.isNotEmpty()) {
-     processNextIncomingMessage()
-     return@post
-    }
-    // Keep a short hands-free follow-up window after each spoken answer.
+     // Keep a short hands-free follow-up window after each spoken answer.
     waiting = true
     conversationTimeoutTask?.let { main.removeCallbacks(it) }
     val timeout = Runnable {
@@ -334,49 +335,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private fun status(s: String) =
   getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification(s))
 
- private fun processNextIncomingMessage() {
-  if (destroyed || !ttsReady || speaking || requestInFlight || pendingIncomingMessages.isEmpty()) return
-  val incoming = pendingIncomingMessages.removeFirst()
-  waiting = false
-  conversationTimeoutTask?.let { main.removeCallbacks(it) }
-  conversationTimeoutTask = null
-  requestInFlight = true
-  stopRecognition()
-  status("Перевожу входящее сообщение")
-  io.execute {
-   val spokenText = try {
-    translateIncomingMessage(incoming)
-   } catch (e: Exception) {
-    Log.w(TAG, "Incoming message translation failed", e)
-    "Не удалось перевести входящее сообщение. Проверь подключение к серверу."
-   }
-   main.post {
-    if (destroyed) return@post
-    requestInFlight = false
-    val prefix = if (incoming.sender.isBlank()) "" else "Сообщение от " + incoming.sender + ". "
-    say(prefix + spokenText)
-   }
-  }
- }
-
- private fun translateIncomingMessage(message: IncomingMessage): String {
-  val connection = URL(TRANSLATE_ENDPOINT).openConnection() as HttpURLConnection
-  connection.requestMethod = "POST"
-  connection.connectTimeout = 15000
-  connection.readTimeout = 45000
-  connection.doOutput = true
-  connection.setRequestProperty("Content-Type", "application/json")
-  val body = JSONObject().put("sender", message.sender).put("text", message.text).toString()
-  connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-  val code = connection.responseCode
-  val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-  val responseText = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-  connection.disconnect()
-  if (code !in 200..299) throw IllegalStateException("Translation service returned HTTP " + code)
-  val translation = JSONObject(responseText).optString("translation").trim()
-  if (translation.isBlank()) throw IllegalStateException("Translation service returned an empty result")
-  return translation
- }
  private fun startRecognition() {
   if (destroyed || restarting || speaking || requestInFlight || recognitionActive) return
   if (!SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -692,7 +650,29 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   return true
  }
 
+ private fun handleReadLastMessageCommand(command: String): Boolean {
+  val normalized = norm(command)
+  val smsCommand = Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение$").matches(normalized) ||
+   Regex("^(?:зачитай|прочитай)(?: мне)? последнее смс$").matches(normalized)
+  val whatsappCommand = Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение (?:на|в|из) whatsapp$").matches(normalized) ||
+   Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение whatsapp$").matches(normalized)
+  if (!smsCommand && !whatsappCommand) return false
+
+  waiting = false
+  conversationTimeoutTask?.let { main.removeCallbacks(it) }
+  conversationTimeoutTask = null
+  val sourceLabel = if (whatsappCommand) "WhatsApp" else "SMS"
+  val message = if (whatsappCommand) lastWhatsAppMessage else lastSmsMessage
+  if (message == null) {
+   say("Последних сообщений в приложении $sourceLabel пока нет.")
+  } else {
+   say("Последнее сообщение из $sourceLabel от ${message.sender}. ${message.text}")
+  }
+  return true
+ }
+
  private fun sendCommand(command: String) {
+  if (handleReadLastMessageCommand(command)) return
   if (handleOwnerAddressQuestion(command)) return
   if (handleMemoryCommand(command)) return
   waiting = false
@@ -1018,7 +998,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  override fun onDestroy() {
   destroyed = true
   isRunning = false
-  pendingIncomingMessages.clear()
+  lastSmsMessage = null
+  lastWhatsAppMessage = null
   pendingStreamingChunks.clear()
   pendingTtsUtteranceIds.clear()
   main.removeCallbacksAndMessages(null)
@@ -1039,9 +1020,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val CHANNEL = "sofia_voice"
   private const val NOTIFICATION = 7301
   private const val ENDPOINT = "https://feat-priority-natural-female-voice-20261125-sofia.kim-alexey1201.workers.dev/api/chat"
-  private const val TRANSLATE_ENDPOINT = "https://feat-priority-natural-female-voice-20261125-sofia.kim-alexey1201.workers.dev/api/translate"
-  const val ACTION_READ_INCOMING_MESSAGE = "com.sofia.ai.READ_INCOMING_MESSAGE"
+  const val ACTION_CACHE_INCOMING_MESSAGE = "com.sofia.ai.CACHE_INCOMING_MESSAGE"
   const val ACTION_UPDATE_TTS_SETTINGS = "com.sofia.ai.UPDATE_TTS_SETTINGS"
+  const val EXTRA_MESSAGE_SOURCE = "message_source"
   const val EXTRA_MESSAGE_SENDER = "message_sender"
   const val EXTRA_MESSAGE_TEXT = "message_text"
   private const val VOICE_PREFS = "sofia_voice_settings"
@@ -1055,7 +1036,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val DEFAULT_ADDRESS = "мой хороший"
   private const val LEGACY_DEFAULT_ADDRESS = "мой дорогой"
   private const val MAX_HISTORY_MESSAGES = 20
-  private const val MAX_PENDING_INCOMING_MESSAGES = 20
   private const val MAX_SPOKEN_MEMORY_CHARS = 3500
   private const val MAX_TTS_CHUNK_CHARS = 3500
   private const val CONVERSATION_WINDOW_MS = 20_000L
