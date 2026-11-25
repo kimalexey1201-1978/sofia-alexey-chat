@@ -99,11 +99,18 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (status != TextToSpeech.SUCCESS) {
    Log.e(TAG, "TextToSpeech initialization failed with status=$status")
    pendingSpeech = null
-   speaking = false
-   requestInFlight = false
-   status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
-   if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
-    startRecognition()
+   if (streamingResponseActive) {
+    pendingStreamingChunks.clear()
+    pendingTtsUtteranceIds.clear()
+    status("Озвучивание недоступно. Завершаю получение ответа.")
+    if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
+   } else {
+    speaking = false
+    requestInFlight = false
+    status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
+    if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
+     startRecognition()
+    }
    }
    return
   }
@@ -111,11 +118,18 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (engine == null) {
    Log.e(TAG, "TextToSpeech initialization succeeded but engine is null")
    pendingSpeech = null
-   speaking = false
-   requestInFlight = false
-   status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
-   if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
-    startRecognition()
+   if (streamingResponseActive) {
+    pendingStreamingChunks.clear()
+    pendingTtsUtteranceIds.clear()
+    status("Модуль озвучивания не создан. Завершаю получение ответа.")
+    if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
+   } else {
+    speaking = false
+    requestInFlight = false
+    status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
+    if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
+     startRecognition()
+    }
    }
    return
   }
@@ -267,6 +281,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    // A delayed callback from a flushed utterance must not unlock a newer response.
    if (activeUtteranceId != id) return@post
    activeUtteranceId = null
+   pendingStreamingChunks.removeAll { it.responseId == id }
    streamingResponseActive = false
    streamingResponseEnded = false
    streamingFirstChunk = true
@@ -967,6 +982,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   destroyed = true
   isRunning = false
   pendingIncomingMessages.clear()
+  pendingStreamingChunks.clear()
+  pendingTtsUtteranceIds.clear()
   main.removeCallbacksAndMessages(null)
   conversationTimeoutTask = null
   resetRecognizer()
