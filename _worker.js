@@ -169,6 +169,7 @@ export default {
 
         if (!upstream.ok) {
           // Keep provider internals private while preserving an actionable HTTP status.
+          await upstream.body?.cancel();
           return Response.json(
             { error: "The model provider request failed" },
             { status: upstream.status, headers: cors }
@@ -178,6 +179,7 @@ export default {
         // Do not label an unexpected JSON/empty provider response as SSE.
         const upstreamType = upstream.headers.get("Content-Type") || "";
         if (!upstream.body || !upstreamType.toLowerCase().includes("text/event-stream")) {
+          await upstream.body?.cancel();
           return Response.json(
             { error: "The model provider returned an invalid streaming response" },
             { status: 502, headers: cors }
