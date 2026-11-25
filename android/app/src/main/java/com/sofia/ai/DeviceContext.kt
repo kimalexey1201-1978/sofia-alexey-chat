@@ -3,10 +3,10 @@ package com.sofia.ai
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
-import android.os.SystemClock
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -16,8 +16,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Reads local device time and (when permission is granted) a GPS-backed location.
- * No network connection is required for the clock or GPS provider.
+ * Reads the local device clock and resolves the last known location to a human-readable
+ * city and district. Raw coordinates are never added to Sofia's model context.
  */
 internal object DeviceContext {
     fun snapshot(context: Context): String {
@@ -30,15 +30,14 @@ internal object DeviceContext {
 
         val fine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (!fine && !coarse) return "$clock\nГеолокация: разрешение Android не предоставлено."
+        if (!fine && !coarse) return "$clock\nМестоположение: разрешение Android не предоставлено."
 
         val manager = context.getSystemService(LocationManager::class.java)
-            ?: return "$clock\nГеолокация: служба местоположения Android недоступна."
-        if (!manager.isLocationEnabled) return "$clock\nГеолокация: службы определения местоположения выключены."
+            ?: return "$clock\nМестоположение: служба Android недоступна."
+        if (!manager.isLocationEnabled) return "$clock\nМестоположение: службы геолокации выключены."
 
         val candidates = mutableListOf<Location>()
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
-        for (provider in providers) {
+        for (provider in listOf(LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER, LocationManager.GPS_PROVIDER)) {
             try {
                 if (manager.isProviderEnabled(provider)) {
                     manager.getLastKnownLocation(provider)?.let { candidates.add(it) }
@@ -50,43 +49,57 @@ internal object DeviceContext {
             }
         }
 
-        // On Android 11+, request a fresh fix briefly; GPS works without internet.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
-                try {
-                    if (!manager.isProviderEnabled(provider)) continue
-                    val result = AtomicReference<Location?>()
-                    val latch = CountDownLatch(1)
-                    manager.getCurrentLocation(provider, null, context.mainExecutor) { location ->
-                        result.set(location)
-                        latch.countDown()
-                    }
-                    latch.await(7, TimeUnit.SECONDS)
-                    result.get()?.let { candidates.add(it) }
-                    if (candidates.any { it.provider == LocationManager.GPS_PROVIDER && ageMillis(it) < 120_000L }) break
-                } catch (_: SecurityException) {
-                    break
-                } catch (_: Exception) {
-                    // Fall back to a cached location, clearly reporting its age.
-                }
-            }
-        }
-
         val best = candidates.maxByOrNull { it.time }
-            ?: return "$clock\nГеолокация: координаты пока не получены. Для первого GPS-определения может потребоваться несколько минут на открытом месте."
-        val age = ageMillis(best)
+            ?: return "$clock\nГород и район пока не определены. Android ещё не предоставил сохранённое местоположение."
+
+        val age = (System.currentTimeMillis() - best.time).coerceAtLeast(0L)
+        val place = resolveCityAndDistrict(context, best)
+            ?: return "$clock\nГород и район пока не удалось определить. Попробуй повторить запрос на улице или при включённой геолокации."
+
         val ageText = when {
-            age < 60_000L -> "только что"
-            age < 3_600_000L -> "${age / 60_000L} мин. назад"
-            else -> "${age / 3_600_000L} ч. ${(age % 3_600_000L) / 60_000L} мин. назад"
+            age < 60_000L -> "координаты получены только что"
+            age < 3_600_000L -> "местоположение обновлялось ${age / 60_000L} мин. назад"
+            else -> "местоположение обновлялось ${age / 3_600_000L} ч. назад"
         }
-        val accuracy = if (best.hasAccuracy()) "±${best.accuracy.toInt()} м" else "точность неизвестна"
-        val freshness = if (age > 15 * 60_000L) "ВНИМАНИЕ: координаты устарели." else "Координаты актуальны по последнему измерению."
-        return "$clock\nКоординаты: ${"%.6f".format(Locale.US, best.latitude)}, ${"%.6f".format(Locale.US, best.longitude)}. Источник: ${best.provider}. Точность: $accuracy. Получены: $ageText. $freshness"
+        val freshness = if (age > 15 * 60_000L) " Данные могут быть устаревшими." else ""
+        return "$clock\nМестоположение: $place. $ageText.$freshness"
     }
 
-    private fun ageMillis(location: Location): Long =
-        (System.currentTimeMillis() - location.time).coerceAtLeast(0L)
+    private fun resolveCityAndDistrict(context: Context, location: Location): String? {
+        if (!Geocoder.isPresent()) return null
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val addresses = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val result = AtomicReference<List<android.location.Address>?>(null)
+                val latch = CountDownLatch(1)
+                geocoder.getFromLocation(location.latitude, location.longitude, 1) { found ->
+                    result.set(found)
+                    latch.countDown()
+                }
+                if (!latch.await(2, TimeUnit.SECONDS)) return null
+                result.get().orEmpty()
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocation(location.latitude, location.longitude, 1).orEmpty()
+            }
+        } catch (_: Exception) {
+            return null
+        }
+        val address = addresses.firstOrNull() ?: return null
+
+        val city = address.locality?.takeIf { it.isNotBlank() }
+            ?: address.subAdminArea?.takeIf { it.isNotBlank() }
+            ?: address.adminArea?.takeIf { it.isNotBlank() }
+        val district = address.subLocality?.takeIf { it.isNotBlank() }
+            ?: address.subAdminArea?.takeIf { it.isNotBlank() && it != city }
+
+        return when {
+            city != null && district != null -> "город/населённый пункт $city, район $district"
+            city != null -> "город/населённый пункт $city"
+            district != null -> "район $district"
+            else -> null
+        }
+    }
 
     private fun offset(zone: TimeZone, timestamp: Long): String {
         val totalMinutes = zone.getOffset(timestamp) / 60_000
