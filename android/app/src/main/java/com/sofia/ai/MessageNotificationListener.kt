@@ -53,6 +53,7 @@ class MessageNotificationListener : NotificationListenerService() {
   val payload = JSONObject()
    .put("sender", sender.take(200))
    .put("text", messageText.take(8000))
+   .put("receivedAt", System.currentTimeMillis())
    .toString()
 
   // Persist separate source slots. No service start, speech, reply, or send action occurs here.
