@@ -136,11 +136,6 @@ class MainActivity : Activity() {
     textSize = 13f
    })
   }
-  val dialog = AlertDialog.Builder(this)
-   .setTitle("Голос Софии")
-   .setView(content)
-   .setNegativeButton("Отмена", null)
-   .setNeutralButton("Прослушать", null)
   var auditionedVoiceName: String? = null
   var auditionedPitch: Float? = null
   var auditionedRate: Float? = null
