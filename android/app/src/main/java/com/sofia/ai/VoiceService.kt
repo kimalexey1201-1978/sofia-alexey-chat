@@ -45,6 +45,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var utteranceSequence = 0
  private var activeUtteranceId: String? = null
  private val pendingTtsUtteranceIds = mutableSetOf<String>()
+ private data class PendingStreamChunk(val responseId: String, val chunkId: String, val text: String, val queueMode: Int)
+ private val pendingStreamingChunks = ArrayDeque<PendingStreamChunk>()
  private data class IncomingMessage(val sender: String, val text: String)
  private val pendingIncomingMessages = ArrayDeque<IncomingMessage>()
 
@@ -135,6 +137,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    }
    override fun onStop(id: String, interrupted: Boolean) = completeSpeechChunk(id)
   })
+  flushPendingStreamingChunks()
   val queued = pendingSpeech
   if (queued != null) {
    pendingSpeech = null
@@ -213,10 +216,31 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   pendingTtsUtteranceIds.add(chunkId)
   val mode = if (streamingFirstChunk) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
   streamingFirstChunk = false
-  val result = tts?.speak(chunk, mode, null, chunkId) ?: TextToSpeech.ERROR
+  if (!ttsReady) {
+   pendingStreamingChunks.addLast(PendingStreamChunk(id, chunkId, chunk, mode))
+   Log.i(TAG, "Queued streamed speech chunk until TextToSpeech initialization completes")
+   return
+  }
+  speakStreamingChunk(PendingStreamChunk(id, chunkId, chunk, mode))
+ }
+
+ private fun flushPendingStreamingChunks() {
+  while (ttsReady && pendingStreamingChunks.isNotEmpty()) {
+   val chunk = pendingStreamingChunks.removeFirst()
+   speakStreamingChunk(chunk)
+  }
+ }
+
+ private fun speakStreamingChunk(chunk: PendingStreamChunk) {
+  if (destroyed || activeUtteranceId != chunk.responseId || !streamingResponseActive) {
+   pendingTtsUtteranceIds.remove(chunk.chunkId)
+   return
+  }
+  val result = tts?.speak(chunk.text, chunk.queueMode, null, chunk.chunkId) ?: TextToSpeech.ERROR
   if (result != TextToSpeech.SUCCESS) {
-   pendingTtsUtteranceIds.remove(chunkId)
+   pendingTtsUtteranceIds.remove(chunk.chunkId)
    Log.e(TAG, "TextToSpeech rejected streamed response chunk")
+   if (streamingResponseEnded && pendingTtsUtteranceIds.isEmpty()) finishUtterance(chunk.responseId)
   }
  }
 
@@ -229,6 +253,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private fun cancelStreamingUtterance(id: String) {
   if (activeUtteranceId != id) return
   tts?.stop()
+  pendingStreamingChunks.removeAll { it.responseId == id }
   pendingTtsUtteranceIds.clear()
   streamingResponseActive = false
   streamingResponseEnded = false
