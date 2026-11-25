@@ -324,47 +324,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification(s))
 
  private fun processNextIncomingMessage() {
-  if (destroyed || !ttsReady || speaking || requestInFlight || pendingIncomingMessages.isEmpty()) return
+  if (destroyed || speaking || requestInFlight || pendingIncomingMessages.isEmpty()) return
   val incoming = pendingIncomingMessages.removeFirst()
   waiting = false
   conversationTimeoutTask?.let { main.removeCallbacks(it) }
   conversationTimeoutTask = null
-  requestInFlight = true
-  stopRecognition()
-  status("Перевожу входящее сообщение")
-  io.execute {
-   val spokenText = try {
-    translateIncomingMessage(incoming)
-   } catch (e: Exception) {
-    Log.w(TAG, "Incoming message translation failed", e)
-    "Не удалось перевести входящее сообщение. Проверь подключение к серверу."
-   }
-   main.post {
-    if (destroyed) return@post
-    requestInFlight = false
-    val prefix = if (incoming.sender.isBlank()) "" else "Сообщение от " + incoming.sender + ". "
-    say(prefix + spokenText)
-   }
-  }
- }
-
- private fun translateIncomingMessage(message: IncomingMessage): String {
-  val connection = URL(TRANSLATE_ENDPOINT).openConnection() as HttpURLConnection
-  connection.requestMethod = "POST"
-  connection.connectTimeout = 15000
-  connection.readTimeout = 45000
-  connection.doOutput = true
-  connection.setRequestProperty("Content-Type", "application/json")
-  val body = JSONObject().put("sender", message.sender).put("text", message.text).toString()
-  connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-  val code = connection.responseCode
-  val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-  val responseText = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-  connection.disconnect()
-  if (code !in 200..299) throw IllegalStateException("Translation service returned HTTP " + code)
-  val translation = JSONObject(responseText).optString("translation").trim()
-  if (translation.isBlank()) throw IllegalStateException("Translation service returned an empty result")
-  return translation
+  val prefix = if (incoming.sender.isBlank()) "" else "Сообщение от " + incoming.sender + ". "
+  status("Зачитываю последнее сообщение")
+  // Read the original text exactly as received. Do not call translation services.
+  say(prefix + incoming.text)
  }
  private fun startRecognition() {
   if (destroyed || restarting || speaking || requestInFlight || recognitionActive) return
@@ -534,6 +502,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   }
   try {
    val message = JSONObject(stored)
+   val receivedAt = message.optLong("receivedAt", 0L)
+   val ageMs = System.currentTimeMillis() - receivedAt
+   if (receivedAt <= 0L || ageMs < 0L || ageMs > INCOMING_MESSAGE_TTL_MS) {
+    secure.putString(key, "")
+    say("Срок хранения этого сообщения истёк. Нового сообщения пока нет.")
+    return true
+   }
    val sender = message.optString("sender", "неизвестный отправитель")
    val body = message.optString("text").take(8000)
    if (body.isBlank()) {
@@ -1079,6 +1054,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val INCOMING_MESSAGES_NAMESPACE = "incoming-messages"
   private const val LAST_SAMSUNG_MESSAGE_KEY = "last_samsung_message"
   private const val LAST_WHATSAPP_MESSAGE_KEY = "last_whatsapp_message"
+  private const val INCOMING_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000L
   private const val SAMSUNG_MESSAGES_PACKAGE = "com.samsung.android.messaging"
   private const val WHATSAPP_PACKAGE = "com.whatsapp"
   private const val VOICE_NAME_KEY = "voice_name"
