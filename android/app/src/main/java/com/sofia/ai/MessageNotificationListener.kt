@@ -64,7 +64,8 @@ class MessageNotificationListener : NotificationListenerService() {
   try {
    startService(
     Intent(this, VoiceService::class.java)
-     .setAction(VoiceService.ACTION_READ_INCOMING_MESSAGE)
+     .setAction(VoiceService.ACTION_CACHE_INCOMING_MESSAGE)
+     .putExtra(VoiceService.EXTRA_MESSAGE_SOURCE, if (sbn.packageName == "com.whatsapp") "whatsapp" else "sms")
      .putExtra(VoiceService.EXTRA_MESSAGE_SENDER, sender.take(200))
      .putExtra(VoiceService.EXTRA_MESSAGE_TEXT, messageText.take(8000))
    )
