@@ -56,16 +56,23 @@ class MessageNotificationListener : NotificationListenerService() {
    .toString()
 
   // Persist separate source slots. No service start, speech, reply, or send action occurs here.
-  val saved = getSharedPreferences(INCOMING_MESSAGES_PREFS, MODE_PRIVATE)
-   .edit()
-   .putString(key, payload)
-   .commit()
+  val saved = try {
+   SofiaSecurePreferences(
+    getSharedPreferences(INCOMING_MESSAGES_PREFS, MODE_PRIVATE),
+    INCOMING_MESSAGES_NAMESPACE
+   ).putString(key, payload)
+   true
+  } catch (e: Exception) {
+   Log.w(TAG, "Could not securely cache latest message for source=$packageName", e)
+   false
+  }
   if (!saved) Log.w(TAG, "Could not cache latest message for source=$packageName")
  }
 
  companion object {
   private const val TAG = "SofiaMessageListener"
   private const val INCOMING_MESSAGES_PREFS = "sofia_incoming_messages"
+  private const val INCOMING_MESSAGES_NAMESPACE = "incoming-messages"
   private const val LAST_SAMSUNG_MESSAGE_KEY = "last_samsung_message"
   private const val LAST_WHATSAPP_MESSAGE_KEY = "last_whatsapp_message"
   private const val SAMSUNG_MESSAGES_PACKAGE = "com.samsung.android.messaging"
