@@ -525,8 +525,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    else -> return false
   }
   val prefs = getSharedPreferences(INCOMING_MESSAGES_PREFS, MODE_PRIVATE)
+  val secure = SofiaSecurePreferences(prefs, INCOMING_MESSAGES_NAMESPACE)
   val key = if (packageName == WHATSAPP_PACKAGE) LAST_WHATSAPP_MESSAGE_KEY else LAST_SAMSUNG_MESSAGE_KEY
-  val stored = prefs.getString(key, null)
+  val stored = secure.getString(key, null)
   if (stored.isNullOrBlank()) {
    say(if (packageName == WHATSAPP_PACKAGE) "В WhatsApp пока нет доступного входящего сообщения." else "В Samsung Messages пока нет доступного входящего сообщения.")
    return true
@@ -1075,6 +1076,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   const val ACTION_UPDATE_TTS_SETTINGS = "com.sofia.ai.UPDATE_TTS_SETTINGS"
   private const val VOICE_PREFS = "sofia_voice_settings"
   private const val INCOMING_MESSAGES_PREFS = "sofia_incoming_messages"
+  private const val INCOMING_MESSAGES_NAMESPACE = "incoming-messages"
   private const val LAST_SAMSUNG_MESSAGE_KEY = "last_samsung_message"
   private const val LAST_WHATSAPP_MESSAGE_KEY = "last_whatsapp_message"
   private const val SAMSUNG_MESSAGES_PACKAGE = "com.samsung.android.messaging"
