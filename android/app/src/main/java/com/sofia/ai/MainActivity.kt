@@ -168,7 +168,7 @@ class MainActivity : Activity() {
      engine.voice = selected
      engine.setPitch(pitchValue())
      engine.setSpeechRate(rateValue())
-     engine.speak("Привет. Я София. Давай проверим, насколько тебе подходит мой голос.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
+     engine.speak("Привет, я София. Я внимательно тебя слушаю. Я уже проверила настройки, подготовила ответ и сейчас спокойно объясню, что получилось. Если захочешь, мы можем сменить тему и продолжить разговор.", TextToSpeech.QUEUE_FLUSH, null, "sofia-voice-preview")
     } catch (e: Exception) {
      Toast.makeText(this, "Не удалось прослушать выбранный голос: ${e.message ?: "ошибка TTS"}", Toast.LENGTH_LONG).show()
     }
