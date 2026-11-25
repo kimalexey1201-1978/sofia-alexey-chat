@@ -701,6 +701,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val commandStartedAtMs = SystemClock.elapsedRealtime()
   io.execute {
    var streamResponseId: String? = null
+   var activeConnection: HttpURLConnection? = null
    try {
     val (ownerName, preferredAddress) = try {
      ownerProfile()
@@ -776,6 +777,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     Log.i(TAG, "Command preparation complete after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms; messageCount=${messages.length()}; requestCharacters=${body.length}")
     val requestStartedAtMs = SystemClock.elapsedRealtime()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
+    activeConnection = connection
     connection.requestMethod = "POST"
     connection.connectTimeout = 15000
     connection.readTimeout = 45000
@@ -843,10 +845,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      }
      takeSpeakable(true)?.let { chunk -> main.post { enqueueStreamingChunk(responseId, chunk) } }
      connection.disconnect()
+     activeConnection = null
     } else {
      val responseStream = if (code in 200..299) connection.inputStream else connection.errorStream
      val responseText = responseStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
      connection.disconnect()
+     activeConnection = null
      root = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
      val choice = root.optJSONArray("choices")?.optJSONObject(0)
      val message = choice?.optJSONObject("message")
@@ -915,6 +919,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      }
     }
    } catch (e: Exception) {
+    activeConnection?.disconnect()
+    activeConnection = null
     Log.e(TAG, "Chat request failed", e)
     main.post {
      commandNetworkActive = false
