@@ -290,9 +290,7 @@ class MainActivity : Activity() {
 
  private fun requestAudioAndStart() {
   val p = mutableListOf(
-   Manifest.permission.RECORD_AUDIO,
-   Manifest.permission.ACCESS_COARSE_LOCATION,
-   Manifest.permission.ACCESS_FINE_LOCATION
+   Manifest.permission.RECORD_AUDIO
   )
   if (Build.VERSION.SDK_INT >= 33) p += Manifest.permission.POST_NOTIFICATIONS
   val missing = p.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
@@ -311,11 +309,8 @@ class MainActivity : Activity() {
   super.onRequestPermissionsResult(requestCode,permissions,grantResults)
   if (requestCode==req) {
    val audioGranted = checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED
-   val locationGranted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED ||
-    checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED
    if (audioGranted) {
     startVoice()
-    if (!locationGranted) Toast.makeText(this, "Геолокация не разрешена. София сможет сообщать время, но не текущее местоположение.", Toast.LENGTH_LONG).show()
    } else status.text="Без разрешения на микрофон София не сможет слушать."
   }
  }
