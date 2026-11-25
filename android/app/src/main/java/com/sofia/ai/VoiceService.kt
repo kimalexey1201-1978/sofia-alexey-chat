@@ -644,6 +644,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   requestInFlight = true
   stopRecognition()
   status("Выполняю команду")
+  val commandStartedAtMs = SystemClock.elapsedRealtime()
   io.execute {
    var streamResponseId: String? = null
    try {
@@ -659,15 +660,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Log.e(TAG, "Structured memory unavailable; continuing without memory context", memoryError)
      ""
     }
+    Log.i(TAG, "Command preparation: owner profile and memory context ready after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms; memoryCharacters=${memoryContext.length}")
     if (memoryContext.isBlank()) {
      Log.w(TAG, "Personal memory context is empty for request; no profile facts were attached")
-    } else {
-     Log.i(TAG, "Personal memory context attached; characters=" + memoryContext.length)
     }
     val deviceContext = try { DeviceContext.snapshot(this) } catch (deviceError: Exception) {
      Log.w(TAG, "Device clock/location context unavailable", deviceError)
      "Системное время Android недоступно для чтения. Геолокация недоступна."
     }
+    Log.i(TAG, "Command preparation: device context ready after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms")
     val deviceSection = """
      ТЕКУЩИЕ ДАННЫЕ УСТРОЙСТВА (получены локально с Android, не из интернета):
      $deviceContext
@@ -718,6 +719,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     messages.put(JSONObject().put("role", "system").put("content", voiceOutputContract))
     messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
+    Log.i(TAG, "Command preparation complete after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms; messageCount=${messages.length()}; requestCharacters=${body.length}")
     val requestStartedAtMs = SystemClock.elapsedRealtime()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
