@@ -34,6 +34,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var speaking = false
  private var requestInFlight = false
  private var pendingSpeech: String? = null
+ private var streamingResponseActive = false
+ private var streamingResponseEnded = false
+ private var streamingFirstChunk = true
+ private var streamingChunkSequence = 0
  private var restartTask: Runnable? = null
  private var conversationTimeoutTask: Runnable? = null
  private var utteranceSequence = 0
@@ -173,9 +177,55 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   main.post {
    if (pendingTtsUtteranceIds.remove(id) && pendingTtsUtteranceIds.isEmpty()) {
     val responseId = activeUtteranceId ?: return@post
-    finishUtterance(responseId)
+    if (!streamingResponseActive || streamingResponseEnded) finishUtterance(responseId)
    }
   }
+ }
+
+ /** Start speaking streamed model output before the complete answer has arrived. Main thread only. */
+ private fun beginStreamingUtterance(id: String) {
+  if (destroyed) return
+  speaking = true
+  requestInFlight = true
+  stopRecognition()
+  activeUtteranceId = id
+  pendingTtsUtteranceIds.clear()
+  streamingResponseActive = true
+  streamingResponseEnded = false
+  streamingFirstChunk = true
+  streamingChunkSequence = 0
+ }
+
+ private fun enqueueStreamingChunk(id: String, text: String) {
+  if (destroyed || activeUtteranceId != id || !streamingResponseActive) return
+  val chunk = VoiceOutputSanitizer.sanitize(text).trim()
+  if (chunk.isBlank()) return
+  val chunkId = id + "-chunk-" + (++streamingChunkSequence)
+  pendingTtsUtteranceIds.add(chunkId)
+  val mode = if (streamingFirstChunk) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+  streamingFirstChunk = false
+  val result = tts?.speak(chunk, mode, null, chunkId) ?: TextToSpeech.ERROR
+  if (result != TextToSpeech.SUCCESS) {
+   pendingTtsUtteranceIds.remove(chunkId)
+   Log.e(TAG, "TextToSpeech rejected streamed response chunk")
+  }
+ }
+
+ private fun endStreamingUtterance(id: String) {
+  if (destroyed || activeUtteranceId != id || !streamingResponseActive) return
+  streamingResponseEnded = true
+  if (pendingTtsUtteranceIds.isEmpty()) finishUtterance(id)
+ }
+
+ private fun cancelStreamingUtterance(id: String) {
+  if (activeUtteranceId != id) return
+  tts?.stop()
+  pendingTtsUtteranceIds.clear()
+  streamingResponseActive = false
+  streamingResponseEnded = false
+  activeUtteranceId = null
+  speaking = false
+  requestInFlight = false
  }
 
  private fun finishUtterance(id: String) {
@@ -183,6 +233,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    // A delayed callback from a flushed utterance must not unlock a newer response.
    if (activeUtteranceId != id) return@post
    activeUtteranceId = null
+   streamingResponseActive = false
+   streamingResponseEnded = false
+   streamingFirstChunk = true
    speaking = false
    requestInFlight = false
    if (!destroyed) {
@@ -655,6 +708,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     messages.put(JSONObject().put("role", "system").put("content", voiceOutputContract))
     messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
+    var streamResponseId: String? = null
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
     connection.connectTimeout = 15000
@@ -663,21 +717,79 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     connection.setRequestProperty("Content-Type", "application/json")
     connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
     val code = connection.responseCode
-    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-    val responseText = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-    connection.disconnect()
+    val contentType = connection.contentType.orEmpty()
+    val answerBuilder = StringBuilder()
+    var root = JSONObject()
 
-    val root = JSONObject(responseText)
-    val choice = root.optJSONArray("choices")?.optJSONObject(0)
-    val message = choice?.optJSONObject("message")
-    val contentValue = message?.opt("content")
-    val answer = when (contentValue) {
-     is String -> contentValue
-     is JSONArray -> (0 until contentValue.length()).mapNotNull { i ->
-      contentValue.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() }
-     }.joinToString(" ")
-     else -> ""
-    }.trim()
+    if (code in 200..299 && contentType.contains("text/event-stream", ignoreCase = true)) {
+     val responseId = "sofia-stream-" + System.nanoTime()
+     streamResponseId = responseId
+     main.post { beginStreamingUtterance(responseId) }
+     val speechBuffer = StringBuilder()
+
+     fun takeSpeakable(force: Boolean): String? {
+      val current = speechBuffer.toString()
+      if (current.isBlank()) return null
+      var cut = maxOf(
+       current.lastIndexOf('.'),
+       current.lastIndexOf('!'),
+       current.lastIndexOf('?'),
+       current.lastIndexOf('\n')
+      )
+      if (cut < 35 && current.length >= 140) cut = current.lastIndexOf(' ', 139)
+      if (force && cut < 0) cut = current.length - 1
+      if (cut < 0) return null
+      val chunk = current.substring(0, cut + 1).trim()
+      speechBuffer.delete(0, cut + 1)
+      return chunk.takeIf { it.isNotBlank() }
+     }
+
+     connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+      while (true) {
+       val line = reader.readLine() ?: break
+       if (!line.startsWith("data:")) continue
+       val data = line.substringAfter("data:").trim()
+       if (data == "[DONE]") break
+       if (data.isBlank()) continue
+       val event = try { JSONObject(data) } catch (_: Exception) { continue }
+       val choice = event.optJSONArray("choices")?.optJSONObject(0) ?: continue
+       val delta = choice.optJSONObject("delta") ?: continue
+       val content = delta.opt("content")
+       val fragment = when (content) {
+        is String -> content
+        is JSONArray -> (0 until content.length()).mapNotNull { i ->
+         content.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() }
+        }.joinToString(" ")
+        else -> ""
+       }
+       if (fragment.isNotEmpty()) {
+        answerBuilder.append(fragment)
+        speechBuffer.append(fragment)
+        takeSpeakable(false)?.let { chunk -> main.post { enqueueStreamingChunk(responseId, chunk) } }
+       }
+      }
+     }
+     takeSpeakable(true)?.let { chunk -> main.post { enqueueStreamingChunk(responseId, chunk) } }
+     connection.disconnect()
+    } else {
+     val responseStream = if (code in 200..299) connection.inputStream else connection.errorStream
+     val responseText = responseStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+     connection.disconnect()
+     root = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+     val choice = root.optJSONArray("choices")?.optJSONObject(0)
+     val message = choice?.optJSONObject("message")
+     val contentValue = message?.opt("content")
+     val answer = when (contentValue) {
+      is String -> contentValue
+      is JSONArray -> (0 until contentValue.length()).mapNotNull { i ->
+       contentValue.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() }
+      }.joinToString(" ")
+      else -> ""
+     }
+     answerBuilder.append(answer)
+    }
+
+    val answer = answerBuilder.toString().trim()
     // Normalize once before history persistence so old masculine forms and visual emoji
     // cannot be fed back into future model turns.
     val normalizedAnswer = VoiceOutputSanitizer.sanitize(answer)
@@ -720,12 +832,19 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      saveHistory(trimmed)
     }
     main.post {
-     status(if (code in 200..299) "Готовлю ответ" else "Ошибка ответа сервера")
-     say(finalAnswer)
+     status(if (code in 200..299) "Ответ поступает" else "Ошибка ответа сервера")
+     val responseId = streamResponseId
+     if (responseId != null && code in 200..299) {
+      if (normalizedAnswer.isBlank()) enqueueStreamingChunk(responseId, "Я получила пустой ответ. Повтори, пожалуйста, вопрос.")
+      endStreamingUtterance(responseId)
+     } else {
+      say(finalAnswer)
+     }
     }
    } catch (e: Exception) {
     Log.e(TAG, "Chat request failed", e)
     main.post {
+     streamResponseId?.let { cancelStreamingUtterance(it) }
      status("Ошибка соединения")
      say("Не удалось связаться с сервером. Проверь соединение и повтори вопрос.")
     }
