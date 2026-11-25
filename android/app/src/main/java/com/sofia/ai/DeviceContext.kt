@@ -67,7 +67,7 @@ internal object DeviceContext {
 
     private fun resolveCityAndDistrict(context: Context, location: Location): String? {
         if (!Geocoder.isPresent()) return null
-        val geocoder = Geocoder(context, Locale.getDefault())
+        val geocoder = Geocoder(context, Locale("ru", "RU"))
         val addresses = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val result = AtomicReference<List<android.location.Address>?>(null)
