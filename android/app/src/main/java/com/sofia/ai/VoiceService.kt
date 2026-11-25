@@ -183,21 +183,23 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val prefs = getSharedPreferences(VOICE_PREFS, MODE_PRIVATE)
   val requestedName = prefs.getString(VOICE_NAME_KEY, null)
   val selected = russianVoices.firstOrNull { it.name == requestedName }
-   ?: russianVoices.filterNot { voice ->
-    voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)
-   }.maxWithOrNull(compareBy<android.speech.tts.Voice> { it.quality }.thenBy { -it.latency })
-   ?: russianVoices.maxWithOrNull(compareBy<android.speech.tts.Voice> { it.quality }.thenBy { -it.latency })
 
   if (selected != null) {
+   // Use only the voice the owner explicitly auditioned and saved.
+   // Android's quality/latency metadata does not indicate perceived gender or naturalness.
    engine.voice = selected
-   Log.i(TAG, "Selected Russian TTS voice: name=${selected.name}, quality=${selected.quality}, latency=${selected.latency}")
+   Log.i(TAG, "Using owner-selected Russian TTS voice: name=${selected.name}, quality=${selected.quality}, latency=${selected.latency}")
   } else {
    val languageStatus = engine.setLanguage(Locale("ru", "RU"))
    if (languageStatus < TextToSpeech.LANG_AVAILABLE) {
     Log.e(TAG, "No installed Russian TTS voice; language status=$languageStatus")
     status("Русский голос не установлен в Android")
+   } else if (requestedName.isNullOrBlank()) {
+    Log.w(TAG, "No Russian voice has been auditioned and selected by the owner yet")
+    status("Открой настройки голоса Софии и выбери подходящий женский голос прослушиванием")
    } else {
-    Log.w(TAG, "Using Android's default Russian TTS voice; no explicit Russian voice was listed")
+    Log.w(TAG, "Previously selected Russian TTS voice is unavailable: $requestedName")
+    status("Сохранённый голос недоступен. Выбери новый голос в настройках Софии")
    }
   }
 
@@ -744,17 +746,20 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Всегда различай форму общения и обращение: говори с владельцем на «ты», но называй его именно «$preferredAddress».
      Если владелец спрашивает, как ты будешь к нему обращаться, ответь прямо: «Я буду обращаться к тебе: $preferredAddress»; не подменяй это ответом только про «ты» или «вы».
      Не спрашивай повторно, как зовут владельца и как к нему обращаться.
-     Отвечай по-русски естественно, живо и по-человечески, как в непринуждённом разговоре.
+     Отвечай по-русски естественно, живо и по-человечески. Целевой уровень диалога: связное, внимательное общение, близкое к качественному разговору с ChatGPT, а не набор отдельных голосовых команд.
      ГРАММАТИЧЕСКИЙ РОД ОБЯЗАТЕЛЕН: говори о себе и описывай только себя в женском роде.
+     Используй правильные падежи, склонения, согласование рода и числа, времена и естественный порядок слов. Проверяй грамматику всего ответа, а не только местоимение «я».
      Используй формы «я сказала», «я поняла», «я готова», «я сделала», «я рада», «я проверила».
      Никогда не используй о себе мужские формы «я сказал», «я понял», «я готов», «я сделал».
      Это правило действует во всех ответах, включая короткие подтверждения и сообщения об ошибках.
-     Используй короткие, ясные фразы, естественный порядок слов и уместную интонацию.
-     Избегай канцелярита, шаблонных вступлений, повторов вопроса, чрезмерной официальности и длинных списков.
+     Поддерживай естественный разговорный ритм: варьируй длину фраз, используй уместные паузы через пунктуацию, не превращай каждый ответ в инструкцию или список.
+     Учитывай эмоциональный оттенок реплики и контекст, но не изображай эмоции чрезмерно и не приписывай владельцу чувства, которых он не выражал.
+     Не повторяй вопрос пользователя и уже сказанное без необходимости. Не повторяй одни и те же вступления и заключения. Если тема меняется, мягко следуй за новой темой.
+     Если данных недостаточно, честно обозначь неопределённость и задай один конкретный уточняющий вопрос вместо догадок.
+     Избегай канцелярита, шаблонных вступлений, чрезмерной официальности и длинных списков, если пользователь их не просил.
      В голосовом разговоре выдавай только обычный текст: никаких эмодзи, смайликов, названий эмодзи, Markdown, заголовков и декоративного форматирования.
      Обращайся к владельцу на «ты» и используй предпочтительное обращение «$preferredAddress» естественно, не механически в каждом предложении.
-     Учитывай переданную историю диалога и сохраняй последовательность разговора.
-     Сохраняй последовательность разговора и не проси повторять сведения, которые уже есть в истории.
+     Учитывай переданную историю диалога и сохраняй последовательность разговора. Не проси повторять сведения, которые уже есть в истории.
     """.trimIndent() + deviceSection + memorySection
     val messages = JSONArray()
      .put(JSONObject().put("role", "system").put("content", systemPrompt))
