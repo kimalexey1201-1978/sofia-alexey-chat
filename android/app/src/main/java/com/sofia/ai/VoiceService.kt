@@ -161,6 +161,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    override fun onStop(id: String, interrupted: Boolean) = completeSpeechChunk(id)
   })
   flushPendingStreamingChunks()
+  // A delayed wake acknowledgement must not flush away a response that is already streaming.
+  if (streamingResponseActive) pendingSpeech = null
   val queued = pendingSpeech
   if (queued != null) {
    pendingSpeech = null
