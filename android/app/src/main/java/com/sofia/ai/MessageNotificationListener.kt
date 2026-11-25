@@ -18,7 +18,7 @@ class MessageNotificationListener : NotificationListenerService() {
 
  override fun onNotificationPosted(sbn: StatusBarNotification) {
   val packageName = sbn.packageName
-  if (packageName !in ALLOWED_MESSAGE_PACKAGES || packageName == packageName) return
+  if (packageName !in ALLOWED_MESSAGE_PACKAGES || packageName == this.packageName) return
 
   val notification = sbn.notification ?: return
   if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
