@@ -654,8 +654,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val normalized = norm(command)
   val smsCommand = Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение$").matches(normalized) ||
    Regex("^(?:зачитай|прочитай)(?: мне)? последнее смс$").matches(normalized)
-  val whatsappCommand = Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение (?:на|в|из) whatsapp$").matches(normalized) ||
-   Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение whatsapp$").matches(normalized)
+  val whatsappName = "(?:whatsapp|ватсап(?:е|у)?|вацап(?:е|у)?)"
+  val whatsappCommand = Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение (?:на|в|из) $whatsappName$").matches(normalized) ||
+   Regex("^(?:зачитай|прочитай)(?: мне)? последнее сообщение $whatsappName$").matches(normalized)
   if (!smsCommand && !whatsappCommand) return false
 
   waiting = false
