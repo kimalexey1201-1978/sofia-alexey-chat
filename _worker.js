@@ -175,6 +175,15 @@ export default {
           );
         }
 
+        // Do not label an unexpected JSON/empty provider response as SSE.
+        const upstreamType = upstream.headers.get("Content-Type") || "";
+        if (!upstream.body || !upstreamType.toLowerCase().includes("text/event-stream")) {
+          return Response.json(
+            { error: "The model provider returned an invalid streaming response" },
+            { status: 502, headers: cors }
+          );
+        }
+
         // Stream server-sent events directly to Android; never buffer the complete answer.
         const streamHeaders = new Headers(cors);
         streamHeaders.set("Content-Type", "text/event-stream; charset=utf-8");
