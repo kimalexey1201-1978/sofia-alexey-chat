@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.*
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -58,15 +57,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    val ch = NotificationChannel(CHANNEL, "Голосовой режим Софии", NotificationManager.IMPORTANCE_LOW)
    getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
   }
-  val locationGranted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-   checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-  val locationEnabled = try { getSystemService(LocationManager::class.java)?.isLocationEnabled == true } catch (_: Exception) { false }
   if (Build.VERSION.SDK_INT >= 29) {
-   var serviceTypes = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-   if (locationGranted && locationEnabled) {
-    serviceTypes = serviceTypes or android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-   }
-   startForeground(NOTIFICATION, notification("Ожидаю слово «София»"), serviceTypes)
+   startForeground(
+    NOTIFICATION,
+    notification("Ожидаю слово «София»"),
+    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+   )
   } else {
    startForeground(NOTIFICATION, notification("Ожидаю слово «София»"))
   }
@@ -80,17 +76,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    if (ttsReady) {
     tts?.let { configureRussianVoice(it) }
     status("Настройки голоса обновлены")
-   }
-  }
-  if (intent?.action == ACTION_READ_INCOMING_MESSAGE) {
-   val sender = intent.getStringExtra(EXTRA_MESSAGE_SENDER)?.take(200).orEmpty()
-   val text = intent.getStringExtra(EXTRA_MESSAGE_TEXT)?.take(8000).orEmpty()
-   if (text.isNotBlank()) {
-    main.post {
-     if (pendingIncomingMessages.size >= MAX_PENDING_INCOMING_MESSAGES) pendingIncomingMessages.removeFirst()
-     pendingIncomingMessages.addLast(IncomingMessage(sender.ifBlank { "неизвестный отправитель" }, text))
-     processNextIncomingMessage()
-    }
    }
   }
   return START_STICKY
@@ -335,47 +320,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification(s))
 
  private fun processNextIncomingMessage() {
-  if (destroyed || !ttsReady || speaking || requestInFlight || pendingIncomingMessages.isEmpty()) return
+  if (destroyed || speaking || requestInFlight || pendingIncomingMessages.isEmpty()) return
   val incoming = pendingIncomingMessages.removeFirst()
   waiting = false
   conversationTimeoutTask?.let { main.removeCallbacks(it) }
   conversationTimeoutTask = null
-  requestInFlight = true
-  stopRecognition()
-  status("Перевожу входящее сообщение")
-  io.execute {
-   val spokenText = try {
-    translateIncomingMessage(incoming)
-   } catch (e: Exception) {
-    Log.w(TAG, "Incoming message translation failed", e)
-    "Не удалось перевести входящее сообщение. Проверь подключение к серверу."
-   }
-   main.post {
-    if (destroyed) return@post
-    requestInFlight = false
-    val prefix = if (incoming.sender.isBlank()) "" else "Сообщение от " + incoming.sender + ". "
-    say(prefix + spokenText)
-   }
-  }
- }
-
- private fun translateIncomingMessage(message: IncomingMessage): String {
-  val connection = URL(TRANSLATE_ENDPOINT).openConnection() as HttpURLConnection
-  connection.requestMethod = "POST"
-  connection.connectTimeout = 15000
-  connection.readTimeout = 45000
-  connection.doOutput = true
-  connection.setRequestProperty("Content-Type", "application/json")
-  val body = JSONObject().put("sender", message.sender).put("text", message.text).toString()
-  connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-  val code = connection.responseCode
-  val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-  val responseText = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-  connection.disconnect()
-  if (code !in 200..299) throw IllegalStateException("Translation service returned HTTP " + code)
-  val translation = JSONObject(responseText).optString("translation").trim()
-  if (translation.isBlank()) throw IllegalStateException("Translation service returned an empty result")
-  return translation
+  val prefix = if (incoming.sender.isBlank()) "" else "Сообщение от " + incoming.sender + ". "
+  status("Зачитываю последнее сообщение")
+  // Read the original text exactly as received. Do not call translation services.
+  say(prefix + incoming.text)
  }
  private fun startRecognition() {
   if (destroyed || restarting || speaking || requestInFlight || recognitionActive) return
@@ -507,14 +460,65 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     waiting = true
     say("Я слушаю")
     status("София проснулась, жду команду")
-   } else sendCommand(rest)
+   } else if (!handleMessageReadCommand(rest)) sendCommand(rest)
    return true
   }
   if (text != "софия") {
-   sendCommand(raw)
+   if (!handleMessageReadCommand(text)) sendCommand(raw)
    return true
   }
   return false
+ }
+
+ private fun handleMessageReadCommand(command: String): Boolean {
+  val whatsappCommands = setOf(
+   "зачитай последнее сообщение на whatsapp",
+   "прочитай последнее сообщение на whatsapp",
+   "зачитай последнее сообщение в whatsapp",
+   "прочитай последнее сообщение в whatsapp"
+  )
+  val samsungCommands = setOf(
+   "зачитай последнее сообщение",
+   "прочитай последнее сообщение",
+   "зачитай последнее смс",
+   "прочитай последнее смс"
+  )
+  val packageName = when (command) {
+   in whatsappCommands -> WHATSAPP_PACKAGE
+   in samsungCommands -> SAMSUNG_MESSAGES_PACKAGE
+   else -> return false
+  }
+  val prefs = getSharedPreferences(INCOMING_MESSAGES_PREFS, MODE_PRIVATE)
+  val secure = SofiaSecurePreferences(prefs, INCOMING_MESSAGES_NAMESPACE)
+  val key = if (packageName == WHATSAPP_PACKAGE) LAST_WHATSAPP_MESSAGE_KEY else LAST_SAMSUNG_MESSAGE_KEY
+  val stored = secure.getString(key, null)
+  if (stored.isNullOrBlank()) {
+   say(if (packageName == WHATSAPP_PACKAGE) "В WhatsApp пока нет доступного входящего сообщения." else "В Samsung Messages пока нет доступного входящего сообщения.")
+   return true
+  }
+  try {
+   val message = JSONObject(stored)
+   val receivedAt = message.optLong("receivedAt", 0L)
+   val ageMs = System.currentTimeMillis() - receivedAt
+   if (receivedAt <= 0L || ageMs < 0L || ageMs > INCOMING_MESSAGE_TTL_MS) {
+    secure.putString(key, "")
+    say("Срок хранения этого сообщения истёк. Нового сообщения пока нет.")
+    return true
+   }
+   val sender = message.optString("sender", "неизвестный отправитель")
+   val body = message.optString("text").take(8000)
+   if (body.isBlank()) {
+    say("Последнее сообщение пустое или недоступно.")
+    return true
+   }
+   if (pendingIncomingMessages.size >= MAX_PENDING_INCOMING_MESSAGES) pendingIncomingMessages.removeFirst()
+   pendingIncomingMessages.addLast(IncomingMessage(sender, body))
+   processNextIncomingMessage()
+  } catch (e: Exception) {
+   Log.w(TAG, "Could not read cached incoming message", e)
+   say("Не удалось прочитать последнее сообщение.")
+  }
+  return true
  }
 
  private fun ownerProfile(): Pair<String, String> {
@@ -724,14 +728,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Log.w(TAG, "Personal memory context is empty for request; no profile facts were attached")
     }
     val deviceContext = try { DeviceContext.snapshot(this) } catch (deviceError: Exception) {
-     Log.w(TAG, "Device clock/location context unavailable", deviceError)
-     "Системное время Android недоступно для чтения. Геолокация недоступна."
+     Log.w(TAG, "Device clock context unavailable", deviceError)
+     "Системное время Android недоступно для чтения."
     }
     Log.i(TAG, "Command preparation: device context ready after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms")
     val deviceSection = """
      ТЕКУЩИЕ ДАННЫЕ УСТРОЙСТВА (получены локально с Android, не из интернета):
      $deviceContext
-     Если владелец спрашивает время или дату, используй системное время выше. Если спрашивает местоположение, используй координаты и точность выше. Не выдумывай адрес или населённый пункт по одним координатам. Если координаты отсутствуют или устарели, честно сообщи об этом. Эти данные могут быть устаревшими, если указано их время получения.
+     Если владелец спрашивает время или дату, используй системное время выше. Геолокация в этой версии приложения отключена. Не утверждай, что знаешь текущее местоположение владельца, и не угадывай его по часовому поясу или другим косвенным признакам.
     """.trimIndent()
     val memorySection = if (memoryContext.isBlank()) "" else """
 
@@ -1040,11 +1044,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val NOTIFICATION = 7301
   private const val ENDPOINT = "https://feat-priority-natural-female-voice-20261125-sofia.kim-alexey1201.workers.dev/api/chat"
   private const val TRANSLATE_ENDPOINT = "https://feat-priority-natural-female-voice-20261125-sofia.kim-alexey1201.workers.dev/api/translate"
-  const val ACTION_READ_INCOMING_MESSAGE = "com.sofia.ai.READ_INCOMING_MESSAGE"
   const val ACTION_UPDATE_TTS_SETTINGS = "com.sofia.ai.UPDATE_TTS_SETTINGS"
-  const val EXTRA_MESSAGE_SENDER = "message_sender"
-  const val EXTRA_MESSAGE_TEXT = "message_text"
   private const val VOICE_PREFS = "sofia_voice_settings"
+  private const val INCOMING_MESSAGES_PREFS = "sofia_incoming_messages"
+  private const val INCOMING_MESSAGES_NAMESPACE = "incoming-messages"
+  private const val LAST_SAMSUNG_MESSAGE_KEY = "last_samsung_message"
+  private const val LAST_WHATSAPP_MESSAGE_KEY = "last_whatsapp_message"
+  private const val INCOMING_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000L
+  private const val SAMSUNG_MESSAGES_PACKAGE = "com.samsung.android.messaging"
+  private const val WHATSAPP_PACKAGE = "com.whatsapp"
   private const val VOICE_NAME_KEY = "voice_name"
   private const val PITCH_KEY = "pitch"
   private const val RATE_KEY = "rate"
