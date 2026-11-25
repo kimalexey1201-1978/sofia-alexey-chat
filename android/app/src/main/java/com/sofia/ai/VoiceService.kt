@@ -28,17 +28,27 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var recognitionActive = false
  private var tts: TextToSpeech? = null
  private var ttsReady = false
+ private var ttsInitializationFailed = false
  private var waiting = false
  private var restarting = false
  private var destroyed = false
  private var speaking = false
  private var requestInFlight = false
+ private var commandNetworkActive = false
  private var pendingSpeech: String? = null
+ private var streamingResponseActive = false
+ private var streamingResponseEnded = false
+ private var streamingFirstChunk = true
+ private var streamingChunkSequence = 0
+ private var streamRequestStartedAtMs = 0L
+ private var firstStreamAudioLogged = false
  private var restartTask: Runnable? = null
  private var conversationTimeoutTask: Runnable? = null
  private var utteranceSequence = 0
  private var activeUtteranceId: String? = null
  private val pendingTtsUtteranceIds = mutableSetOf<String>()
+ private data class PendingStreamChunk(val responseId: String, val chunkId: String, val text: String, val queueMode: Int)
+ private val pendingStreamingChunks = ArrayDeque<PendingStreamChunk>()
  private data class IncomingMessage(val sender: String, val text: String)
  private val pendingIncomingMessages = ArrayDeque<IncomingMessage>()
 
@@ -90,31 +100,57 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  override fun onInit(status: Int) {
   if (status != TextToSpeech.SUCCESS) {
    Log.e(TAG, "TextToSpeech initialization failed with status=$status")
+   ttsInitializationFailed = true
    pendingSpeech = null
-   speaking = false
-   requestInFlight = false
-   status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
-   if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
-    startRecognition()
+   if (streamingResponseActive) {
+    pendingStreamingChunks.clear()
+    pendingTtsUtteranceIds.clear()
+    status("Озвучивание недоступно. Завершаю получение ответа.")
+    if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
+   } else {
+    if (!commandNetworkActive) {
+     speaking = false
+     requestInFlight = false
+    }
+    status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
+    if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
+     startRecognition()
+    }
    }
    return
   }
   val engine = tts
   if (engine == null) {
    Log.e(TAG, "TextToSpeech initialization succeeded but engine is null")
+   ttsInitializationFailed = true
    pendingSpeech = null
-   speaking = false
-   requestInFlight = false
-   status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
-   if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
-    startRecognition()
+   if (streamingResponseActive) {
+    pendingStreamingChunks.clear()
+    pendingTtsUtteranceIds.clear()
+    status("Модуль озвучивания не создан. Завершаю получение ответа.")
+    if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
+   } else {
+    if (!commandNetworkActive) {
+     speaking = false
+     requestInFlight = false
+    }
+    status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
+    if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
+     startRecognition()
+    }
    }
    return
   }
   configureRussianVoice(engine)
+  ttsInitializationFailed = false
   ttsReady = true
   engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-   override fun onStart(id: String) {}
+   override fun onStart(id: String) {
+    if (id.startsWith("sofia-stream-") && !firstStreamAudioLogged) {
+     firstStreamAudioLogged = true
+     Log.i(TAG, "First streamed audio started after ${SystemClock.elapsedRealtime() - streamRequestStartedAtMs}ms")
+    }
+   }
    override fun onDone(id: String) = completeSpeechChunk(id)
    @Deprecated("Deprecated in Java")
    override fun onError(id: String) = completeSpeechChunk(id)
@@ -124,6 +160,9 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    }
    override fun onStop(id: String, interrupted: Boolean) = completeSpeechChunk(id)
   })
+  flushPendingStreamingChunks()
+  // A delayed wake acknowledgement must not flush away a response that is already streaming.
+  if (streamingResponseActive) pendingSpeech = null
   val queued = pendingSpeech
   if (queued != null) {
    pendingSpeech = null
@@ -173,9 +212,83 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   main.post {
    if (pendingTtsUtteranceIds.remove(id) && pendingTtsUtteranceIds.isEmpty()) {
     val responseId = activeUtteranceId ?: return@post
-    finishUtterance(responseId)
+    if (!streamingResponseActive || streamingResponseEnded) finishUtterance(responseId)
    }
   }
+ }
+
+ /** Start speaking streamed model output before the complete answer has arrived. Main thread only. */
+ private fun beginStreamingUtterance(id: String, requestStartedAtMs: Long) {
+  if (destroyed) return
+  speaking = true
+  requestInFlight = true
+  stopRecognition()
+  activeUtteranceId = id
+  pendingTtsUtteranceIds.clear()
+  streamingResponseActive = true
+  streamingResponseEnded = false
+  streamingFirstChunk = true
+  streamingChunkSequence = 0
+  streamRequestStartedAtMs = requestStartedAtMs
+  firstStreamAudioLogged = false
+ }
+
+ private fun enqueueStreamingChunk(id: String, text: String) {
+  if (destroyed || activeUtteranceId != id || !streamingResponseActive) return
+  val chunk = VoiceOutputSanitizer.sanitize(text).trim()
+  if (chunk.isBlank()) return
+  if (ttsInitializationFailed) {
+   Log.e(TAG, "Skipped streamed speech chunk because TextToSpeech initialization failed")
+   return
+  }
+  val chunkId = id + "-chunk-" + (++streamingChunkSequence)
+  pendingTtsUtteranceIds.add(chunkId)
+  val mode = if (streamingFirstChunk) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+  streamingFirstChunk = false
+  if (!ttsReady) {
+   pendingStreamingChunks.addLast(PendingStreamChunk(id, chunkId, chunk, mode))
+   Log.i(TAG, "Queued streamed speech chunk until TextToSpeech initialization completes")
+   return
+  }
+  speakStreamingChunk(PendingStreamChunk(id, chunkId, chunk, mode))
+ }
+
+ private fun flushPendingStreamingChunks() {
+  while (ttsReady && pendingStreamingChunks.isNotEmpty()) {
+   val chunk = pendingStreamingChunks.removeFirst()
+   speakStreamingChunk(chunk)
+  }
+ }
+
+ private fun speakStreamingChunk(chunk: PendingStreamChunk) {
+  if (destroyed || activeUtteranceId != chunk.responseId || !streamingResponseActive) {
+   pendingTtsUtteranceIds.remove(chunk.chunkId)
+   return
+  }
+  val result = tts?.speak(chunk.text, chunk.queueMode, null, chunk.chunkId) ?: TextToSpeech.ERROR
+  if (result != TextToSpeech.SUCCESS) {
+   pendingTtsUtteranceIds.remove(chunk.chunkId)
+   Log.e(TAG, "TextToSpeech rejected streamed response chunk")
+   if (streamingResponseEnded && pendingTtsUtteranceIds.isEmpty()) finishUtterance(chunk.responseId)
+  }
+ }
+
+ private fun endStreamingUtterance(id: String) {
+  if (destroyed || activeUtteranceId != id || !streamingResponseActive) return
+  streamingResponseEnded = true
+  if (pendingTtsUtteranceIds.isEmpty()) finishUtterance(id)
+ }
+
+ private fun cancelStreamingUtterance(id: String) {
+  if (activeUtteranceId != id) return
+  tts?.stop()
+  pendingStreamingChunks.removeAll { it.responseId == id }
+  pendingTtsUtteranceIds.clear()
+  streamingResponseActive = false
+  streamingResponseEnded = false
+  activeUtteranceId = null
+  speaking = false
+  requestInFlight = false
  }
 
  private fun finishUtterance(id: String) {
@@ -183,6 +296,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    // A delayed callback from a flushed utterance must not unlock a newer response.
    if (activeUtteranceId != id) return@post
    activeUtteranceId = null
+   pendingStreamingChunks.removeAll { it.responseId == id }
+   streamingResponseActive = false
+   streamingResponseEnded = false
+   streamingFirstChunk = true
    speaking = false
    requestInFlight = false
    if (!destroyed) {
@@ -580,9 +697,13 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   conversationTimeoutTask?.let { main.removeCallbacks(it) }
   conversationTimeoutTask = null
   requestInFlight = true
+  commandNetworkActive = true
   stopRecognition()
   status("Выполняю команду")
+  val commandStartedAtMs = SystemClock.elapsedRealtime()
   io.execute {
+   var streamResponseId: String? = null
+   var activeConnection: HttpURLConnection? = null
    try {
     val (ownerName, preferredAddress) = try {
      ownerProfile()
@@ -596,15 +717,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      Log.e(TAG, "Structured memory unavailable; continuing without memory context", memoryError)
      ""
     }
+    Log.i(TAG, "Command preparation: owner profile and memory context ready after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms; memoryCharacters=${memoryContext.length}")
     if (memoryContext.isBlank()) {
      Log.w(TAG, "Personal memory context is empty for request; no profile facts were attached")
-    } else {
-     Log.i(TAG, "Personal memory context attached; characters=" + memoryContext.length)
     }
     val deviceContext = try { DeviceContext.snapshot(this) } catch (deviceError: Exception) {
      Log.w(TAG, "Device clock/location context unavailable", deviceError)
      "Системное время Android недоступно для чтения. Геолокация недоступна."
     }
+    Log.i(TAG, "Command preparation: device context ready after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms")
     val deviceSection = """
      ТЕКУЩИЕ ДАННЫЕ УСТРОЙСТВА (получены локально с Android, не из интернета):
      $deviceContext
@@ -655,7 +776,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     messages.put(JSONObject().put("role", "system").put("content", voiceOutputContract))
     messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
+    Log.i(TAG, "Command preparation complete after ${SystemClock.elapsedRealtime() - commandStartedAtMs}ms; messageCount=${messages.length()}; requestCharacters=${body.length}")
+    val requestStartedAtMs = SystemClock.elapsedRealtime()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
+    activeConnection = connection
     connection.requestMethod = "POST"
     connection.connectTimeout = 15000
     connection.readTimeout = 45000
@@ -663,21 +787,87 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     connection.setRequestProperty("Content-Type", "application/json")
     connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
     val code = connection.responseCode
-    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-    val responseText = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-    connection.disconnect()
+    val contentType = connection.contentType.orEmpty()
+    Log.i(TAG, "Chat response headers received after ${SystemClock.elapsedRealtime() - requestStartedAtMs}ms; HTTP $code; streaming=${contentType.contains("text/event-stream", ignoreCase = true)}")
+    val answerBuilder = StringBuilder()
+    var root = JSONObject()
 
-    val root = JSONObject(responseText)
-    val choice = root.optJSONArray("choices")?.optJSONObject(0)
-    val message = choice?.optJSONObject("message")
-    val contentValue = message?.opt("content")
-    val answer = when (contentValue) {
-     is String -> contentValue
-     is JSONArray -> (0 until contentValue.length()).mapNotNull { i ->
-      contentValue.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() }
-     }.joinToString(" ")
-     else -> ""
-    }.trim()
+    if (code in 200..299 && contentType.contains("text/event-stream", ignoreCase = true)) {
+     val responseId = "sofia-stream-" + System.nanoTime()
+     streamResponseId = responseId
+     main.post { beginStreamingUtterance(responseId, requestStartedAtMs) }
+     var firstTokenLogged = false
+     val speechBuffer = StringBuilder()
+
+     fun takeSpeakable(force: Boolean): String? {
+      val current = speechBuffer.toString()
+      if (current.isBlank()) return null
+      var cut = maxOf(
+       current.lastIndexOf('.'),
+       current.lastIndexOf('!'),
+       current.lastIndexOf('?'),
+       current.lastIndexOf('\n')
+      )
+      if (cut < 35 && current.length >= 140) cut = current.lastIndexOf(' ', 139)
+      if (force && cut < 0) cut = current.length - 1
+      if (cut < 0) return null
+      val chunk = current.substring(0, cut + 1).trim()
+      speechBuffer.delete(0, cut + 1)
+      return chunk.takeIf { it.isNotBlank() }
+     }
+
+     connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+      while (true) {
+       val line = reader.readLine() ?: break
+       if (!line.startsWith("data:")) continue
+       val data = line.substringAfter("data:").trim()
+       if (data == "[DONE]") break
+       if (data.isBlank()) continue
+       val event = try { JSONObject(data) } catch (_: Exception) { continue }
+       val choice = event.optJSONArray("choices")?.optJSONObject(0) ?: continue
+       val delta = choice.optJSONObject("delta") ?: continue
+       val content = delta.opt("content")
+       val fragment = when (content) {
+        is String -> content
+        is JSONArray -> (0 until content.length()).mapNotNull { i ->
+         content.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() }
+        }.joinToString(" ")
+        else -> ""
+       }
+       if (fragment.isNotEmpty()) {
+        if (!firstTokenLogged) {
+         firstTokenLogged = true
+         Log.i(TAG, "First model token received after ${SystemClock.elapsedRealtime() - requestStartedAtMs}ms")
+        }
+        answerBuilder.append(fragment)
+        speechBuffer.append(fragment)
+        takeSpeakable(false)?.let { chunk -> main.post { enqueueStreamingChunk(responseId, chunk) } }
+       }
+      }
+     }
+     takeSpeakable(true)?.let { chunk -> main.post { enqueueStreamingChunk(responseId, chunk) } }
+     connection.disconnect()
+     activeConnection = null
+    } else {
+     val responseStream = if (code in 200..299) connection.inputStream else connection.errorStream
+     val responseText = responseStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+     connection.disconnect()
+     activeConnection = null
+     root = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+     val choice = root.optJSONArray("choices")?.optJSONObject(0)
+     val message = choice?.optJSONObject("message")
+     val contentValue = message?.opt("content")
+     val answer = when (contentValue) {
+      is String -> contentValue
+      is JSONArray -> (0 until contentValue.length()).mapNotNull { i ->
+       contentValue.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() }
+      }.joinToString(" ")
+      else -> ""
+     }
+     answerBuilder.append(answer)
+    }
+
+    val answer = answerBuilder.toString().trim()
     // Normalize once before history persistence so old masculine forms and visual emoji
     // cannot be fed back into future model turns.
     val normalizedAnswer = VoiceOutputSanitizer.sanitize(answer)
@@ -720,12 +910,23 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      saveHistory(trimmed)
     }
     main.post {
-     status(if (code in 200..299) "Готовлю ответ" else "Ошибка ответа сервера")
-     say(finalAnswer)
+     commandNetworkActive = false
+     status(if (code in 200..299) "Ответ поступает" else "Ошибка ответа сервера")
+     val responseId = streamResponseId
+     if (responseId != null && code in 200..299) {
+      if (normalizedAnswer.isBlank()) enqueueStreamingChunk(responseId, "Я получила пустой ответ. Повтори, пожалуйста, вопрос.")
+      endStreamingUtterance(responseId)
+     } else {
+      say(finalAnswer)
+     }
     }
    } catch (e: Exception) {
+    activeConnection?.disconnect()
+    activeConnection = null
     Log.e(TAG, "Chat request failed", e)
     main.post {
+     commandNetworkActive = false
+     streamResponseId?.let { cancelStreamingUtterance(it) }
      status("Ошибка соединения")
      say("Не удалось связаться с сервером. Проверь соединение и повтори вопрос.")
     }
@@ -736,6 +937,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private fun say(text: String) {
   if (destroyed) return
   if (!ttsReady) {
+   if (ttsInitializationFailed) {
+    Log.e(TAG, "Cannot speak response because TextToSpeech initialization failed")
+    pendingSpeech = null
+    speaking = false
+    requestInFlight = false
+    if (!destroyed) startRecognition()
+    return
+   }
    pendingSpeech = text
    return
   }
@@ -805,6 +1014,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   destroyed = true
   isRunning = false
   pendingIncomingMessages.clear()
+  pendingStreamingChunks.clear()
+  pendingTtsUtteranceIds.clear()
   main.removeCallbacksAndMessages(null)
   conversationTimeoutTask = null
   resetRecognizer()
@@ -822,7 +1033,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   private const val TAG = "SofiaVoice"
   private const val CHANNEL = "sofia_voice"
   private const val NOTIFICATION = 7301
-  private const val ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/chat"
+  private const val ENDPOINT = "https://fix-voice-response-streaming-20261125-sofia.kim-alexey1201.workers.dev/api/chat"
   private const val TRANSLATE_ENDPOINT = "https://sofia.kim-alexey1201.workers.dev/api/translate"
   const val ACTION_READ_INCOMING_MESSAGE = "com.sofia.ai.READ_INCOMING_MESSAGE"
   const val ACTION_UPDATE_TTS_SETTINGS = "com.sofia.ai.UPDATE_TTS_SETTINGS"
