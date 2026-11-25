@@ -28,6 +28,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var recognitionActive = false
  private var tts: TextToSpeech? = null
  private var ttsReady = false
+ private var ttsInitializationFailed = false
  private var waiting = false
  private var restarting = false
  private var destroyed = false
@@ -98,6 +99,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  override fun onInit(status: Int) {
   if (status != TextToSpeech.SUCCESS) {
    Log.e(TAG, "TextToSpeech initialization failed with status=$status")
+   ttsInitializationFailed = true
    pendingSpeech = null
    if (streamingResponseActive) {
     pendingStreamingChunks.clear()
@@ -106,7 +108,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
    } else {
     speaking = false
-    requestInFlight = false
     status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
     if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
      startRecognition()
@@ -117,6 +118,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   val engine = tts
   if (engine == null) {
    Log.e(TAG, "TextToSpeech initialization succeeded but engine is null")
+   ttsInitializationFailed = true
    pendingSpeech = null
    if (streamingResponseActive) {
     pendingStreamingChunks.clear()
@@ -125,7 +127,6 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
    } else {
     speaking = false
-    requestInFlight = false
     status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
     if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
      startRecognition()
@@ -134,6 +135,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    return
   }
   configureRussianVoice(engine)
+  ttsInitializationFailed = false
   ttsReady = true
   engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
    override fun onStart(id: String) {
@@ -226,6 +228,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   if (destroyed || activeUtteranceId != id || !streamingResponseActive) return
   val chunk = VoiceOutputSanitizer.sanitize(text).trim()
   if (chunk.isBlank()) return
+  if (ttsInitializationFailed) {
+   Log.e(TAG, "Skipped streamed speech chunk because TextToSpeech initialization failed")
+   return
+  }
   val chunkId = id + "-chunk-" + (++streamingChunkSequence)
   pendingTtsUtteranceIds.add(chunkId)
   val mode = if (streamingFirstChunk) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
