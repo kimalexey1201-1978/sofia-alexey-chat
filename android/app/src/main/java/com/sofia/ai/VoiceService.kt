@@ -34,6 +34,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var destroyed = false
  private var speaking = false
  private var requestInFlight = false
+ private var commandNetworkActive = false
  private var pendingSpeech: String? = null
  private var streamingResponseActive = false
  private var streamingResponseEnded = false
@@ -107,7 +108,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     status("Озвучивание недоступно. Завершаю получение ответа.")
     if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
    } else {
-    speaking = false
+    if (!commandNetworkActive) {
+     speaking = false
+     requestInFlight = false
+    }
     status("Озвучивание недоступно. Продолжаю ожидать голосовую команду.")
     if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
      startRecognition()
@@ -126,7 +130,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     status("Модуль озвучивания не создан. Завершаю получение ответа.")
     if (streamingResponseEnded) activeUtteranceId?.let { finishUtterance(it) }
    } else {
-    speaking = false
+    if (!commandNetworkActive) {
+     speaking = false
+     requestInFlight = false
+    }
     status("Модуль озвучивания не создан. Продолжаю ожидать голосовую команду.")
     if (!recognitionActive && !restarting && !requestInFlight && !speaking && !destroyed) {
      startRecognition()
@@ -688,6 +695,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   conversationTimeoutTask?.let { main.removeCallbacks(it) }
   conversationTimeoutTask = null
   requestInFlight = true
+  commandNetworkActive = true
   stopRecognition()
   status("Выполняю команду")
   val commandStartedAtMs = SystemClock.elapsedRealtime()
@@ -896,6 +904,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
      saveHistory(trimmed)
     }
     main.post {
+     commandNetworkActive = false
      status(if (code in 200..299) "Ответ поступает" else "Ошибка ответа сервера")
      val responseId = streamResponseId
      if (responseId != null && code in 200..299) {
@@ -908,6 +917,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
    } catch (e: Exception) {
     Log.e(TAG, "Chat request failed", e)
     main.post {
+     commandNetworkActive = false
      streamResponseId?.let { cancelStreamingUtterance(it) }
      status("Ошибка соединения")
      say("Не удалось связаться с сервером. Проверь соединение и повтори вопрос.")
@@ -919,6 +929,14 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private fun say(text: String) {
   if (destroyed) return
   if (!ttsReady) {
+   if (ttsInitializationFailed) {
+    Log.e(TAG, "Cannot speak response because TextToSpeech initialization failed")
+    pendingSpeech = null
+    speaking = false
+    requestInFlight = false
+    if (!destroyed) startRecognition()
+    return
+   }
    pendingSpeech = text
    return
   }
