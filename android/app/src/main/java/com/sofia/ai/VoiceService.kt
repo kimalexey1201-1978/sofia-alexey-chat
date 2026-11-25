@@ -38,6 +38,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  private var streamingResponseEnded = false
  private var streamingFirstChunk = true
  private var streamingChunkSequence = 0
+ private var streamRequestStartedAtMs = 0L
+ private var firstStreamAudioLogged = false
  private var restartTask: Runnable? = null
  private var conversationTimeoutTask: Runnable? = null
  private var utteranceSequence = 0
@@ -118,7 +120,12 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   configureRussianVoice(engine)
   ttsReady = true
   engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-   override fun onStart(id: String) {}
+   override fun onStart(id: String) {
+    if (id.startsWith("sofia-stream-") && !firstStreamAudioLogged) {
+     firstStreamAudioLogged = true
+     Log.i(TAG, "First streamed audio started after ${SystemClock.elapsedRealtime() - streamRequestStartedAtMs}ms")
+    }
+   }
    override fun onDone(id: String) = completeSpeechChunk(id)
    @Deprecated("Deprecated in Java")
    override fun onError(id: String) = completeSpeechChunk(id)
@@ -183,7 +190,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
  }
 
  /** Start speaking streamed model output before the complete answer has arrived. Main thread only. */
- private fun beginStreamingUtterance(id: String) {
+ private fun beginStreamingUtterance(id: String, requestStartedAtMs: Long) {
   if (destroyed) return
   speaking = true
   requestInFlight = true
@@ -194,6 +201,8 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
   streamingResponseEnded = false
   streamingFirstChunk = true
   streamingChunkSequence = 0
+  streamRequestStartedAtMs = requestStartedAtMs
+  firstStreamAudioLogged = false
  }
 
  private fun enqueueStreamingChunk(id: String, text: String) {
@@ -709,6 +718,7 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     messages.put(JSONObject().put("role", "system").put("content", voiceOutputContract))
     messages.put(JSONObject().put("role", "user").put("content", command))
     val body = JSONObject().put("messages", messages).toString()
+    val requestStartedAtMs = SystemClock.elapsedRealtime()
     val connection = URL(ENDPOINT).openConnection() as HttpURLConnection
     connection.requestMethod = "POST"
     connection.connectTimeout = 15000
@@ -718,13 +728,15 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
     connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
     val code = connection.responseCode
     val contentType = connection.contentType.orEmpty()
+    Log.i(TAG, "Chat response headers received after ${SystemClock.elapsedRealtime() - requestStartedAtMs}ms; HTTP $code; streaming=${contentType.contains("text/event-stream", ignoreCase = true)}")
     val answerBuilder = StringBuilder()
     var root = JSONObject()
 
     if (code in 200..299 && contentType.contains("text/event-stream", ignoreCase = true)) {
      val responseId = "sofia-stream-" + System.nanoTime()
      streamResponseId = responseId
-     main.post { beginStreamingUtterance(responseId) }
+     main.post { beginStreamingUtterance(responseId, requestStartedAtMs) }
+     var firstTokenLogged = false
      val speechBuffer = StringBuilder()
 
      fun takeSpeakable(force: Boolean): String? {
@@ -763,6 +775,10 @@ class VoiceService : Service(), TextToSpeech.OnInitListener {
         else -> ""
        }
        if (fragment.isNotEmpty()) {
+        if (!firstTokenLogged) {
+         firstTokenLogged = true
+         Log.i(TAG, "First model token received after ${SystemClock.elapsedRealtime() - requestStartedAtMs}ms")
+        }
         answerBuilder.append(fragment)
         speechBuffer.append(fragment)
         takeSpeakable(false)?.let { chunk -> main.post { enqueueStreamingChunk(responseId, chunk) } }
